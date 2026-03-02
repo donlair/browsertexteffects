@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TTE-JS — STREAMING TAX</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0a; color: #fff; font-family: system-ui, sans-serif; padding: 20px; }
+h1 { font-size: 14px; color: #555; text-align: center; margin: 20px 0 30px; letter-spacing: 4px; text-transform: uppercase; }
+.section {
+  margin: 30px auto; padding: 20px;
+  border: 1px solid #1a1a1a; border-radius: 12px; background: #0d0d0d;
+  overflow-x: auto; max-width: 1400px;
+}
+.section h2 {
+  font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #1a1a1a;
+}
+.effect-box { font-size: 10px; margin-bottom: 8px; }
+.controls { margin-top: 12px; display: flex; gap: 8px; }
+.controls button {
+  background: #1a1a1a; color: #aaa; border: 1px solid #333; border-radius: 6px;
+  padding: 6px 16px; cursor: pointer; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  transition: all 0.2s;
+}
+.controls button:hover { background: #2a2a2a; color: #fff; border-color: #555; }
+</style>
+</head>
+<body>
+<h1>TTE-JS &mdash; STREAMING TAX</h1>
+
+<div class="section">
+  <h2 style="color:#ff6b35">Decrypt &mdash; Sunset</h2>
+  <div id="decrypt-sunset" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('decrypt-sunset')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#00ffff">Slide (Row) &mdash; Cyberpunk</h2>
+  <div id="slide-row" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('slide-row')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#26c6da">Wipe (Diagonal) &mdash; Ocean</h2>
+  <div id="wipe-ocean" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('wipe-ocean')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff71ce">RandomSequence &mdash; Vaporwave</h2>
+  <div id="random-vapor" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('random-vapor')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff9800">MiddleOut (Vertical) &mdash; Sunset</h2>
+  <div id="middleout-sunset" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('middleout-sunset')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#e81416">ColorShift &mdash; Rainbow</h2>
+  <div id="colorshift-rainbow" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('colorshift-rainbow')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff9048">Scattered &mdash; Warm Pastel</h2>
+  <div id="scattered-pastel" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('scattered-pastel')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#00D1FF">Pour (Down) &mdash; Cyberpunk</h2>
+  <div id="pour-cyber" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('pour-cyber')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#26c6da">Sweep &mdash; Ocean</h2>
+  <div id="sweep-ocean" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('sweep-ocean')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff71ce">Expand &mdash; Vaporwave</h2>
+  <div id="expand-vapor" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('expand-vapor')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#f0ff65">Waves &mdash; Ocean</h2>
+  <div id="waves-ocean" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('waves-ocean')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#57eaf7">Rain &mdash; Cyberpunk</h2>
+  <div id="rain-cyber" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('rain-cyber')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#00ffa0">Print &mdash; Terminal</h2>
+  <div id="print-terminal" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('print-terminal')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#fe650d">Burn &mdash; Inferno</h2>
+  <div id="burn-inferno" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('burn-inferno')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#00ff41">Slide (Column) &mdash; Matrix</h2>
+  <div id="slide-col" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('slide-col')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff4500">Slide (Row, Merge) &mdash; Inferno</h2>
+  <div id="slide-merge" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('slide-merge')">Replay</button></div>
+</div>
+
+<script type="module">
+import { createEffect, color } from './dist/index.js';
+
+const ART = `   \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588     \u2588\u2588\u2588        \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2588    \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2588    \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2588   \u2584\u2584\u2584\u2584\u2588\u2588\u2588\u2584\u2584\u2584\u2584    \u2584\u2588  \u2588\u2588\u2588\u2584\u2584\u2584\u2584      \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2584
+  \u2588\u2588\u2588    \u2588\u2588\u2588 \u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2584   \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588 \u2584\u2588\u2588\u2580\u2580\u2580\u2588\u2588\u2588\u2580\u2580\u2580\u2588\u2588\u2584 \u2588\u2588\u2588  \u2588\u2588\u2588\u2580\u2580\u2580\u2588\u2588\u2584   \u2588\u2588\u2588    \u2588\u2588\u2588
+  \u2588\u2588\u2588    \u2588\u2580     \u2580\u2588\u2588\u2588\u2580\u2580\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2580    \u2588\u2588\u2588    \u2588\u2588\u2588 \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588 \u2588\u2588\u2588\u258c \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2580
+  \u2588\u2588\u2588            \u2588\u2588\u2588   \u2580  \u2584\u2588\u2588\u2588\u2584\u2584\u2584\u2584\u2588\u2588\u2580  \u2584\u2588\u2588\u2588\u2584\u2584\u2584       \u2588\u2588\u2588    \u2588\u2588\u2588 \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588 \u2588\u2588\u2588\u258c \u2588\u2588\u2588   \u2588\u2588\u2588  \u2584\u2588\u2588\u2588
+\u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588     \u2588\u2588\u2588     \u2580\u2580\u2588\u2588\u2588\u2580\u2580\u2580\u2580\u2580   \u2580\u2580\u2588\u2588\u2588\u2580\u2580\u2580     \u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588 \u2588\u2588\u2588\u258c \u2588\u2588\u2588   \u2588\u2588\u2588 \u2580\u2580\u2588\u2588\u2588 \u2588\u2588\u2588\u2588\u2584
+         \u2588\u2588\u2588     \u2588\u2588\u2588     \u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2584    \u2588\u2588\u2588    \u2588\u2588\u2588 \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588 \u2588\u2588\u2588  \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588
+   \u2584\u2588    \u2588\u2588\u2588     \u2588\u2588\u2588       \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588 \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588 \u2588\u2588\u2588  \u2588\u2588\u2588   \u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2588\u2588
+ \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2580     \u2584\u2588\u2588\u2588\u2588\u2580     \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588    \u2588\u2580   \u2580\u2588   \u2588\u2588\u2588   \u2588\u2580  \u2588\u2580    \u2580\u2588   \u2588\u2580    \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2580
+                           \u2588\u2588\u2588    \u2588\u2588\u2588
+    \u2588\u2588\u2588        \u2584\u2588\u2588\u2588\u2588\u2588\u2588\u2588 \u2580\u2588\u2588\u2588\u2588    \u2590\u2588\u2588\u2588\u2588\u2580     \u2588\u2588\u2588
+\u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2584   \u2588\u2588\u2588    \u2588\u2588\u2588   \u2588\u2588\u2588\u258c   \u2588\u2588\u2588\u2588\u2580  \u2580\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2584
+   \u2580\u2588\u2588\u2588\u2580\u2580\u2588\u2588   \u2588\u2588\u2588    \u2588\u2580     \u2588\u2588\u2588  \u2590\u2588\u2588\u2588       \u2580\u2588\u2588\u2588\u2580\u2580\u2588\u2588
+    \u2588\u2588\u2588   \u2580  \u2584\u2588\u2588\u2588\u2584\u2584\u2584        \u2580\u2588\u2588\u2588\u2584\u2588\u2588\u2588\u2580        \u2588\u2588\u2588   \u2580
+    \u2588\u2588\u2588     \u2580\u2580\u2588\u2588\u2588\u2580\u2580\u2580        \u2588\u2588\u2588\u2588\u2580\u2588\u2588\u2584         \u2588\u2588\u2588
+    \u2588\u2588\u2588       \u2588\u2588\u2588    \u2588\u2584    \u2590\u2588\u2588\u2588  \u2580\u2588\u2588\u2588        \u2588\u2588\u2588
+    \u2588\u2588\u2588       \u2588\u2588\u2588    \u2588\u2588\u2588  \u2584\u2588\u2588\u2588     \u2588\u2588\u2588\u2584      \u2588\u2588\u2588
+   \u2584\u2588\u2588\u2588\u2588\u2580     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 \u2588\u2588\u2588\u2588       \u2588\u2588\u2588\u2584    \u2584\u2588\u2588\u2588\u2588\u2580`;
+
+const effects = {};
+
+function createAndStore(id, effectName, config) {
+  const container = document.getElementById(id);
+  const handle = createEffect(container, ART, effectName, config);
+  effects[id] = { container, effectName, config, handle };
+  return handle;
+}
+
+// Decrypt — Sunset
+createAndStore('decrypt-sunset', 'decrypt', {
+  typingSpeed: 4,
+  ciphertextColors: [color('ff1744'), color('ff5722'), color('ff9800'), color('ffc107')],
+  finalGradientStops: [color('ff6b35'), color('ffc107'), color('ff1744')],
+  finalGradientSteps: 8,
+  finalGradientDirection: 'horizontal',
+}).start();
+
+// Slide Row — Cyberpunk
+createAndStore('slide-row', 'slide', {
+  grouping: 'row',
+  movementSpeed: 0.5,
+  gap: 1,
+  finalGradientStops: [color('00e5ff'), color('651fff'), color('d500f9'), color('ff4081')],
+  finalGradientSteps: 10,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// Wipe Diagonal — Ocean
+createAndStore('wipe-ocean', 'wipe', {
+  wipeDirection: 'diagonal',
+  wipeDelay: 0,
+  finalGradientStops: [color('e0f7fa'), color('26c6da'), color('00695c')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 4,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// RandomSequence — Vaporwave
+createAndStore('random-vapor', 'randomsequence', {
+  startingColor: color('1a0030'),
+  speed: 0.01,
+  finalGradientStops: [color('ff71ce'), color('d388ff'), color('7c4dff'), color('18ffff')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 6,
+  finalGradientDirection: 'horizontal',
+}).start();
+
+// MiddleOut — Sunset
+createAndStore('middleout-sunset', 'middleout', {
+  startingColor: color('ffcc80'),
+  expandDirection: 'vertical',
+  centerMovementSpeed: 0.6,
+  fullMovementSpeed: 0.6,
+  finalGradientStops: [color('ff6b35'), color('ff9800'), color('ffc107')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// ColorShift — Rainbow
+createAndStore('colorshift-rainbow', 'colorshift', {
+  gradientStops: [color('e81416'), color('ffa500'), color('faeb36'), color('79c314'), color('487de7'), color('4b369d'), color('70369d')],
+  gradientSteps: 12,
+  gradientFrames: 2,
+  cycles: 3,
+  travelDirection: 'diagonal',
+  reverseTravelDirection: false,
+  finalGradientStops: [color('e81416'), color('ffa500'), color('faeb36'), color('79c314'), color('487de7'), color('4b369d'), color('70369d')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Scattered — Warm Pastel
+createAndStore('scattered-pastel', 'scattered', {
+  movementSpeed: 0.5,
+  finalGradientStops: [color('ff9048'), color('ab9dff'), color('bdffea')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 9,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Pour Down — Cyberpunk
+createAndStore('pour-cyber', 'pour', {
+  pourDirection: 'down',
+  pourSpeed: 2,
+  movementSpeed: 0.5,
+  gap: 1,
+  startingColor: color('ffffff'),
+  finalGradientStops: [color('8A008A'), color('00D1FF'), color('FFFFFF')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 6,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Sweep — Ocean
+createAndStore('sweep-ocean', 'sweep', {
+  finalGradientStops: [color('e0f7fa'), color('26c6da'), color('00695c')],
+  finalGradientSteps: 8,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// Expand — Vaporwave
+createAndStore('expand-vapor', 'expand', {
+  movementSpeed: 0.35,
+  finalGradientStops: [color('ff71ce'), color('d388ff'), color('7c4dff'), color('18ffff')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 5,
+  finalGradientDirection: 'horizontal',
+}).start();
+
+// Waves — Ocean
+createAndStore('waves-ocean', 'waves', {
+  waveDirection: 'left_to_right',
+  waveCount: 2,
+  waveFrameDuration: 3,
+  gap: 1,
+  waveGradientStops: [color('f0ff65'), color('ffb102'), color('31a0d4'), color('ffb102'), color('f0ff65')],
+  waveGradientSteps: 6,
+  finalGradientStops: [color('ffb102'), color('31a0d4'), color('f0ff65')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 6,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Rain — Cyberpunk
+createAndStore('rain-cyber', 'rain', {
+  rainSymbols: ['|', '.', ','],
+  rainColor: color('aaddff'),
+  fallSpeed: 0.5,
+  charsPerTick: 2,
+  finalGradientStops: [color('488bff'), color('b2e7de'), color('57eaf7')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 8,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// Print — Terminal
+createAndStore('print-terminal', 'print', {
+  typingSpeed: 3,
+  finalGradientStops: [color('02b8bd'), color('c1f0e3'), color('00ffa0')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 4,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// Burn — Inferno
+createAndStore('burn-inferno', 'burn', {
+  burnSpeed: 3,
+  burnColors: [color('ffffff'), color('fff75d'), color('fe650d'), color('8A003C'), color('510100')],
+  startingColor: color('837373'),
+  finalGradientStops: [color('00c3ff'), color('ffff1c')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 6,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Slide Column — Matrix
+createAndStore('slide-col', 'slide', {
+  grouping: 'column',
+  movementSpeed: 0.6,
+  gap: 0,
+  reverseDirection: true,
+  finalGradientStops: [color('b9f6ca'), color('00e676'), color('2e7d32')],
+  finalGradientSteps: 10,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Slide Merge — Inferno
+createAndStore('slide-merge', 'slide', {
+  grouping: 'row',
+  movementSpeed: 0.5,
+  gap: 1,
+  merge: true,
+  finalGradientStops: [color('b71c1c'), color('ff5722'), color('ffc107'), color('ffeb3b')],
+  finalGradientSteps: 10,
+  finalGradientDirection: 'vertical',
+}).start();
+
+window.startEffect = function(id) {
+  const e = effects[id];
+  if (!e) return;
+  e.handle.stop();
+  const handle = createEffect(e.container, ART, e.effectName, e.config);
+  effects[id].handle = handle;
+  handle.start();
+};
+</script>
+</body>
+</html>
