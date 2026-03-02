@@ -14,6 +14,7 @@ import { WavesEffect, WavesConfig, defaultWavesConfig } from "./effects/waves";
 import { RainEffect, RainConfig, defaultRainConfig } from "./effects/rain";
 import { PrintEffect, PrintConfig, defaultPrintConfig } from "./effects/print";
 import { BurnEffect, BurnConfig, defaultBurnConfig } from "./effects/burn";
+import { MatrixEffect, MatrixConfig, defaultMatrixConfig } from "./effects/matrix";
 
 export { color } from "./types";
 export type { Color, GradientDirection, Grouping, EasingFunction } from "./types";
@@ -31,6 +32,7 @@ export type { WavesConfig } from "./effects/waves";
 export type { RainConfig } from "./effects/rain";
 export type { PrintConfig } from "./effects/print";
 export type { BurnConfig } from "./effects/burn";
+export type { MatrixConfig } from "./effects/matrix";
 export { defaultDecryptConfig } from "./effects/decrypt";
 export { defaultSlideConfig } from "./effects/slide";
 export { defaultWipeConfig } from "./effects/wipe";
@@ -45,9 +47,13 @@ export { defaultWavesConfig } from "./effects/waves";
 export { defaultRainConfig } from "./effects/rain";
 export { defaultPrintConfig } from "./effects/print";
 export { defaultBurnConfig } from "./effects/burn";
+export { defaultMatrixConfig } from "./effects/matrix";
 export * as easing from "./easing";
+export { EasingTracker, SequenceEaser, makeEasing } from "./easing";
+export * as geometry from "./geometry";
+export type { EventType, ActionType, EventCallback, EventAction } from "./events";
 
-export type EffectName = "decrypt" | "slide" | "wipe" | "randomsequence" | "middleout" | "colorshift" | "scattered" | "pour" | "sweep" | "expand" | "waves" | "rain" | "print" | "burn";
+export type EffectName = "decrypt" | "slide" | "wipe" | "randomsequence" | "middleout" | "colorshift" | "scattered" | "pour" | "sweep" | "expand" | "waves" | "rain" | "print" | "burn" | "matrix";
 export type EffectConfig =
   | Partial<DecryptConfig>
   | Partial<SlideConfig>
@@ -62,7 +68,8 @@ export type EffectConfig =
   | Partial<WavesConfig>
   | Partial<RainConfig>
   | Partial<PrintConfig>
-  | Partial<BurnConfig>;
+  | Partial<BurnConfig>
+  | Partial<MatrixConfig>;
 
 export interface EffectHandle {
   start: () => void;
@@ -116,6 +123,9 @@ export function createEffect(
   } else if (effectName === "burn") {
     const cfg = { ...defaultBurnConfig, ...config } as BurnConfig;
     effect = new BurnEffect(canvas, cfg);
+  } else if (effectName === "matrix") {
+    const cfg = { ...defaultMatrixConfig, ...config } as MatrixConfig;
+    effect = new MatrixEffect(canvas, cfg);
   } else {
     const cfg = { ...defaultExpandConfig, ...config } as ExpandConfig;
     effect = new ExpandEffect(canvas, cfg);

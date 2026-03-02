@@ -1,7 +1,7 @@
 import { Coord } from "./types";
 import { Scene, CharacterVisual } from "./scene";
 import { Motion } from "./motion";
-import { EventHandler } from "./events";
+import { EventHandler, EventCallback } from "./events";
 
 export class EffectCharacter {
   id: number;
@@ -9,6 +9,7 @@ export class EffectCharacter {
   inputCoord: Coord;
   isVisible = false;
   isSpace = false;
+  layer: number = 0;
 
   scenes: Map<string, Scene> = new Map();
   activeScene: Scene | null = null;
@@ -23,7 +24,7 @@ export class EffectCharacter {
     this.inputCoord = { column: col, row };
     this.currentVisual = { symbol, fgColor: null };
     this.motion = new Motion(this.inputCoord);
-    this.eventHandler = new EventHandler(this.scenes);
+    this.eventHandler = new EventHandler(this.scenes, this.motion.paths);
   }
 
   newScene(id: string, isLooping = false): Scene {
@@ -36,11 +37,18 @@ export class EffectCharacter {
     const scene = typeof sceneOrId === "string" ? this.scenes.get(sceneOrId)! : sceneOrId;
     this.activeScene = scene;
     this.currentVisual = scene.activate();
+    this._handleActions("SCENE_ACTIVATED", scene.id);
   }
 
   tick(): void {
     // Advance motion
+    const pathWasActive = this.motion.activePath;
     this.motion.move();
+
+    // Check if path just completed
+    if (pathWasActive && this.motion.activePath === null) {
+      this._handleActions("PATH_COMPLETE", pathWasActive.id);
+    }
 
     // Advance animation
     if (this.activeScene && this.activeScene.frames.length > 0) {
@@ -52,10 +60,42 @@ export class EffectCharacter {
           this.activeScene.reset();
           this.activeScene = null;
         }
-        // Handle SCENE_COMPLETE event
-        const nextScene = this.eventHandler.handleEvent("SCENE_COMPLETE", completedScene.id);
-        if (nextScene) {
-          this.activateScene(nextScene);
+        this._handleActions("SCENE_COMPLETE", completedScene.id);
+      }
+    }
+  }
+
+  private _handleActions(event: "SCENE_COMPLETE" | "SCENE_ACTIVATED" | "PATH_COMPLETE" | "PATH_HOLDING" | "PATH_ACTIVATED", callerId: string): void {
+    const actions = this.eventHandler.getActions(event, callerId);
+    for (const reg of actions) {
+      switch (reg.action) {
+        case "ACTIVATE_SCENE": {
+          const scene = this.scenes.get(reg.target as string);
+          if (scene) this.activateScene(scene);
+          break;
+        }
+        case "ACTIVATE_PATH": {
+          this.motion.activatePath(reg.target as string);
+          break;
+        }
+        case "DEACTIVATE_PATH": {
+          if (this.motion.activePath?.id === reg.target) {
+            this.motion.activePath = null;
+          }
+          break;
+        }
+        case "SET_LAYER": {
+          this.layer = reg.target as number;
+          break;
+        }
+        case "SET_COORDINATE": {
+          this.motion.setCoordinate(reg.target as Coord);
+          break;
+        }
+        case "CALLBACK": {
+          const cb = reg.target as EventCallback;
+          if (cb) cb.callback(this, ...cb.args);
+          break;
         }
       }
     }
