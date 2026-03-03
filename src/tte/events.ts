@@ -7,7 +7,9 @@ export type EventType =
   | "SCENE_ACTIVATED"
   | "PATH_COMPLETE"
   | "PATH_HOLDING"
-  | "PATH_ACTIVATED";
+  | "PATH_ACTIVATED"
+  | "SEGMENT_ENTERED"
+  | "SEGMENT_EXITED";
 
 export type ActionType =
   | "ACTIVATE_SCENE"

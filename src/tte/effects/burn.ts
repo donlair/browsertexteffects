@@ -2,6 +2,7 @@ import { Color, GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import { Canvas } from "../canvas";
 import { EffectCharacter } from "../character";
+import { buildSpanningTree } from "../graph";
 
 export interface BurnConfig {
   burnSpeed: number;
@@ -110,87 +111,4 @@ export class BurnEffect {
 
     return this.pendingChars.length > 0 || this.activeChars.size > 0;
   }
-}
-
-/**
- * Build a spanning tree over characters using Prim's algorithm with randomized weights.
- * Returns characters in the order they were added to the tree (organic spread pattern).
- * Starts from bottom-center to simulate fire rising upward.
- */
-function buildSpanningTree(chars: EffectCharacter[]): EffectCharacter[] {
-  if (chars.length === 0) return [];
-
-  // Build coordinate → character lookup
-  const coordMap = new Map<string, EffectCharacter>();
-  for (const ch of chars) {
-    coordMap.set(coordKey(ch.inputCoord.column, ch.inputCoord.row), ch);
-  }
-
-  // Find bottom-center starting character
-  let startChar = chars[0];
-  let bestScore = Infinity;
-  const avgCol = chars.reduce((sum, ch) => sum + ch.inputCoord.column, 0) / chars.length;
-  for (const ch of chars) {
-    // Prefer bottom rows (low row number) and center columns
-    const score = ch.inputCoord.row * 10 + Math.abs(ch.inputCoord.column - avgCol);
-    if (score < bestScore) {
-      bestScore = score;
-      startChar = ch;
-    }
-  }
-
-  const inTree = new Set<number>();
-  const order: EffectCharacter[] = [];
-
-  // Frontier: edges from tree to non-tree chars
-  interface FrontierEntry {
-    char: EffectCharacter;
-    weight: number;
-  }
-  const frontier: FrontierEntry[] = [];
-
-  function addToTree(ch: EffectCharacter) {
-    inTree.add(ch.id);
-    order.push(ch);
-
-    // Add neighbors to frontier
-    const { column, row } = ch.inputCoord;
-    for (let dc = -1; dc <= 1; dc++) {
-      for (let dr = -1; dr <= 1; dr++) {
-        if (dc === 0 && dr === 0) continue;
-        const neighbor = coordMap.get(coordKey(column + dc, row + dr));
-        if (neighbor && !inTree.has(neighbor.id)) {
-          const dist = Math.hypot(dc, dr * 2);
-          frontier.push({ char: neighbor, weight: dist + Math.random() * 2 });
-        }
-      }
-    }
-  }
-
-  addToTree(startChar);
-
-  while (frontier.length > 0) {
-    // Find minimum weight entry
-    let minIdx = 0;
-    for (let i = 1; i < frontier.length; i++) {
-      if (frontier[i].weight < frontier[minIdx].weight) {
-        minIdx = i;
-      }
-    }
-
-    const entry = frontier[minIdx];
-    frontier.splice(minIdx, 1);
-
-    if (inTree.has(entry.char.id)) continue;
-    addToTree(entry.char);
-  }
-
-  // Add any disconnected characters at the end
-  for (const ch of chars) {
-    if (!inTree.has(ch.id)) {
-      order.push(ch);
-    }
-  }
-
-  return order;
 }

@@ -4,6 +4,10 @@ import { Gradient } from "./gradient";
 export interface CharacterVisual {
   symbol: string;
   fgColor: string | null; // rgb hex string
+  bold?: boolean;
+  italic?: boolean;
+  dim?: boolean;
+  blink?: boolean;
 }
 
 export interface Frame {
@@ -24,9 +28,14 @@ export class Scene {
     this.isLooping = isLooping;
   }
 
-  addFrame(symbol: string, duration: number, fgColor: string | null = null): void {
+  addFrame(
+    symbol: string,
+    duration: number,
+    fgColor: string | null = null,
+    formatting?: { bold?: boolean; italic?: boolean; dim?: boolean; blink?: boolean },
+  ): void {
     this.frames.push({
-      visual: { symbol, fgColor },
+      visual: { symbol, fgColor, ...formatting },
       duration,
       ticksElapsed: 0,
     });

@@ -43,7 +43,26 @@ export class EffectCharacter {
   tick(): void {
     // Advance motion
     const pathWasActive = this.motion.activePath;
+    const prevSegIdx = pathWasActive?.currentSegmentIndex ?? -1;
     this.motion.move();
+
+    // Detect segment transitions
+    if (pathWasActive && !pathWasActive.isHolding) {
+      const newSegIdx = pathWasActive.currentSegmentIndex;
+      if (prevSegIdx !== newSegIdx) {
+        if (prevSegIdx >= 0) {
+          this._handleActions("SEGMENT_EXITED", `${pathWasActive.id}:${prevSegIdx}`);
+        }
+        if (newSegIdx >= 0) {
+          this._handleActions("SEGMENT_ENTERED", `${pathWasActive.id}:${newSegIdx}`);
+        }
+      }
+    }
+
+    // Check if hold phase just started
+    if (pathWasActive && this.motion.holdJustStarted) {
+      this._handleActions("PATH_HOLDING", pathWasActive.id);
+    }
 
     // Check if path just completed
     if (pathWasActive && this.motion.activePath === null) {
@@ -65,7 +84,7 @@ export class EffectCharacter {
     }
   }
 
-  private _handleActions(event: "SCENE_COMPLETE" | "SCENE_ACTIVATED" | "PATH_COMPLETE" | "PATH_HOLDING" | "PATH_ACTIVATED", callerId: string): void {
+  private _handleActions(event: "SCENE_COMPLETE" | "SCENE_ACTIVATED" | "PATH_COMPLETE" | "PATH_HOLDING" | "PATH_ACTIVATED" | "SEGMENT_ENTERED" | "SEGMENT_EXITED", callerId: string): void {
     const actions = this.eventHandler.getActions(event, callerId);
     for (const reg of actions) {
       switch (reg.action) {
@@ -76,6 +95,7 @@ export class EffectCharacter {
         }
         case "ACTIVATE_PATH": {
           this.motion.activatePath(reg.target as string);
+          this._handleActions("PATH_ACTIVATED", reg.target as string);
           break;
         }
         case "DEACTIVATE_PATH": {

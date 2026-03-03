@@ -125,6 +125,66 @@ h1 { font-size: 14px; color: #555; text-align: center; margin: 20px 0 30px; lett
   <div class="controls"><button onclick="startEffect('slide-merge')">Replay</button></div>
 </div>
 
+<div class="section">
+  <h2 style="color:#45c745">Matrix &mdash; Classic Green</h2>
+  <div id="matrix-green" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('matrix-green')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#00D1FF">Highlight &mdash; Neon Sweep</h2>
+  <div id="highlight-neon" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('highlight-neon')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#e74c3c">ErrorCorrect &mdash; Terminal Debug</h2>
+  <div id="errorcorrect-debug" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('errorcorrect-debug')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#8dbfb3">Overflow &mdash; Pastel Chaos</h2>
+  <div id="overflow-pastel" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('overflow-pastel')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff9200">Unstable &mdash; Neon Explosion</h2>
+  <div id="unstable-neon" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('unstable-neon')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#2cf5e0">Fireworks &mdash; Celebration</h2>
+  <div id="fireworks-celebration" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('fireworks-celebration')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#e33b00">Rings &mdash; Geometric Fire</h2>
+  <div id="rings-fire" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('rings-fire')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#ff6b6b">BouncyBalls &mdash; Candy Drop</h2>
+  <div id="bouncy-candy" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('bouncy-candy')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#aa00ff">Spotlights &mdash; Neon Search</h2>
+  <div id="spotlights-neon" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('spotlights-neon')">Replay</button></div>
+</div>
+
+<div class="section">
+  <h2 style="color:#00ccff">VHS Tape &mdash; Retro Glitch</h2>
+  <div id="vhstape-retro" class="effect-box"></div>
+  <div class="controls"><button onclick="startEffect('vhstape-retro')">Replay</button></div>
+</div>
+
 <script type="module">
 import { createEffect, color } from './dist/index.js';
 
@@ -322,6 +382,118 @@ createAndStore('slide-merge', 'slide', {
   finalGradientStops: [color('b71c1c'), color('ff5722'), color('ffc107'), color('ffeb3b')],
   finalGradientSteps: 10,
   finalGradientDirection: 'vertical',
+}).start();
+
+// Matrix — Classic Green
+createAndStore('matrix-green', 'matrix', {
+  rainGradientStops: [color('92be92'), color('185318')],
+  highlightColor: color('dbffdb'),
+  rainTime: 900,
+  finalGradientStops: [color('389c38'), color('45c745')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 5,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Highlight — Neon Sweep
+createAndStore('highlight-neon', 'highlight', {
+  highlightBrightness: 2.0,
+  highlightDirection: 'diagonal',
+  highlightWidth: 10,
+  finalGradientStops: [color('ff00ff'), color('00D1FF'), color('FFFFFF')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// ErrorCorrect — Terminal Debug
+createAndStore('errorcorrect-debug', 'errorcorrect', {
+  errorPairs: 0.2,
+  swapDelay: 5,
+  errorColor: color('ff1744'),
+  correctColor: color('00e676'),
+  movementSpeed: 0.8,
+  finalGradientStops: [color('00e676'), color('76ff03'), color('b2ff59')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'vertical',
+}).start();
+
+// Overflow — Pastel Chaos
+createAndStore('overflow-pastel', 'overflow', {
+  overflowGradientStops: [color('f2ebc0'), color('8dbfb3'), color('f2ebc0')],
+  overflowCyclesRange: [2, 5],
+  overflowSpeed: 5,
+  finalGradientStops: [color('f2ebc0'), color('8dbfb3'), color('d4a5a5')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'horizontal',
+}).start();
+
+// Unstable — Neon Explosion
+createAndStore('unstable-neon', 'unstable', {
+  unstableColor: color('ff6d00'),
+  explosionSpeed: 1,
+  reassemblySpeed: 0.8,
+  finalGradientStops: [color('ff71ce'), color('d388ff'), color('7c4dff'), color('18ffff')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'horizontal',
+}).start();
+
+// BouncyBalls — Candy Drop
+createAndStore('bouncy-candy', 'bouncyballs', {
+  ballColor: color('ff6b6b'),
+  movementSpeed: 0.3,
+  bounceCount: 3,
+  holdFrames: 15,
+  finalGradientStops: [color('ff6b6b'), color('ffd93d'), color('6bcb77')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 6,
+  finalGradientDirection: 'diagonal',
+}).start();
+
+// Fireworks — Celebration
+createAndStore('fireworks-celebration', 'fireworks', {
+  fireworkColors: [color('2cf5e0'), color('48d162'), color('e4f72e'), color('f5a623'), color('d6341a'), color('cc00ff')],
+  fireworkVolume: 0.02,
+  launchDelay: 50,
+  explodeDistance: 0.12,
+  finalGradientStops: [color('2cf5e0'), color('48d162'), color('e4f72e')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 9,
+  finalGradientDirection: 'horizontal',
+}).start();
+
+// Rings — Geometric Fire
+createAndStore('rings-fire', 'rings', {
+  ringColors: [color('e33b00'), color('ff9900'), color('ffcc00'), color('aa00ff')],
+  ringGap: 0.1,
+  spinDuration: 200,
+  spinDisperseCycles: 3,
+  finalGradientStops: [color('e33b00'), color('ff9900'), color('00aaff')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 9,
+  finalGradientDirection: 'radial',
+}).start();
+
+// Spotlights — Neon Search
+createAndStore('spotlights-neon', 'spotlights', {
+  spotlightCount: 3,
+  beamWidthRatio: 2.0,
+  beamFalloff: 0.3,
+  searchDuration: 550,
+  finalGradientStops: [color('aa00ff'), color('00aaff'), color('ffffff')],
+  finalGradientSteps: 12,
+  finalGradientFrames: 9,
+  finalGradientDirection: 'radial',
+}).start();
+
+// VHS Tape — Retro Glitch
+createAndStore('vhstape-retro', 'vhstape', {
+  glitchLineChance: 0.05,
+  noiseChance: 0.004,
+  totalGlitchTime: 600,
+  glitchLineColors: [color('ff0000'), color('00ff00'), color('0000ff'), color('ff00ff'), color('ffff00'), color('00ffff')],
+  finalGradientStops: [color('00ccff'), color('ff00ff'), color('ffffff')],
+  finalGradientSteps: 12,
+  finalGradientDirection: 'horizontal',
 }).start();
 
 window.startEffect = function(id) {

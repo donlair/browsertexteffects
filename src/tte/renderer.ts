@@ -7,6 +7,11 @@ interface SpanState {
   lastColor: string | null;
   lastOpacity: string;
   lastTransform: string;
+  lastLayer: number;
+  lastBold: boolean;
+  lastItalic: boolean;
+  lastDim: boolean;
+  lastBlink: boolean;
 }
 
 export class DOMRenderer {
@@ -21,11 +26,22 @@ export class DOMRenderer {
   private cellWidthPx: number = 0;
   private cellHeightPx: number = 0;
 
+  private static blinkStyleInjected = false;
+
+  private static injectBlinkStyle(): void {
+    if (DOMRenderer.blinkStyleInjected) return;
+    const style = document.createElement("style");
+    style.textContent = `@keyframes tte-blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }`;
+    document.head.appendChild(style);
+    DOMRenderer.blinkStyleInjected = true;
+  }
+
   constructor(container: HTMLElement, canvas: Canvas, lineHeight: number = 1.2) {
     this.container = container;
     this.canvas = canvas;
     this.lineHeight = lineHeight;
     this.preMode = container.tagName === "PRE";
+    DOMRenderer.injectBlinkStyle();
 
     if (this.preMode) {
       this._buildPreDOM();
@@ -81,6 +97,11 @@ export class DOMRenderer {
             lastColor: null,
             lastOpacity: "0",
             lastTransform: "",
+            lastLayer: 0,
+            lastBold: false,
+            lastItalic: false,
+            lastDim: false,
+            lastBlink: false,
           });
         } else {
           // Gap position — space character with no associated EffectCharacter
@@ -159,6 +180,11 @@ export class DOMRenderer {
         lastColor: null,
         lastOpacity: "0",
         lastTransform: "",
+        lastLayer: 0,
+        lastBold: false,
+        lastItalic: false,
+        lastDim: false,
+        lastBlink: false,
       });
     }
   }
@@ -190,6 +216,28 @@ export class DOMRenderer {
         state.lastColor = fgColor;
       }
 
+      const bold = !!char.currentVisual.bold;
+      const italic = !!char.currentVisual.italic;
+      const dim = !!char.currentVisual.dim;
+      const blink = !!char.currentVisual.blink;
+
+      if (state.lastBold !== bold) {
+        state.span.style.fontWeight = bold ? "bold" : "";
+        state.lastBold = bold;
+      }
+      if (state.lastItalic !== italic) {
+        state.span.style.fontStyle = italic ? "italic" : "";
+        state.lastItalic = italic;
+      }
+      if (state.lastDim !== dim) {
+        state.span.style.filter = dim ? "brightness(0.5)" : "";
+        state.lastDim = dim;
+      }
+      if (state.lastBlink !== blink) {
+        state.span.style.animation = blink ? "tte-blink 1s step-end infinite" : "";
+        state.lastBlink = blink;
+      }
+
       // Transform only in absolute mode
       if (!this.preMode) {
         const colOffset = char.motion.currentCoord.column - char.inputCoord.column;
@@ -202,6 +250,11 @@ export class DOMRenderer {
         if (state.lastTransform !== transform) {
           state.span.style.transform = transform;
           state.lastTransform = transform;
+        }
+
+        if (char.layer !== state.lastLayer) {
+          state.span.style.zIndex = String(char.layer);
+          state.lastLayer = char.layer;
         }
       }
     }

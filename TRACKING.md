@@ -21,69 +21,59 @@ This document tracks the progress of porting effects and engine features from th
 
 ---
 
-## Ported Effects (15/37)
+## Ported Effects (35/37)
 
-These effects are already implemented in tte-js:
-
+- [x] beams
+- [x] binarypath
+- [x] blackhole
+- [x] bouncyballs
+- [x] bubbles
 - [x] burn
 - [x] colorshift
 - [x] decrypt
+- [x] errorcorrect
 - [x] expand
+- [x] fireworks
+- [x] highlight
+- [x] matrix
 - [x] middleout
+- [x] overflow
 - [x] pour
 - [x] print
 - [x] rain
 - [x] randomsequence
+- [x] rings
 - [x] scattered
 - [x] slide
+- [x] smoke
+- [x] spotlights
 - [x] sweep
+- [x] unstable
+- [x] vhstape
 - [x] waves
 - [x] wipe
 
 ---
 
-## Effects To Port (22 remaining)
-
-### Tier 1 — High Impact, Lower Complexity
-
-These are visually striking and don't require major new engine features.
-
-- [x] **matrix** — Digital rain effect. Iconic, great for demos. Column-based animation with looping scenes and gradient colors. No new engine features needed.
-- [ ] **highlight** — Simple color sweep across text. Useful as a subtle, practical effect.
-- [ ] **unstable** — Glitchy/jittery text. Trendy aesthetic, likely straightforward.
-- [ ] **errorcorrect** — Characters cycle through wrong chars before resolving. Similar pattern to decrypt.
-- [ ] **overflow** — Characters overflow the container. Plays well on the web.
-
-### Tier 2 — High Impact, Medium Complexity
-
-These use geometry utilities (circle, distance, Bezier). `geometry.ts` is already started.
-
-- [ ] **fireworks** — Characters launch and explode. Uses Bezier paths + circle geometry.
-- [ ] **blackhole** — Characters spiral into center. Uses circle/distance geometry. May need spanning tree.
-- [ ] **rings** — Concentric ring animation. Direct use of `findCoordsOnCircle`.
-- [ ] **spotlights** — Moving spotlight reveal. Great for web hero sections.
-- [ ] **bouncyballs** — Bouncy physics. Needs path loop/hold support.
+## Effects To Port (5 remaining)
 
 ### Tier 3 — High Complexity, Unique Value
 
-These need more engine work (particle systems, spanning tree algorithms, multi-layer rendering).
+These need more engine work (multi-layer rendering, complex state machines).
 
-- [ ] **smoke** — Particle effect. Requires a basic particle system.
-- [ ] **bubbles** — Floating bubble pop. Particle-like behavior.
-- [ ] **synthgrid** — Retro grid aesthetic. Complex but visually distinctive.
-- [ ] **vhstape** — VHS distortion. Unique retro effect.
-- [ ] **thunderstorm** — Multi-layered (lightning + rain). Complex but dramatic.
+- [x] **synthgrid** — Retro grid aesthetic. Complex but visually distinctive.
+- [x] **thunderstorm** — Multi-layered (lightning + rain). Complex but dramatic.
 
 ### Tier 4 — Lower Priority
 
-- [ ] **beams** — Beams sweep across text.
-- [ ] **binarypath** — Binary path tree algorithm animation.
-- [ ] **crumble** — Characters crumble/disintegrate.
-- [ ] **laseretch** — Laser etching effect.
-- [ ] **orbittingvolley** — Characters orbit around center.
-- [ ] **slice** — Slice animation.
-- [ ] **spray** — Characters spray outward.
-- [ ] **swarm** — Characters swarm in groups.
+- [x] **beams** — Beams sweep across text.
+- [x] **binarypath** — Binary path tree algorithm animation.
+- [x] **crumble** — Characters crumble/disintegrate.
+- [x] **laseretch** — Laser etching effect.
+- [x] **orbittingvolley** — Characters orbit around center.
+- [x] **slice** — Slice animation.
+- [x] **spray** — Characters spray outward.
+- [x] **swarm** — Characters swarm in groups.
 
 ---
 
@@ -92,11 +82,11 @@ These need more engine work (particle systems, spanning tree algorithms, multi-l
 These are engine-level features present in the Python project that are missing or incomplete in tte-js. Effects that depend on them are noted.
 
 - [x] **Geometry module** — `geometry.ts` committed and integrated. _Required by: fireworks, blackhole, rings, spotlights._
-- [ ] **Path hold/loop support** — Python paths support `hold_time` and `loop`. JS `motion.ts` may need these. _Required by: bouncyballs, orbittingvolley._
-- [ ] **Segment enter/exit events** — Python has `SEGMENT_ENTERED`/`SEGMENT_EXITED` events. JS only has `PATH_COMPLETE`/`PATH_ACTIVATED`/`PATH_HOLDING`. Some effects chain behavior per-segment. _Required by: beams, binarypath._
-- [ ] **Text formatting** — Python supports bold, italic, dim, blink per-frame. JS only tracks symbol + color. Not critical but used by some effects. _Required by: vhstape, unstable (partially)._
-- [ ] **Particle system** — Several effects dynamically create/destroy temporary characters. No equivalent in JS yet. _Required by: smoke, bubbles, fireworks (partially), spray._
-- [ ] **Spanning tree algorithms** — Used by Python's burn, blackhole, binarypath. JS burn is already ported (may have an inline implementation). Verify if a shared module is needed. _Required by: blackhole, binarypath._
+- [x] **Path hold/loop support** — `motion.ts` supports `loop`, `totalLoops`, and `holdDuration` in PathConfig. _Required by: bouncyballs, orbittingvolley._
+- [x] **Segment enter/exit events** — `SEGMENT_ENTERED`/`SEGMENT_EXITED` events added to `EventType`. `Path` tracks `currentSegmentIndex`, `character.ts` detects transitions in `tick()`. CallerId format: `"pathId:segmentIndex"`. _Required by: beams, binarypath._
+- [x] **Text formatting** — `CharacterVisual` now supports `bold`, `italic`, `dim`, `blink` per-frame. Renderer applies CSS (`font-weight`, `font-style`, `filter: brightness`, CSS animation). _Required by: vhstape, unstable (partially)._
+- [x] **Particle system** — `ParticleSystem` class in `particles.ts`. Self-contained DOM span management, independent of `DOMRenderer`. Effects call `emit()` and `tick()` in their `step()`. _Required by: smoke, bubbles, fireworks (partially), spray._
+- [x] **Spanning tree algorithms** — `graph.ts` module with `buildCoordMap`, `getNeighbors`, `buildSpanningTree` (parameterized: connectivity, start strategy, weight function). Burn effect refactored to use it. _Required by: blackhole, binarypath._
 
 ---
 

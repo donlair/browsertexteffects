@@ -34,3 +34,16 @@ export function rgbInts(c: Color): [number, number, number] {
     parseInt(hex.slice(4, 6), 16),
   ];
 }
+
+export function adjustBrightness(c: Color, factor: number): Color {
+  const [r, g, b] = rgbInts(c);
+  const clamp = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
+  const nr = clamp(r * factor);
+  const ng = clamp(g * factor);
+  const nb = clamp(b * factor);
+  return color(
+    nr.toString(16).padStart(2, "0") +
+    ng.toString(16).padStart(2, "0") +
+    nb.toString(16).padStart(2, "0"),
+  );
+}
