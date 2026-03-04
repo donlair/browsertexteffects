@@ -110,9 +110,10 @@ export class DOMRenderer {
         }
       }
 
-      // Add newline between lines (not after last)
+      // Add newlines between lines — multiple if rows are non-adjacent (empty lines)
       if (i < sortedRows.length - 1) {
-        this.container.appendChild(document.createTextNode("\n"));
+        const gap = sortedRows[i] - sortedRows[i + 1];
+        this.container.appendChild(document.createTextNode("\n".repeat(gap)));
       }
     }
   }
@@ -143,11 +144,13 @@ export class DOMRenderer {
     }
     const sortedRows = [...rowsWithChars].sort((a, b) => b - a);
 
-    for (let i = 0; i < sortedRows.length; i++) {
-      this.rowToDisplayY.set(sortedRows[i], i);
+    const maxRow = sortedRows[0];
+    const minRow = sortedRows[sortedRows.length - 1];
+    for (const row of sortedRows) {
+      this.rowToDisplayY.set(row, maxRow - row);
     }
 
-    const totalRows = sortedRows.length;
+    const totalRows = maxRow - minRow + 1;
     const maxCol = this.canvas.dims.textRight;
 
     this.container.style.position = "relative";

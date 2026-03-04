@@ -1,10 +1,12 @@
 {
-  "name": "tte-js",
+  "name": "browser-text-effects",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "bun build src/tte/index.ts --outdir dist --format esm",
-    "dev": "bun build src/tte/index.ts --outdir dist --format esm --watch"
+    "dev": "bun build src/tte/index.ts --outdir dist --format esm --watch",
+    "docs:build": "bun build src/tte/index.ts --outfile docs/lib/tte.js --format esm",
+    "docs:serve": "bun scripts/serve-docs.ts"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

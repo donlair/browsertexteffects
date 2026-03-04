@@ -23,20 +23,13 @@ export class Canvas {
     while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
     while (lines.length > 0 && lines[0].trim() === "") lines.shift();
 
-    // Filter out completely empty/whitespace-only lines and renumber contiguously
-    const nonEmptyLines: { line: string; originalIndex: number }[] = [];
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim().length > 0) {
-        nonEmptyLines.push({ line: lines[i], originalIndex: i });
-      }
-    }
-
     let id = 0;
     let maxCol = 0;
-    const numRows = nonEmptyLines.length;
+    const numRows = lines.length;
 
-    for (let lineIdx = 0; lineIdx < nonEmptyLines.length; lineIdx++) {
-      const { line } = nonEmptyLines[lineIdx];
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx];
+      if (line.trim().length === 0) continue; // preserve row gap, skip chars
       // Row: top line = highest row number, bottom = 1
       const row = numRows - lineIdx;
 
