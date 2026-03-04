@@ -1,8 +1,8 @@
-import { Color, EasingFunction, color } from "../types";
-import { GradientDirection } from "../types";
+import { type Color, type EasingFunction, color } from "../types";
+import type { GradientDirection } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { inOutExpo } from "../easing";
 
 export interface SliceConfig {
@@ -58,7 +58,7 @@ export class SliceEffect {
 
     if (sliceDirection === "vertical") {
       const centerCol = Math.floor((dims.textLeft + dims.textRight) / 2);
-      for (const ch of this.canvas.getCharacters({ includeSpaces: false })) {
+      for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
         const speed = this.config.movementSpeed;
         const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
@@ -72,7 +72,7 @@ export class SliceEffect {
     } else if (sliceDirection === "horizontal") {
       const speed = this.config.movementSpeed * 2;
       const centerRow = Math.floor((dims.textTop + dims.textBottom) / 2);
-      for (const ch of this.canvas.getCharacters({ includeSpaces: false })) {
+      for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
         const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
 
@@ -109,7 +109,7 @@ export class SliceEffect {
     }
 
     // Activate all characters at once
-    for (const ch of this.canvas.getCharacters({ includeSpaces: false })) {
+    for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
       ch.isVisible = true;
       ch.motion.activatePath("input_path");
       ch.activateScene("gradient_scene");
@@ -117,7 +117,7 @@ export class SliceEffect {
     }
   }
 
-  private addGradientScene(ch: EffectCharacter, colorMapping: Map<number, Color>): void {
+  private addGradientScene(ch: EffectCharacter, colorMapping: Map<string, Color>): void {
     const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
     const charFinalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
     const scene = ch.newScene("gradient_scene");

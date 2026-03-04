@@ -1,7 +1,7 @@
-import { Color, EasingFunction, GradientDirection, color } from "../types";
+import { type Color, type EasingFunction, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { inQuad } from "../easing";
 
 export type PourDirection = "up" | "down" | "left" | "right";
@@ -68,11 +68,11 @@ export class PourEffect {
     for (const ch of nonSpace) {
       const key = isVertical ? ch.inputCoord.row : ch.inputCoord.column;
       if (!groupMap.has(key)) groupMap.set(key, []);
-      groupMap.get(key)!.push(ch);
+      groupMap.get(key)?.push(ch);
     }
 
     // Sort groups
-    let sortedKeys = [...groupMap.keys()];
+    const sortedKeys = [...groupMap.keys()];
     if (this.config.pourDirection === "down") {
       // Fill bottom first: sort rows ascending (bottom=1 first)
       sortedKeys.sort((a, b) => a - b);
@@ -100,7 +100,7 @@ export class PourEffect {
     // Set up starting positions and paths
     for (const group of groups) {
       for (const ch of group) {
-        let startCoord;
+        let startCoord: { column: number; row: number };
         if (this.config.pourDirection === "down") {
           startCoord = { column: ch.inputCoord.column, row: dims.top + 1 };
         } else if (this.config.pourDirection === "up") {

@@ -1,4 +1,4 @@
-import { Color, Coord, GradientDirection, color, rgbInts } from "./types";
+import { type Color, type GradientDirection, color, rgbInts } from "./types";
 
 export class Gradient {
   spectrum: Color[];

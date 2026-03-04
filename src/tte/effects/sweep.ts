@@ -1,7 +1,7 @@
-import { Color, GradientDirection, color } from "../types";
+import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { inOutCirc } from "../easing";
 
 export type SweepDirection = "left_to_right" | "right_to_left";
@@ -66,7 +66,7 @@ export class SweepEffect {
     const colMap = new Map<number, EffectCharacter[]>();
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       if (!colMap.has(ch.inputCoord.column)) colMap.set(ch.inputCoord.column, []);
-      colMap.get(ch.inputCoord.column)!.push(ch);
+      colMap.get(ch.inputCoord.column)?.push(ch);
     }
 
     const sortedKeys = [...colMap.keys()].sort((a, b) =>

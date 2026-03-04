@@ -1,4 +1,4 @@
-import { Coord, Grouping } from "./types";
+import type { Grouping } from "./types";
 import { EffectCharacter } from "./character";
 
 export interface CanvasDimensions {
@@ -75,7 +75,7 @@ export class Canvas {
       const rowMap = new Map<number, EffectCharacter[]>();
       for (const ch of sorted) {
         if (!rowMap.has(ch.inputCoord.row)) rowMap.set(ch.inputCoord.row, []);
-        rowMap.get(ch.inputCoord.row)!.push(ch);
+        rowMap.get(ch.inputCoord.row)?.push(ch);
       }
       const rows = [...rowMap.entries()].sort((a, b) => b[0] - a[0]);
       return rows.map(([, chars]) => chars);
@@ -85,7 +85,7 @@ export class Canvas {
       const colMap = new Map<number, EffectCharacter[]>();
       for (const ch of sorted) {
         if (!colMap.has(ch.inputCoord.column)) colMap.set(ch.inputCoord.column, []);
-        colMap.get(ch.inputCoord.column)!.push(ch);
+        colMap.get(ch.inputCoord.column)?.push(ch);
       }
       const cols = [...colMap.entries()].sort((a, b) => a[0] - b[0]);
       return cols.map(([, chars]) => chars);
@@ -96,7 +96,7 @@ export class Canvas {
       for (const ch of sorted) {
         const key = ch.inputCoord.row + ch.inputCoord.column;
         if (!diagMap.has(key)) diagMap.set(key, []);
-        diagMap.get(key)!.push(ch);
+        diagMap.get(key)?.push(ch);
       }
       const diags = [...diagMap.entries()].sort((a, b) => a[0] - b[0]);
       return diags.map(([, chars]) => chars);

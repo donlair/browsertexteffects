@@ -1,7 +1,7 @@
-import { Color, GradientDirection, color } from "../types";
+import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 
 export type WaveDirection = "left_to_right" | "right_to_left" | "top_to_bottom" | "bottom_to_top";
 

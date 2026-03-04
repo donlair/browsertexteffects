@@ -1,7 +1,7 @@
-import { Color, Coord, GradientDirection, color } from "../types";
+import { type Color, type Coord, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { findCoordsOnCircle, findCoordsInCircle, extrapolateAlongRay } from "../geometry";
 import { inOutSine, inExpo, outExpo, inCubic } from "../easing";
 

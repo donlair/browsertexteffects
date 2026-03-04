@@ -1,7 +1,7 @@
-import { Color, EasingFunction, GradientDirection, color } from "../types";
+import { type Color, type EasingFunction, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { ParticleSystem } from "../particles";
 import { inQuad } from "../easing";
 
@@ -91,7 +91,8 @@ export class ThunderstormEffect {
 
       // Fade scene (non-looping)
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = colorMapping.get(key) ?? this.config.finalGradientStops.at(-1)!;
+      const stops = this.config.finalGradientStops;
+      const finalColor = colorMapping.get(key) ?? stops[stops.length - 1]!;
       const fadeScene = ch.newScene("fade");
       const fadeGrad = new Gradient([this.config.rainColor, finalColor], this.config.finalGradientFrames);
       fadeScene.applyGradientToSymbols(ch.inputSymbol, 1, fadeGrad);

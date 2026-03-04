@@ -1,7 +1,7 @@
-import { Color, Coord, GradientDirection, color, adjustBrightness } from "../types";
+import { type Color, type Coord, type GradientDirection, color, adjustBrightness } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { findCoordOnBezierCurve, findLengthOfLine } from "../geometry";
 import { inOutSine } from "../easing";
 
@@ -265,7 +265,7 @@ export class SpotlightsEffect {
         }
         break;
 
-      case "converge":
+      case "converge": {
         this.convergeSpotlights();
         this.illuminateCharacters();
         // Check if all spotlights have converged
@@ -274,6 +274,7 @@ export class SpotlightsEffect {
           this.transitionToExpand();
         }
         break;
+      }
 
       case "expand":
         this.expandRadius += 1.5;

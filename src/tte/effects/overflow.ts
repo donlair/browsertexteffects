@@ -1,6 +1,6 @@
-import { Color, GradientDirection, color } from "../types";
+import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
+import type { Canvas } from "../canvas";
 import { EffectCharacter } from "../character";
 
 export interface OverflowConfig {
@@ -213,7 +213,7 @@ export class OverflowEffect {
     return true;
   }
 
-  private colorRowByPosition(active: { chars: EffectCharacter[]; currentRow: number }): void {
+  private colorRowByPosition(active: ActiveRow): void {
     const spectrum = this.overflowGradient.spectrum;
     if (spectrum.length === 0) return;
     const fraction = Math.min(active.currentRow / Math.max(1, this.canvas.dims.top), 1);

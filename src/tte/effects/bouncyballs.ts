@@ -1,7 +1,7 @@
-import { Color, EasingFunction, GradientDirection, color } from "../types";
+import { type Color, type EasingFunction, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { outBounce } from "../easing";
 
 export interface BouncyBallsConfig {
@@ -45,7 +45,6 @@ export class BouncyBallsEffect {
   private config: BouncyBallsConfig;
   private activeChars: Set<EffectCharacter> = new Set();
   private pendingChars: EffectCharacter[] = [];
-  private tickCount = 0;
   private ticksSinceLastDrop = 0;
 
   constructor(canvas: Canvas, config: BouncyBallsConfig) {
@@ -89,7 +88,7 @@ export class BouncyBallsEffect {
 
       // Ball scene (plays during bounce) — uses ball symbol and color
       const ballScene = ch.newScene("ball", true);
-      ballScene.addFrame(ballSymbol, 1, { fgColor: ballColor });
+      ballScene.addFrame(ballSymbol, 1, ballColor.rgbHex);
 
       // Landing scene — transitions from ball color to final color, restoring input symbol
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
@@ -113,7 +112,6 @@ export class BouncyBallsEffect {
   }
 
   step(): boolean {
-    this.tickCount++;
     this.ticksSinceLastDrop++;
 
     // Launch characters based on ballDelay

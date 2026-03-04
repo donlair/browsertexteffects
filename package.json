@@ -6,9 +6,13 @@
     "build": "bun build src/tte/index.ts --outdir dist --format esm",
     "dev": "bun build src/tte/index.ts --outdir dist --format esm --watch",
     "docs:build": "bun build src/tte/index.ts --outfile docs/lib/tte.js --format esm",
-    "docs:serve": "bun scripts/serve-docs.ts"
+    "docs:serve": "bun scripts/serve-docs.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint ./src",
+    "lint:fix": "biome lint --write ./src"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.5",
     "typescript": "^5.0.0"
   }
 }

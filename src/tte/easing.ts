@@ -1,4 +1,4 @@
-import { EasingFunction } from "./types";
+import type { EasingFunction } from "./types";
 
 export const linear: EasingFunction = (t) => t;
 

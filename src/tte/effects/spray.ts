@@ -1,7 +1,7 @@
-import { Color, Coord, GradientDirection, EasingFunction, color } from "../types";
+import { type Color, type Coord, type GradientDirection, type EasingFunction, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { findCoordOnBezierCurve } from "../geometry";
 import { outExpo } from "../easing";
 

@@ -1,7 +1,7 @@
-import { Color, color, GradientDirection } from "../types";
+import { type Color, color, type GradientDirection } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 
 export interface DecryptConfig {
   typingSpeed: number;

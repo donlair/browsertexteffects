@@ -1,5 +1,5 @@
-import { Scene } from "./scene";
-import { Path } from "./motion";
+import type { Scene } from "./scene";
+import type { Path } from "./motion";
 import type { Coord } from "./types";
 
 export type EventType =
@@ -49,7 +49,7 @@ export class EventHandler {
     if (!this.registry.has(key)) {
       this.registry.set(key, []);
     }
-    this.registry.get(key)!.push({ action, target });
+    this.registry.get(key)?.push({ action, target });
   }
 
   handleEvent(

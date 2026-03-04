@@ -1,7 +1,7 @@
-import { Coord } from "./types";
-import { Scene, CharacterVisual } from "./scene";
+import type { Coord } from "./types";
+import { Scene, type CharacterVisual } from "./scene";
 import { Motion } from "./motion";
-import { EventHandler, EventCallback } from "./events";
+import { EventHandler, type EventCallback } from "./events";
 
 export class EffectCharacter {
   id: number;

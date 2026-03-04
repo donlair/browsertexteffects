@@ -1,5 +1,5 @@
-import { Color, ColorPair, colorPair } from "./types";
-import { Gradient } from "./gradient";
+
+import type { Gradient } from "./gradient";
 
 export interface CharacterVisual {
   symbol: string;
@@ -21,7 +21,6 @@ export class Scene {
   isLooping: boolean;
   frames: Frame[] = [];
   playedFrames: Frame[] = [];
-  private _isComplete = false;
 
   constructor(id: string, isLooping = false) {
     this.id = id;

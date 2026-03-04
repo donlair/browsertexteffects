@@ -1,7 +1,7 @@
-import { Color, GradientDirection, color, adjustBrightness } from "../types";
+import { type Color, type GradientDirection, color, adjustBrightness } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { ParticleSystem } from "../particles";
 
 export interface BinaryPathConfig {
@@ -114,7 +114,7 @@ export class BinaryPathEffect {
     for (const ch of nonSpaceChars) {
       const key = ch.inputCoord.row + ch.inputCoord.column;
       if (!diagMap.has(key)) diagMap.set(key, []);
-      diagMap.get(key)!.push(ch);
+      diagMap.get(key)?.push(ch);
     }
     const sortedKeys = [...diagMap.keys()].sort((a, b) => b - a);
     this.wipeGroups = sortedKeys.map((k) => diagMap.get(k)!);

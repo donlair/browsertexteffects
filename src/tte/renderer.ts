@@ -1,5 +1,5 @@
-import { EffectCharacter } from "./character";
-import { Canvas } from "./canvas";
+import type { EffectCharacter } from "./character";
+import type { Canvas } from "./canvas";
 
 interface SpanState {
   span: HTMLSpanElement;
@@ -63,7 +63,7 @@ export class DOMRenderer {
     for (const ch of this.canvas.characters) {
       const row = ch.inputCoord.row;
       if (!rowMap.has(row)) rowMap.set(row, []);
-      rowMap.get(row)!.push(ch);
+      rowMap.get(row)?.push(ch);
     }
 
     // Sort rows top-to-bottom (highest row number first)

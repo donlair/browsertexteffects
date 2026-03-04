@@ -1,7 +1,7 @@
-import { Color, GradientDirection, Grouping, color, adjustBrightness } from "../types";
+import { type Color, type GradientDirection, type Grouping, color, adjustBrightness } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { inOutCirc } from "../easing";
 
 export interface HighlightConfig {

@@ -1,8 +1,8 @@
-import { Color, Coord, EasingFunction, Grouping, color } from "../types";
-import { GradientDirection } from "../types";
+import { type Color, type Coord, type EasingFunction, type Grouping, color } from "../types";
+import type { GradientDirection } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import { Canvas } from "../canvas";
-import { EffectCharacter } from "../character";
+import type { Canvas } from "../canvas";
+import type { EffectCharacter } from "../character";
 import { inOutQuad } from "../easing";
 
 export interface SlideConfig {
@@ -70,7 +70,7 @@ export class SlideEffect {
     }
 
     // Only group non-space characters for animation
-    let groups = this.canvas.getCharactersGrouped(this.config.grouping, { includeSpaces: false });
+    const groups = this.canvas.getCharactersGrouped(this.config.grouping, { includeSpaces: false });
 
     // Create input paths for all characters
     for (const group of groups) {

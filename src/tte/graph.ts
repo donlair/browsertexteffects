@@ -1,4 +1,4 @@
-import { EffectCharacter } from "./character";
+import type { EffectCharacter } from "./character";
 import { coordKey } from "./gradient";
 
 export type ConnectivityMode = 4 | 8;

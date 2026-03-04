@@ -1,4 +1,4 @@
-import { Coord, EasingFunction } from "./types";
+import type { Coord, EasingFunction } from "./types";
 
 export interface Waypoint {
   coord: Coord;
