@@ -20,7 +20,8 @@ export type ActionType =
   | "CALLBACK";
 
 export interface EventCallback {
-  callback: (...args: unknown[]) => void;
+  // biome-ignore lint/suspicious/noExplicitAny: generic escape hatch for typed callbacks
+  callback: (...args: any[]) => void;
   args: unknown[];
 }
 

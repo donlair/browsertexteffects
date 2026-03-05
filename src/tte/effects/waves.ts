@@ -117,7 +117,7 @@ export class WavesEffect {
     if (this.pendingGroups.length > 0) {
       if (this.currentGap >= this.config.gap) {
         const group = this.pendingGroups.shift();
-        if (!group) return;
+        if (!group) return true;
         for (const ch of group) {
           ch.isVisible = true;
           ch.activateScene("wave");
