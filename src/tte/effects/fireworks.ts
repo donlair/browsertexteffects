@@ -6,27 +6,29 @@ import { findCoordsInCircle, findCoordOnBezierCurve, extrapolateAlongRay } from 
 import { outExpo, outCirc, inOutQuart } from "../easing";
 
 export interface FireworksConfig {
+  explodeAnywhere: boolean;
   fireworkColors: Color[];
+  fireworkSymbol: string;
   fireworkVolume: number;
   launchDelay: number;
   explodeDistance: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
-  finalGradientFrames: number;
   finalGradientDirection: GradientDirection;
 }
 
 export const defaultFireworksConfig: FireworksConfig = {
+  explodeAnywhere: false,
   fireworkColors: [
-    color("2cf5e0"), color("48d162"), color("e4f72e"),
-    color("f5a623"), color("d6341a"), color("cc00ff"),
+    color("88F7E2"), color("44D492"), color("F5EB67"),
+    color("FFA15C"), color("FA233E"),
   ],
-  fireworkVolume: 0.02,
-  launchDelay: 60,
-  explodeDistance: 0.1,
-  finalGradientStops: [color("2cf5e0"), color("48d162"), color("e4f72e")],
+  fireworkSymbol: "o",
+  fireworkVolume: 0.05,
+  launchDelay: 45,
+  explodeDistance: 0.2,
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
-  finalGradientFrames: 9,
   finalGradientDirection: "horizontal",
 };
 
@@ -35,6 +37,7 @@ interface Shell {
   shellColor: Color;
   apex: Coord;
   launchColumn: number;
+  pathCounterBase: number;
 }
 
 function shuffle<T>(arr: T[]): void {
@@ -80,9 +83,7 @@ export class FireworksEffect {
     shuffle(nonSpaceChars);
 
     const charsPerShell = Math.max(1, Math.round(nonSpaceChars.length * this.config.fireworkVolume));
-    const canvasWidth = dims.right - dims.left + 1;
-    const canvasHeight = dims.top - dims.bottom + 1;
-    const explodeRadius = Math.max(2, Math.round(canvasWidth * this.config.explodeDistance));
+    const explodeRadius = Math.min(15, Math.max(1, Math.round(dims.right * this.config.explodeDistance)));
 
     for (let i = 0; i < nonSpaceChars.length; i += charsPerShell) {
       const chars = nonSpaceChars.slice(i, i + charsPerShell);
@@ -90,18 +91,18 @@ export class FireworksEffect {
         Math.floor(Math.random() * this.config.fireworkColors.length)
       ];
 
-      // Random apex in the upper portion of canvas
-      const apexCol = randInt(dims.left + 2, dims.right - 2);
-      const apexRow = randInt(
-        dims.bottom + Math.round(canvasHeight * 0.5),
-        dims.top,
-      );
+      // Random apex column anywhere in canvas, row above the highest shell character
+      const apexCol = randInt(dims.left, dims.right - 1);
+      const minRow = this.config.explodeAnywhere
+        ? dims.bottom
+        : Math.max(...chars.map(c => c.inputCoord.row));
+      const apexRow = randInt(minRow, dims.top);
       const apex: Coord = { column: apexCol, row: apexRow };
 
       // Random launch column near the bottom
       const launchColumn = randInt(dims.left, dims.right);
 
-      this.shells.push({ characters: chars, shellColor, apex, launchColumn });
+      this.shells.push({ characters: chars, shellColor, apex, launchColumn, pathCounterBase: 0 });
     }
 
     this.shellQueue = [...this.shells];
@@ -115,6 +116,8 @@ export class FireworksEffect {
 
     // Pre-build scenes and paths for all shells
     for (const shell of this.shells) {
+      shell.pathCounterBase = this.pathCounter;
+
       // Get explosion targets within a circle around the apex
       const circleCoords = findCoordsInCircle(shell.apex, explodeRadius);
       if (circleCoords.length === 0) continue;
@@ -125,22 +128,22 @@ export class FireworksEffect {
 
         // --- Scenes ---
 
-        // Launch scene: blinking firework symbol
+        // Launch scene: blinking firework symbol (looping)
         const launchScene = ch.newScene("launch", true);
-        launchScene.addFrame("*", 2, shellColor(shell.shellColor, 1.0));
-        launchScene.addFrame("*", 2, shellColor(shell.shellColor, 0.5));
+        launchScene.addFrame(this.config.fireworkSymbol, 2, shell.shellColor.rgbHex);
+        launchScene.addFrame(this.config.fireworkSymbol, 1, "ffffff");
 
-        // Bloom scene: burst from shell color to white
+        // Bloom scene: burst gradient (shell → white → shell)
         const bloomScene = ch.newScene("bloom");
-        const bloomGrad = new Gradient([shell.shellColor, color("ffffff")], 5);
-        bloomScene.applyGradientToSymbols(ch.inputSymbol, 1, bloomGrad);
+        const bloomGrad = new Gradient([shell.shellColor, color("ffffff"), shell.shellColor], 5);
+        bloomScene.applyGradientToSymbols(ch.inputSymbol, 2, bloomGrad);
 
-        // Fall scene: gradient from shell color to final color
+        // Fall scene: gradient from shell color to final color (15 steps, 10 frames each)
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
         const fallScene = ch.newScene("fall");
-        const fallGrad = new Gradient([shell.shellColor, finalColor], this.config.finalGradientFrames);
-        fallScene.applyGradientToSymbols(ch.inputSymbol, 1, fallGrad);
+        const fallGrad = new Gradient([shell.shellColor, finalColor], 15);
+        fallScene.applyGradientToSymbols(ch.inputSymbol, 10, fallGrad);
 
         // --- Paths ---
 
@@ -176,7 +179,7 @@ export class FireworksEffect {
         ch.eventHandler.register("PATH_COMPLETE", launchId, "ACTIVATE_PATH", explodeId);
         ch.eventHandler.register("PATH_COMPLETE", launchId, "ACTIVATE_SCENE", "bloom");
         ch.eventHandler.register("PATH_COMPLETE", explodeId, "ACTIVATE_PATH", fallId);
-        ch.eventHandler.register("PATH_COMPLETE", explodeId, "ACTIVATE_SCENE", "fall");
+        ch.eventHandler.register("PATH_ACTIVATED", fallId, "ACTIVATE_SCENE", "fall");
 
         this.pathCounter++;
       }
@@ -192,12 +195,7 @@ export class FireworksEffect {
       ch.motion.setCoordinate(launchStart);
       ch.activateScene("launch");
 
-      // Activate launch path (using the path counter from build)
-      const shellIdx = this.shells.indexOf(shell);
-      const baseCounter = this.shells.slice(0, shellIdx).reduce(
-        (sum, s) => sum + s.characters.length, 0,
-      ) + ci;
-      ch.motion.activatePath(`launch_${baseCounter}`);
+      ch.motion.activatePath(`launch_${shell.pathCounterBase + ci}`);
 
       this.activeChars.add(ch);
     }
@@ -208,12 +206,14 @@ export class FireworksEffect {
 
     // Launch next shell if ready
     if (this.shellQueue.length > 0 && this.frameCount >= this.nextLaunchFrame) {
-      const shell = this.shellQueue.shift()!;
-      this.launchShell(shell);
+      const shell = this.shellQueue.shift();
+      if (shell) {
+        this.launchShell(shell);
 
-      // Randomize next launch delay ±50%
-      const jitter = 0.5 + Math.random();
-      this.nextLaunchFrame = this.frameCount + Math.round(this.config.launchDelay * jitter);
+        // Randomize next launch delay ±50%
+        const jitter = 0.5 + Math.random();
+        this.nextLaunchFrame = this.frameCount + Math.round(this.config.launchDelay * jitter);
+      }
     }
 
     // Tick all active characters
@@ -233,14 +233,3 @@ export class FireworksEffect {
   }
 }
 
-function shellColor(c: Color, brightness: number): string {
-  const hex = c.rgbHex;
-  const r = Math.round(parseInt(hex.slice(0, 2), 16) * brightness);
-  const g = Math.round(parseInt(hex.slice(2, 4), 16) * brightness);
-  const b = Math.round(parseInt(hex.slice(4, 6), 16) * brightness);
-  return (
-    r.toString(16).padStart(2, "0") +
-    g.toString(16).padStart(2, "0") +
-    b.toString(16).padStart(2, "0")
-  );
-}

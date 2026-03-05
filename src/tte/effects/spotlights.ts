@@ -23,10 +23,10 @@ export const defaultSpotlightsConfig: SpotlightsConfig = {
   beamFalloff: 0.3,
   searchDuration: 550,
   searchSpeedRange: [0.35, 0.75],
-  finalGradientStops: [color("ffffff"), color("00aaff"), color("aa00ff")],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
   finalGradientFrames: 9,
-  finalGradientDirection: "radial",
+  finalGradientDirection: "vertical",
 };
 
 interface Spotlight {
@@ -78,7 +78,7 @@ export class SpotlightsEffect {
   private activeChars: Set<EffectCharacter> = new Set();
   private colorMapping: Map<string, Color> = new Map();
   private charBaseColors: Map<number, Color> = new Map();
-  private dimColor: Color = color("222222");
+  private charDarkColors: Map<number, Color> = new Map();
 
   constructor(canvas: Canvas, config: SpotlightsConfig) {
     this.canvas = canvas;
@@ -89,8 +89,11 @@ export class SpotlightsEffect {
       column: Math.round((dims.left + dims.right) / 2),
       row: Math.round((dims.top + dims.bottom) / 2),
     };
-    this.beamWidth = Math.max(2, Math.round((dims.right - dims.left + 1) / config.beamWidthRatio));
-    this.maxExpandRadius = Math.max(dims.right - dims.left, dims.top - dims.bottom) * 1.5;
+    // Python: max(int(min(smallest_dim // ratio, smallest_dim)), 1)
+    const smallestDim = Math.min(dims.right, dims.top);
+    this.beamWidth = Math.max(1, Math.floor(smallestDim / config.beamWidthRatio));
+    // Python expand completes when range > max(right, top) // 1.5
+    this.maxExpandRadius = Math.floor(Math.max(dims.right, dims.top) / 1.5);
 
     this.build();
   }
@@ -106,11 +109,12 @@ export class SpotlightsEffect {
       config.finalGradientDirection,
     );
 
-    // Store each character's target color for brightness calculations
+    // Store each character's target color and dim color (0.2 brightness, matching Python)
     for (const ch of this.canvas.getCharacters()) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const targetColor = this.colorMapping.get(key) || config.finalGradientStops[0];
       this.charBaseColors.set(ch.id, targetColor);
+      this.charDarkColors.set(ch.id, adjustBrightness(targetColor, 0.2));
     }
 
     // Create spotlights at random positions
@@ -129,10 +133,10 @@ export class SpotlightsEffect {
       });
     }
 
-    // All characters start visible but dim
+    // All characters start visible but dim (dark = 0.2 brightness of target, matching Python)
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
-      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.dimColor.rgbHex };
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id)?.rgbHex ?? null };
       if (!ch.isSpace) {
         this.activeChars.add(ch);
       }
@@ -176,12 +180,13 @@ export class SpotlightsEffect {
 
   private illuminateCharacters(): void {
     for (const ch of this.activeChars) {
-      const baseColor = this.charBaseColors.get(ch.id)!;
+      const baseColor = this.charBaseColors.get(ch.id);
+      if (!baseColor) continue;
 
       // Find minimum distance to any spotlight
       let minDist = Infinity;
       for (const sl of this.spotlights) {
-        const dist = findLengthOfLine(ch.inputCoord, sl.coord);
+        const dist = findLengthOfLine(ch.inputCoord, sl.coord, true);
         if (dist < minDist) minDist = dist;
       }
 
@@ -195,27 +200,28 @@ export class SpotlightsEffect {
         } else {
           brightness = 1.0 - (normalizedDist - falloffStart) / this.config.beamFalloff;
         }
-        brightness = Math.max(0.08, brightness);
+        brightness = Math.max(0.2, brightness);
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: adjustBrightness(baseColor, brightness).rgbHex };
       } else {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.dimColor.rgbHex };
+        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id)?.rgbHex ?? null };
       }
     }
   }
 
   private illuminateByExpansion(): void {
     for (const ch of this.activeChars) {
-      const dist = findLengthOfLine(ch.inputCoord, this.center);
-      const baseColor = this.charBaseColors.get(ch.id)!;
+      const dist = findLengthOfLine(ch.inputCoord, this.center, true);
+      const baseColor = this.charBaseColors.get(ch.id);
+      if (!baseColor) continue;
 
       if (dist <= this.expandRadius) {
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: baseColor.rgbHex };
       } else if (dist <= this.expandRadius + this.beamWidth) {
         const edgeDist = dist - this.expandRadius;
-        const brightness = Math.max(0.08, 1.0 - edgeDist / this.beamWidth);
+        const brightness = Math.max(0.2, 1.0 - edgeDist / this.beamWidth);
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: adjustBrightness(baseColor, brightness).rgbHex };
       } else {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.dimColor.rgbHex };
+        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id)?.rgbHex ?? null };
       }
     }
   }
@@ -243,7 +249,8 @@ export class SpotlightsEffect {
 
     // Set all characters to their final gradient colors using scenes
     for (const ch of this.activeChars) {
-      const baseColor = this.charBaseColors.get(ch.id)!;
+      const baseColor = this.charBaseColors.get(ch.id);
+      if (!baseColor) continue;
       const scene = ch.newScene("final_gradient");
       const charGradient = new Gradient([this.config.finalGradientStops[0], baseColor], 10);
       scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
@@ -277,9 +284,10 @@ export class SpotlightsEffect {
       }
 
       case "expand":
-        this.expandRadius += 1.5;
+        this.expandRadius += 1;
         this.illuminateByExpansion();
-        if (this.expandRadius >= this.maxExpandRadius) {
+        // Python: complete when illuminate_range > max(right, top) // 1.5
+        if (this.expandRadius > this.maxExpandRadius) {
           this.transitionToFinal();
         }
         break;

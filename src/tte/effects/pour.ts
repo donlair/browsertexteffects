@@ -90,7 +90,7 @@ export class PourEffect {
     // Build groups with serpentine ordering
     const groups: EffectCharacter[][] = [];
     for (let i = 0; i < sortedKeys.length; i++) {
-      let group = groupMap.get(sortedKeys[i])!;
+      let group = groupMap.get(sortedKeys[i]) ?? [];
       if (i % 2 === 1) {
         group = group.slice().reverse();
       }
@@ -102,13 +102,13 @@ export class PourEffect {
       for (const ch of group) {
         let startCoord: { column: number; row: number };
         if (this.config.pourDirection === "down") {
-          startCoord = { column: ch.inputCoord.column, row: dims.top + 1 };
+          startCoord = { column: ch.inputCoord.column, row: dims.top };
         } else if (this.config.pourDirection === "up") {
-          startCoord = { column: ch.inputCoord.column, row: dims.bottom - 1 };
+          startCoord = { column: ch.inputCoord.column, row: dims.bottom };
         } else if (this.config.pourDirection === "left") {
-          startCoord = { column: dims.right + 1, row: ch.inputCoord.row };
+          startCoord = { column: dims.right, row: ch.inputCoord.row };
         } else {
-          startCoord = { column: dims.left - 1, row: ch.inputCoord.row };
+          startCoord = { column: dims.left, row: ch.inputCoord.row };
         }
 
         ch.motion.setCoordinate(startCoord);
@@ -120,7 +120,7 @@ export class PourEffect {
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
         const scene = ch.newScene("gradient");
-        const charGradient = new Gradient([this.config.startingColor, finalColor], 10);
+        const charGradient = new Gradient([this.config.startingColor, finalColor], this.config.finalGradientSteps);
         scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
       }
     }
@@ -133,24 +133,29 @@ export class PourEffect {
       return false;
     }
 
-    // Activate chars from current group
+    // Fetch next group when current is exhausted
     if (this.currentGroup.length === 0 && this.pendingGroups.length > 0) {
-      if (this.currentGap >= this.config.gap) {
-        this.currentGroup = this.pendingGroups.shift()!;
-        this.currentGap = 0;
-      } else {
-        this.currentGap++;
-      }
+      const next = this.pendingGroups.shift();
+      if (next) this.currentGroup = next;
     }
 
-    let activated = 0;
-    while (this.currentGroup.length > 0 && activated < this.config.pourSpeed) {
-      const ch = this.currentGroup.shift()!;
-      ch.isVisible = true;
-      ch.motion.activatePath("input_path");
-      ch.activateScene("gradient");
-      this.activeChars.add(ch);
-      activated++;
+    // Activate chars from current group, applying gap between each batch (matches Python)
+    if (this.currentGroup.length > 0) {
+      if (this.currentGap === 0) {
+        let activated = 0;
+        while (this.currentGroup.length > 0 && activated < this.config.pourSpeed) {
+          const ch = this.currentGroup.shift();
+          if (!ch) break;
+          ch.isVisible = true;
+          ch.motion.activatePath("input_path");
+          ch.activateScene("gradient");
+          this.activeChars.add(ch);
+          activated++;
+        }
+        this.currentGap = this.config.gap;
+      } else {
+        this.currentGap--;
+      }
     }
 
     // Tick active chars

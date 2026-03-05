@@ -18,16 +18,16 @@ export interface RingsConfig {
 }
 
 export const defaultRingsConfig: RingsConfig = {
-  ringColors: [color("e33b00"), color("ff9900"), color("00aaff"), color("aa00ff")],
+  ringColors: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   ringGap: 0.1,
   spinDuration: 200,
   spinSpeed: [0.25, 1.0],
   disperseDuration: 200,
   spinDisperseCycles: 3,
-  finalGradientStops: [color("e33b00"), color("ff9900"), color("00aaff")],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
   finalGradientFrames: 9,
-  finalGradientDirection: "radial",
+  finalGradientDirection: "vertical",
 };
 
 interface RingData {
@@ -73,46 +73,55 @@ export class RingsEffect {
 
   private build(): void {
     const { dims } = this.canvas;
-    this.center = {
-      column: Math.round((dims.left + dims.right) / 2),
-      row: Math.round((dims.top + dims.bottom) / 2),
-    };
+    this.center = dims.center;
 
-    const maxDim = Math.max(dims.right - dims.left + 1, dims.top - dims.bottom + 1);
-    const gapPixels = Math.max(1, Math.round(this.config.ringGap * maxDim));
+    // Python: ring_gap = max(round(min(canvas.top, canvas.right) * ring_gap), 1)
+    const minDim = Math.min(dims.right - dims.left + 1, dims.top - dims.bottom + 1);
+    const gapPixels = Math.max(1, Math.round(this.config.ringGap * minDim));
 
-    // Generate concentric rings
-    let radius = gapPixels;
+    // Generate concentric rings — start from radius=1, step by gapPixels.
+    // Stop when <25% of ring coords fall within the canvas (matches Python).
+    // Upper bound: Python uses range(1, max(right, top), ring_gap) so stop at max canvas dimension.
+    const maxRadius = Math.max(dims.right, dims.top);
+    let radius = 1;
     let ringIdx = 0;
-    while (radius <= maxDim * 1.5) {
-      const coords = findCoordsOnCircle(this.center, radius);
-      if (coords.length < 3) {
-        radius += gapPixels;
-        continue;
+    while (radius < maxRadius) {
+      // Python uses 7*radius sample points for find_coords_on_circle
+      const coords = findCoordsOnCircle(this.center, radius, 7 * radius);
+      // Apply 25% in-canvas check regardless of coord count (Python stops here too)
+      const inCanvas = coords.length === 0 ? 0 : coords.filter(c => this.canvas.coordIsInCanvas(c)).length;
+      if (coords.length === 0 || inCanvas / coords.length < 0.25) break;
+
+      if (coords.length >= 3) {
+        const speed = randRange(this.config.spinSpeed[0], this.config.spinSpeed[1]);
+        this.rings.push({
+          index: ringIdx,
+          radius,
+          coords,
+          coordsReversed: [...coords].reverse(),
+          speed,
+          characters: [],
+          clockwise: ringIdx % 2 === 0,
+        });
+        ringIdx++;
       }
-      const speed = randRange(this.config.spinSpeed[0], this.config.spinSpeed[1]);
-      this.rings.push({
-        index: ringIdx,
-        radius,
-        coords,
-        coordsReversed: [...coords].reverse(),
-        speed,
-        characters: [],
-        clockwise: ringIdx % 2 === 0,
-      });
       radius += gapPixels;
-      ringIdx++;
     }
 
     if (this.rings.length === 0) return;
 
-    // Shuffle non-space characters and assign round-robin to rings
+    // Shuffle non-space characters and assign to rings capacity-first (inner rings fill first).
+    // Python: for each ring, assigns up to len(ring_coords) characters before moving to next ring.
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
     shuffle(nonSpaceChars);
-    for (let i = 0; i < nonSpaceChars.length; i++) {
-      const ring = this.rings[i % this.rings.length];
-      ring.characters.push(nonSpaceChars[i]);
-      this.charRingMap.set(nonSpaceChars[i].id, ring);
+    let charIdx = 0;
+    for (const ring of this.rings) {
+      for (let i = 0; i < ring.coords.length && charIdx < nonSpaceChars.length; i++, charIdx++) {
+        const ch = nonSpaceChars[charIdx];
+        ring.characters.push(ch);
+        this.charRingMap.set(ch.id, ring);
+      }
+      if (charIdx >= nonSpaceChars.length) break;
     }
 
     // Build gradient mapping for final phase

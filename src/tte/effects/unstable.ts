@@ -41,10 +41,10 @@ export class UnstableEffect {
   private canvas: Canvas;
   private config: UnstableConfig;
   private nonSpaceChars: EffectCharacter[] = [];
+  private jumbledCoords = new Map<EffectCharacter, { column: number; row: number }>();
   private phase: "rumble" | "explosion" | "reassembly" = "rumble";
   private rumbleStep = 0;
   private rumbleModDelay = 18;
-  private rumbleDelayCounter = 0;
   private holdTicks = 0;
   private explosionStarted = false;
   private reassemblyStarted = false;
@@ -76,22 +76,25 @@ export class UnstableEffect {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
 
-      // Pick random edge target for explosion
+      // Store jumbled coord for rumble phase reset
+      this.jumbledCoords.set(ch, { ...jumbledCoord });
+
+      // Pick random edge target for explosion (matches Python: 0=left,1=right,2=bottom,3=top)
       const wall = randInt(0, 3);
       let edgeCol: number;
       let edgeRow: number;
-      if (wall === 0) { // top
-        edgeCol = randInt(dims.left, dims.right);
-        edgeRow = dims.top + randInt(1, 3);
-      } else if (wall === 1) { // bottom
-        edgeCol = randInt(dims.left, dims.right);
-        edgeRow = dims.bottom - randInt(1, 3);
-      } else if (wall === 2) { // left
-        edgeCol = dims.left - randInt(1, 3);
+      if (wall === 0) { // left
+        edgeCol = dims.left;
         edgeRow = randInt(dims.bottom, dims.top);
-      } else { // right
-        edgeCol = dims.right + randInt(1, 3);
+      } else if (wall === 1) { // right
+        edgeCol = dims.right;
         edgeRow = randInt(dims.bottom, dims.top);
+      } else if (wall === 2) { // bottom
+        edgeCol = randInt(dims.left, dims.right);
+        edgeRow = dims.bottom;
+      } else { // top
+        edgeCol = randInt(dims.left, dims.right);
+        edgeRow = dims.top;
       }
 
       // Explosion path
@@ -102,14 +105,16 @@ export class UnstableEffect {
       const reassemblyPath = ch.motion.newPath("reassembly", this.config.reassemblySpeed, this.config.reassemblyEase);
       reassemblyPath.addWaypoint(ch.inputCoord);
 
-      // Rumble scene: gradient from final color toward unstable color (looping)
-      const rumbleScene = ch.newScene("rumble", true);
-      const rumbleGradient = new Gradient([finalColor, this.config.unstableColor], 10);
-      rumbleScene.applyGradientToSymbols(ch.inputSymbol, 3, rumbleGradient);
+      // Rumble scene: gradient from final color toward unstable color (non-looping, matches Python default)
+      // steps=12, duration=10 matches Python exactly
+      const rumbleScene = ch.newScene("rumble");
+      const rumbleGradient = new Gradient([finalColor, this.config.unstableColor], 12);
+      rumbleScene.applyGradientToSymbols(ch.inputSymbol, 10, rumbleGradient);
 
       // Final scene: gradient from unstable color back to final color
+      // steps=12, duration=3 matches Python exactly
       const finalScene = ch.newScene("final");
-      const finalSceneGradient = new Gradient([this.config.unstableColor, finalColor], 10);
+      const finalSceneGradient = new Gradient([this.config.unstableColor, finalColor], 12);
       finalScene.applyGradientToSymbols(ch.inputSymbol, 3, finalSceneGradient);
 
       // Place at jumbled position and make visible
@@ -139,22 +144,33 @@ export class UnstableEffect {
   private stepRumble(): boolean {
     this.rumbleStep++;
 
-    // Apply jitter every rumbleModDelay ticks
-    this.rumbleDelayCounter++;
-    if (this.rumbleDelayCounter >= this.rumbleModDelay) {
-      this.rumbleDelayCounter = 0;
-      for (const ch of this.nonSpaceChars) {
-        const jitterCol = ch.motion.currentCoord.column + randInt(-1, 1);
-        const jitterRow = ch.motion.currentCoord.row + randInt(-1, 1);
-        ch.motion.setCoordinate({ column: jitterCol, row: jitterRow });
-      }
-      // Accelerate jitter
-      if (this.rumbleModDelay > 1) {
-        this.rumbleModDelay--;
-      }
+    // Reset all chars to their jumbled positions each tick.
+    // During rumble there is no active path, so motion.move() is a no-op — setCoordinate()
+    // directly controls currentCoord. Python resets after rendering each jitter frame; TS
+    // resets before tick(). Net effect: on non-jitter ticks chars sit at jumbledCoord; on
+    // jitter ticks, the reset is overwritten below before tick(), so the renderer sees the
+    // jitter. Functionally equivalent to Python's jitter-then-render-then-reset pattern.
+    for (const ch of this.nonSpaceChars) {
+      const coord = this.jumbledCoords.get(ch);
+      if (!coord) continue;
+      ch.motion.setCoordinate(coord);
     }
 
-    // Tick all chars for scene advancement
+    // Apply jitter: Python condition is steps > 30 AND steps % mod_delay == 0.
+    // All chars move by the SAME shared offset (synchronized shake, not independent drift).
+    if (this.rumbleStep > 30 && this.rumbleStep % this.rumbleModDelay === 0) {
+      const rowOffset = randInt(-1, 1);
+      const colOffset = randInt(-1, 1);
+      for (const ch of this.nonSpaceChars) {
+        const base = this.jumbledCoords.get(ch);
+        if (!base) continue;
+        ch.motion.setCoordinate({ column: base.column + colOffset, row: base.row + rowOffset });
+      }
+      // Accelerate jitter frequency
+      this.rumbleModDelay = Math.max(this.rumbleModDelay - 1, 1);
+    }
+
+    // Advance animation (scene frames) for all chars
     for (const ch of this.nonSpaceChars) {
       ch.tick();
     }

@@ -41,23 +41,20 @@ export class ExpandEffect {
       this.config.finalGradientDirection,
     );
 
-    const center = {
-      column: Math.round((dims.left + dims.right) / 2),
-      row: Math.round((dims.top + dims.bottom) / 2),
-    };
-
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
         continue;
       }
 
-      ch.motion.setCoordinate(center);
+      ch.motion.setCoordinate(dims.center);
       ch.isVisible = true;
 
       // Motion path to final position
       const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.expandEasing);
       path.addWaypoint(ch.inputCoord);
+      ch.eventHandler.register("PATH_ACTIVATED", "input_path", "SET_LAYER", 1);
+      ch.eventHandler.register("PATH_COMPLETE", "input_path", "SET_LAYER", 0);
       ch.motion.activatePath("input_path");
 
       // Gradient scene

@@ -17,6 +17,7 @@ export interface LaserEtchConfig {
   searColors: Color[];
   searFrameDuration: number;
   sparkSymbols: string[];
+  sparkGradientStops: Color[];
   sparkCoolingFrames: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
@@ -29,20 +30,19 @@ export const defaultLaserEtchConfig: LaserEtchConfig = {
   etchDelay: 1,
   beamSymbols: ["/", "//", "▓"],
   beamGradientStops: [color("ffffff"), color("376cff")],
-  beamGradientSteps: 4,
+  beamGradientSteps: 6,
   beamFrameDuration: 2,
   searSymbols: ["▓", "▒", "░", "█"],
   searColors: [color("ffe680"), color("ff7b00"), color("8A003C"), color("510100")],
   searFrameDuration: 3,
   sparkSymbols: ["*", "·", "."],
-  sparkCoolingFrames: 8,
+  sparkGradientStops: [color("ffffff"), color("ffe680"), color("ff7b00"), color("1a0900")],
+  sparkCoolingFrames: 7,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 8,
   finalGradientFrames: 4,
   finalGradientDirection: "vertical",
 };
-
-const sparkColors = [color("ffffff"), color("ffe680")];
 
 export class LaserEtchEffect {
   private canvas: Canvas;
@@ -50,11 +50,13 @@ export class LaserEtchEffect {
   private pendingChars: EffectCharacter[] = [];
   private activeChars: Set<EffectCharacter> = new Set();
   private particles: ParticleSystem;
-  private frameCount = 0;
+  private frameCount: number;
 
   constructor(canvas: Canvas, config: LaserEtchConfig, container: HTMLElement) {
     this.canvas = canvas;
     this.config = config;
+    // Initialize to etchDelay so the first step() call activates immediately (matches Python)
+    this.frameCount = config.etchDelay;
     this.particles = new ParticleSystem(container, canvas.dims);
     this.build();
   }
@@ -96,13 +98,15 @@ export class LaserEtchEffect {
       ch.eventHandler.register("SCENE_COMPLETE", "sear", "ACTIVATE_SCENE", "final");
     }
 
-    this.pendingChars = buildSpanningTree(nonSpace);
+    // Python's laseretch uses RecursiveBacktracker starting from a random char within text boundary.
+    this.pendingChars = buildSpanningTree(nonSpace, { startStrategy: "random" });
   }
 
   private emitSpark(ch: EffectCharacter): void {
     const { config } = this;
     const sym = config.sparkSymbols[Math.floor(Math.random() * config.sparkSymbols.length)];
-    const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+    // Simplified from Python: we pick a random stop rather than cycling through a gradient per spark
+    const sparkColor = config.sparkGradientStops[Math.floor(Math.random() * config.sparkGradientStops.length)];
 
     const pChar = this.particles.emit({
       symbol: sym,
@@ -122,11 +126,13 @@ export class LaserEtchEffect {
     }
 
     this.frameCount++;
-    if (this.frameCount >= this.config.etchDelay) {
+    // etchDelay=N means wait N frames between activations (period = N+1), matching Python semantics
+    if (this.frameCount > this.config.etchDelay) {
       this.frameCount = 0;
       for (let i = 0; i < this.config.etchSpeed; i++) {
         if (this.pendingChars.length > 0) {
-          const ch = this.pendingChars.shift()!;
+          const ch = this.pendingChars.shift();
+          if (!ch) break;
           ch.isVisible = true;
           ch.activateScene("beam");
           this.activeChars.add(ch);

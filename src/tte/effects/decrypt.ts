@@ -112,7 +112,7 @@ export class DecryptEffect {
         slowScene.addFrame(randChoice(ENCRYPTED_SYMBOLS), duration, cipherColor.rgbHex);
       }
 
-      const finalColor = this.characterFinalColorMap.get(ch.id)!;
+      const finalColor = this.characterFinalColorMap.get(ch.id) ?? color("ffffff");
       const discoveredScene = ch.newScene("discovered");
       const discoveredGradient = new Gradient([color("ffffff"), finalColor], 10);
       discoveredScene.applyGradientToSymbols(ch.inputSymbol, 5, discoveredGradient);
@@ -129,7 +129,8 @@ export class DecryptEffect {
       if (this.typingPending.length > 0 || this.activeChars.size > 0) {
         if (this.typingPending.length > 0 && Math.random() <= 0.75) {
           for (let i = 0; i < this.config.typingSpeed && this.typingPending.length > 0; i++) {
-            const ch = this.typingPending.shift()!;
+            const ch = this.typingPending.shift();
+            if (!ch) break;
             ch.isVisible = true;
             ch.activateScene("typing");
             this.activeChars.add(ch);

@@ -1,5 +1,3 @@
-import type { Scene } from "./scene";
-import type { Path } from "./motion";
 import type { Coord } from "./types";
 
 export type EventType =
@@ -15,13 +13,15 @@ export type ActionType =
   | "ACTIVATE_SCENE"
   | "ACTIVATE_PATH"
   | "DEACTIVATE_PATH"
+  | "DEACTIVATE_SCENE"
+  | "RESET_APPEARANCE"
   | "SET_LAYER"
   | "SET_COORDINATE"
   | "CALLBACK";
 
 export interface EventCallback {
-  callback: (...args: any[]) => void;
-  args: any[];
+  callback: (...args: unknown[]) => void;
+  args: unknown[];
 }
 
 export interface EventAction {
@@ -31,13 +31,6 @@ export interface EventAction {
 
 export class EventHandler {
   private registry: Map<string, EventAction[]> = new Map();
-  private sceneMap: Map<string, Scene>;
-  private pathMap: Map<string, Path>;
-
-  constructor(sceneMap: Map<string, Scene>, pathMap?: Map<string, Path>) {
-    this.sceneMap = sceneMap;
-    this.pathMap = pathMap ?? new Map();
-  }
 
   register(
     event: EventType,
@@ -50,47 +43,6 @@ export class EventHandler {
       this.registry.set(key, []);
     }
     this.registry.get(key)?.push({ action, target });
-  }
-
-  handleEvent(
-    event: EventType,
-    callerId: string,
-  ): Scene | null {
-    const key = `${event}:${callerId}`;
-    const actions = this.registry.get(key);
-    if (!actions) return null;
-
-    let activatedScene: Scene | null = null;
-
-    for (const reg of actions) {
-      switch (reg.action) {
-        case "ACTIVATE_SCENE": {
-          const scene = this.sceneMap.get(reg.target as string);
-          if (scene && !activatedScene) activatedScene = scene;
-          break;
-        }
-        case "ACTIVATE_PATH": {
-          // Return null for scene; path activation is handled by character.tick()
-          break;
-        }
-        case "DEACTIVATE_PATH": {
-          break;
-        }
-        case "SET_LAYER": {
-          break;
-        }
-        case "SET_COORDINATE": {
-          break;
-        }
-        case "CALLBACK": {
-          const cb = reg.target as EventCallback;
-          if (cb) cb.callback(...cb.args);
-          break;
-        }
-      }
-    }
-
-    return activatedScene;
   }
 
   getActions(event: EventType, callerId: string): EventAction[] {

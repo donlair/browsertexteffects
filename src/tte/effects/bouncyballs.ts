@@ -10,8 +10,6 @@ export interface BouncyBallsConfig {
   ballDelay: number;
   movementSpeed: number;
   movementEasing: EasingFunction;
-  bounceCount: number;
-  holdFrames: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
   finalGradientFrames: number;
@@ -21,15 +19,13 @@ export interface BouncyBallsConfig {
 export const defaultBouncyBallsConfig: BouncyBallsConfig = {
   ballColors: [color("d1f4a5"), color("96e2a4"), color("5acda9")],
   ballSymbols: ["*", "o", "O", "0", "."],
-  ballDelay: 7,
-  movementSpeed: 0.25,
+  ballDelay: 4,
+  movementSpeed: 0.45,
   movementEasing: outBounce,
-  bounceCount: 3,
-  holdFrames: 15,
   finalGradientStops: [color("f8ffae"), color("43c6ac")],
   finalGradientSteps: 12,
   finalGradientFrames: 6,
-  finalGradientDirection: "vertical",
+  finalGradientDirection: "diagonal",
 };
 
 function randInt(min: number, max: number): number {
@@ -44,12 +40,17 @@ export class BouncyBallsEffect {
   private canvas: Canvas;
   private config: BouncyBallsConfig;
   private activeChars: Set<EffectCharacter> = new Set();
-  private pendingChars: EffectCharacter[] = [];
-  private ticksSinceLastDrop = 0;
+  // Row groups sorted ascending (min row = bottom first), matching Python's group_by_row approach.
+  // Within each group, characters are released in random order matching Python's random pop.
+  private pendingRowGroups: EffectCharacter[][] = [];
+  private currentRowGroup: EffectCharacter[] = [];
+  private ticksSinceLastDrop: number;
 
   constructor(canvas: Canvas, config: BouncyBallsConfig) {
     this.canvas = canvas;
     this.config = config;
+    // Match Python: first batch drops immediately on tick 1 (ball_delay starts at 0)
+    this.ticksSinceLastDrop = config.ballDelay;
     this.build();
   }
 
@@ -61,24 +62,24 @@ export class BouncyBallsEffect {
       this.config.finalGradientDirection,
     );
 
+    const rowMap = new Map<number, EffectCharacter[]>();
+
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
         continue;
       }
 
-      // Start above the canvas top
+      // Start above the canvas top (Python: top * random.uniform(1.0, 1.5))
       const launchCol = ch.inputCoord.column;
-      const launchRow = dims.top + randInt(3, 8);
+      const launchRow = Math.round(dims.top * (1 + Math.random() * 0.5));
       ch.motion.setCoordinate({ column: launchCol, row: launchRow });
 
-      // Bounce path: drop to input position, loop for repeated bounces
+      // Drop path: from spawn position to input position using OUT_BOUNCE easing.
+      // A single traversal with OUT_BOUNCE creates the visual bounce effect, matching Python.
       const bouncePath = ch.motion.newPath("bounce", {
         speed: this.config.movementSpeed,
         ease: this.config.movementEasing,
-        loop: true,
-        totalLoops: this.config.bounceCount,
-        holdDuration: this.config.holdFrames,
       });
       bouncePath.addWaypoint(ch.inputCoord);
 
@@ -86,7 +87,7 @@ export class BouncyBallsEffect {
       const ballColor = pick(this.config.ballColors);
       const ballSymbol = pick(this.config.ballSymbols);
 
-      // Ball scene (plays during bounce) — uses ball symbol and color
+      // Ball scene (plays during drop) — looping single-frame scene showing ball symbol
       const ballScene = ch.newScene("ball", true);
       ballScene.addFrame(ballSymbol, 1, ballColor.rgbHex);
 
@@ -97,29 +98,38 @@ export class BouncyBallsEffect {
       const charGradient = new Gradient([ballColor, finalColor], 10);
       landScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
 
-      // When hold starts or path completes, switch to landing scene
-      ch.eventHandler.register("PATH_HOLDING", "bounce", "ACTIVATE_SCENE", "land");
+      // When path completes, switch to landing scene (matching Python's PATH_COMPLETE handler)
       ch.eventHandler.register("PATH_COMPLETE", "bounce", "ACTIVATE_SCENE", "land");
 
-      this.pendingChars.push(ch);
+      const row = ch.inputCoord.row;
+      if (!rowMap.has(row)) rowMap.set(row, []);
+      rowMap.get(row)?.push(ch);
     }
 
-    // Shuffle for staggered launch
-    for (let i = this.pendingChars.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [this.pendingChars[i], this.pendingChars[j]] = [this.pendingChars[j], this.pendingChars[i]];
-    }
+    // Sort rows ascending (min row = bottom first), matching Python's group_by_row approach.
+    // Python processes min(group_by_row.keys()) first, which is the lowest row = canvas bottom.
+    const sortedRows = [...rowMap.keys()].sort((a, b) => a - b);
+    this.pendingRowGroups = sortedRows.map(r => rowMap.get(r) ?? []);
   }
 
   step(): boolean {
     this.ticksSinceLastDrop++;
 
+    // Load next row group when current group is exhausted (matching Python's group_by_row pop)
+    if (this.currentRowGroup.length === 0 && this.pendingRowGroups.length > 0) {
+      const next = this.pendingRowGroups.shift();
+      if (next) this.currentRowGroup = next;
+    }
+
     // Launch characters based on ballDelay
-    if (this.pendingChars.length > 0 && this.ticksSinceLastDrop >= this.config.ballDelay) {
+    if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop >= this.config.ballDelay) {
       this.ticksSinceLastDrop = 0;
       const dropCount = randInt(2, 6);
-      for (let i = 0; i < dropCount && this.pendingChars.length > 0; i++) {
-        const ch = this.pendingChars.shift()!;
+      for (let i = 0; i < dropCount && this.currentRowGroup.length > 0; i++) {
+        // Random pick within the current row group, matching Python's random.randint pop
+        const idx = Math.floor(Math.random() * this.currentRowGroup.length);
+        const [ch] = this.currentRowGroup.splice(idx, 1);
+        if (!ch) continue;
         ch.isVisible = true;
         ch.motion.activatePath("bounce");
         ch.activateScene("ball");
@@ -134,6 +144,6 @@ export class BouncyBallsEffect {
       }
     }
 
-    return this.activeChars.size > 0 || this.pendingChars.length > 0;
+    return this.activeChars.size > 0 || this.currentRowGroup.length > 0 || this.pendingRowGroups.length > 0;
   }
 }

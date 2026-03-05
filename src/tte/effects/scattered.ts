@@ -60,6 +60,8 @@ export class ScatteredEffect {
       // Motion path to final position
       const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
       path.addWaypoint(ch.inputCoord);
+      ch.eventHandler.register("PATH_ACTIVATED", "input_path", "SET_LAYER", 1);
+      ch.eventHandler.register("PATH_COMPLETE", "input_path", "SET_LAYER", 0);
       ch.motion.activatePath("input_path");
 
       // Gradient scene

@@ -2,7 +2,7 @@ import { type Color, type Coord, type GradientDirection, color } from "../types"
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { findCoordsOnCircle, findCoordsInCircle, extrapolateAlongRay } from "../geometry";
+import { findCoordsOnCircle, findCoordsInCircle } from "../geometry";
 import { inOutSine, inExpo, outExpo, inCubic } from "../easing";
 
 export interface BlackholeConfig {
@@ -22,12 +22,12 @@ export const defaultBlackholeConfig: BlackholeConfig = {
   ],
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 9,
-  finalGradientFrames: 9,
+  finalGradientFrames: 10,
   finalGradientDirection: "diagonal",
 };
 
-const STAR_SYMBOLS = [".", "*", "+", "~", "o"];
-const UNSTABLE_SYMBOLS = [".", "o", "O", "*", "@", "#", "$", "%"];
+const STAR_SYMBOLS = ["*", "'", "`", "¤", "•", "°", "·"];
+const UNSTABLE_SYMBOLS = ["◦", "◎", "◉", "●", "◉", "◎", "◦"];
 
 type Phase = "forming" | "consuming" | "collapsing" | "exploding" | "complete";
 
@@ -90,9 +90,6 @@ export class BlackholeEffect {
       Math.min(Math.round(canvasWidth * 0.3), Math.round(canvasHeight * 0.2)),
     );
 
-    // Generate ring coords for the orbit circle
-    this.ringCoords = findCoordsOnCircle(this.center, this.blackholeRadius);
-
     // Build final gradient color mapping
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(
@@ -112,6 +109,9 @@ export class BlackholeEffect {
     this.ringChars = nonSpaceChars.slice(0, ringCount);
     this.starfieldChars = nonSpaceChars.slice(ringCount);
 
+    // Generate ring coords matching exactly ringCount evenly-spaced positions
+    this.ringCoords = findCoordsOnCircle(this.center, this.blackholeRadius, ringCount);
+
     // All characters start invisible
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
@@ -121,14 +121,14 @@ export class BlackholeEffect {
     }
 
     // Build ring character scenes and paths
-    const staggerStep = Math.max(1, Math.round(60 / ringCount));
+    const staggerStep = Math.max(Math.floor(100 / ringCount), 6);
     for (let i = 0; i < this.ringChars.length; i++) {
       const ch = this.ringChars[i];
       this.ringActivationDelays.push(i * staggerStep);
 
       // Ring color scene (looping)
       const ringScene = ch.newScene("ring_color", true);
-      ringScene.addFrame(ch.inputSymbol, 2, this.config.blackholeColor.rgbHex);
+      ringScene.addFrame("*", 1, this.config.blackholeColor.rgbHex);
 
       // Form path: current position → assigned ring coord
       const ringTarget = this.ringCoords[i % this.ringCoords.length];
@@ -223,31 +223,46 @@ export class BlackholeEffect {
     this.phase = "collapsing";
     this.phaseFrames = 0;
 
-    // Unstable scene on first ring char
-    if (this.ringChars.length > 0) {
-      const unstableChar = this.ringChars[0];
-      const unstableScene = unstableChar.newScene("unstable", true);
-      for (const sym of UNSTABLE_SYMBOLS) {
-        const col = this.config.starColors[
-          Math.floor(Math.random() * this.config.starColors.length)
-        ];
-        unstableScene.addFrame(sym, 3, col.rgbHex);
-      }
-      unstableChar.activateScene("unstable");
-    }
+    // Generate expand positions: ring at radius+3, one position per ring char
+    const expandRingCoords = findCoordsOnCircle(
+      this.center,
+      this.blackholeRadius + 3,
+      this.ringChars.length,
+    );
 
-    // Each ring char: stop orbit, expand outward slightly, then collapse to center
-    for (const ch of this.ringChars) {
+    let pointCharMade = false;
+    for (let i = 0; i < this.ringChars.length; i++) {
+      const ch = this.ringChars[i];
       ch.motion.activePath = null;
 
-      const currentPos = { ...ch.motion.currentCoord };
-      const expandedCoord = extrapolateAlongRay(this.center, currentPos, 3);
+      const expandId = `expand_${this.pathCounter}`;
+      const expandPath = ch.motion.newPath(expandId, { speed: 0.2, ease: inExpo });
+      expandPath.addWaypoint(expandRingCoords[i % expandRingCoords.length]);
 
-      const collapseId = `collapse_${this.pathCounter++}`;
-      const collapsePath = ch.motion.newPath(collapseId, { speed: 0.5, ease: inOutSine });
-      collapsePath.addWaypoint(expandedCoord);
+      const collapseId = `collapse_${this.pathCounter}`;
+      const collapsePath = ch.motion.newPath(collapseId, { speed: 0.3, ease: inExpo });
       collapsePath.addWaypoint(this.center);
-      ch.motion.activatePath(collapseId);
+
+      // Event: expand complete → activate collapse
+      ch.eventHandler.register("PATH_COMPLETE", expandId, "ACTIVATE_PATH", collapseId);
+
+      // First char only: unstable scene activates after collapse completes
+      if (!pointCharMade) {
+        const unstableScene = ch.newScene("unstable");
+        for (let rep = 0; rep < 3; rep++) {
+          for (const sym of UNSTABLE_SYMBOLS) {
+            const col = this.config.starColors[
+              Math.floor(Math.random() * this.config.starColors.length)
+            ];
+            unstableScene.addFrame(sym, 3, col.rgbHex);
+          }
+        }
+        ch.eventHandler.register("PATH_COMPLETE", collapseId, "ACTIVATE_SCENE", "unstable");
+        pointCharMade = true;
+      }
+
+      ch.motion.activatePath(expandId);
+      this.pathCounter++;
     }
   }
 
@@ -282,7 +297,7 @@ export class BlackholeEffect {
         [explosionColor, finalColor],
         this.config.finalGradientFrames,
       );
-      explosionScene.applyGradientToSymbols(ch.inputSymbol, 2, explosionGrad);
+      explosionScene.applyGradientToSymbols(ch.inputSymbol, 20, explosionGrad);
 
       // Scatter target: random coord near inputCoord
       const scatterCoords = findCoordsInCircle(ch.inputCoord, 3);
@@ -384,10 +399,9 @@ export class BlackholeEffect {
           ch.tick();
         }
 
-        // Transition when all ring chars reach center
-        const allCollapsed = [...this.activeRingChars].every(
-          (ch) => ch.motion.movementIsComplete(),
-        );
+        // Transition when all ring chars have no active path or scene
+        // (waits for collapse paths + unstable scene on first char to finish)
+        const allCollapsed = [...this.activeRingChars].every((ch) => !ch.isActive);
         if (allCollapsed) {
           this.transitionToExploding();
         }

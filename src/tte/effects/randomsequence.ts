@@ -76,7 +76,8 @@ export class RandomSequenceEffect {
     }
 
     for (let i = 0; i < this.charsPerTick && this.pending.length > 0; i++) {
-      const ch = this.pending.pop()!;
+      const ch = this.pending.pop();
+      if (!ch) break;
       ch.isVisible = true;
       ch.activateScene("gradient");
       this.activeChars.add(ch);

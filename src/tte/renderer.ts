@@ -5,13 +5,18 @@ interface SpanState {
   span: HTMLSpanElement;
   lastSymbol: string;
   lastColor: string | null;
+  lastBgColor: string | null;
   lastOpacity: string;
   lastTransform: string;
   lastLayer: number;
   lastBold: boolean;
   lastItalic: boolean;
-  lastDim: boolean;
+  lastUnderline: boolean;
   lastBlink: boolean;
+  lastReverse: boolean;
+  lastHidden: boolean;
+  lastDim: boolean;
+  lastStrike: boolean;
 }
 
 export class DOMRenderer {
@@ -70,7 +75,7 @@ export class DOMRenderer {
     const sortedRows = [...rowMap.keys()].sort((a, b) => b - a);
 
     for (let i = 0; i < sortedRows.length; i++) {
-      const rowChars = rowMap.get(sortedRows[i])!;
+      const rowChars = rowMap.get(sortedRows[i]) ?? [];
       // Sort by column
       rowChars.sort((a, b) => a.inputCoord.column - b.inputCoord.column);
 
@@ -95,13 +100,18 @@ export class DOMRenderer {
             span,
             lastSymbol: ch.inputSymbol,
             lastColor: null,
+            lastBgColor: null,
             lastOpacity: "0",
             lastTransform: "",
             lastLayer: 0,
             lastBold: false,
             lastItalic: false,
-            lastDim: false,
+            lastUnderline: false,
             lastBlink: false,
+            lastReverse: false,
+            lastHidden: false,
+            lastDim: false,
+            lastStrike: false,
           });
         } else {
           // Gap position — space character with no associated EffectCharacter
@@ -164,7 +174,7 @@ export class DOMRenderer {
     this.container.style.height = `${Math.round(totalRows * ch)}px`;
 
     for (const char of this.canvas.characters) {
-      const displayY = this.rowToDisplayY.get(char.inputCoord.row)!;
+      const displayY = this.rowToDisplayY.get(char.inputCoord.row) ?? 0;
       const col = char.inputCoord.column;
 
       const span = document.createElement("span");
@@ -181,13 +191,18 @@ export class DOMRenderer {
         span,
         lastSymbol: char.inputSymbol,
         lastColor: null,
+        lastBgColor: null,
         lastOpacity: "0",
         lastTransform: "",
         lastLayer: 0,
         lastBold: false,
         lastItalic: false,
-        lastDim: false,
+        lastUnderline: false,
         lastBlink: false,
+        lastReverse: false,
+        lastHidden: false,
+        lastDim: false,
+        lastStrike: false,
       });
     }
   }
@@ -204,7 +219,10 @@ export class DOMRenderer {
 
       const opacity = char.isVisible ? "1" : "0";
       const symbol = char.currentVisual.symbol;
-      const fgColor = char.currentVisual.fgColor;
+      const reverse = !!char.currentVisual.reverse;
+      // reverse swaps fg and bg colors (like ANSI reverse mode)
+      const fgColor = reverse ? (char.currentVisual.bgColor ?? null) : char.currentVisual.fgColor;
+      const bgColor = reverse ? char.currentVisual.fgColor : (char.currentVisual.bgColor ?? null);
 
       if (state.lastOpacity !== opacity) {
         state.span.style.opacity = opacity;
@@ -218,11 +236,18 @@ export class DOMRenderer {
         state.span.style.color = fgColor ? `#${fgColor}` : "";
         state.lastColor = fgColor;
       }
+      if (state.lastBgColor !== bgColor) {
+        state.span.style.backgroundColor = bgColor ? `#${bgColor}` : "";
+        state.lastBgColor = bgColor;
+      }
 
       const bold = !!char.currentVisual.bold;
       const italic = !!char.currentVisual.italic;
-      const dim = !!char.currentVisual.dim;
+      const underline = !!char.currentVisual.underline;
       const blink = !!char.currentVisual.blink;
+      const hidden = !!char.currentVisual.hidden;
+      const dim = !!char.currentVisual.dim;
+      const strike = !!char.currentVisual.strike;
 
       if (state.lastBold !== bold) {
         state.span.style.fontWeight = bold ? "bold" : "";
@@ -239,6 +264,24 @@ export class DOMRenderer {
       if (state.lastBlink !== blink) {
         state.span.style.animation = blink ? "tte-blink 1s step-end infinite" : "";
         state.lastBlink = blink;
+      }
+      if (state.lastReverse !== reverse) {
+        // fgColor/bgColor are already swapped above when reverse=true;
+        // the color diff blocks above fire automatically since derived values changed.
+        state.lastReverse = reverse;
+      }
+      if (state.lastHidden !== hidden) {
+        state.span.style.visibility = hidden ? "hidden" : "";
+        state.lastHidden = hidden;
+      }
+      // underline and strike both write textDecoration — update together
+      if (state.lastUnderline !== underline || state.lastStrike !== strike) {
+        const decorations: string[] = [];
+        if (underline) decorations.push("underline");
+        if (strike) decorations.push("line-through");
+        state.span.style.textDecoration = decorations.join(" ");
+        state.lastUnderline = underline;
+        state.lastStrike = strike;
       }
 
       // Transform only in absolute mode

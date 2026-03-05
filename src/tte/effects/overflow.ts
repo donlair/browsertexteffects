@@ -142,7 +142,8 @@ export class OverflowEffect {
       }
 
       // Dequeue next pending row, place at bottom (row 1)
-      const pending = this.pendingRows.shift()!;
+      const pending = this.pendingRows.shift();
+      if (!pending) break;
       const startRow = 1;
       for (const ch of pending.chars) {
         ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
@@ -188,19 +189,23 @@ export class OverflowEffect {
 
     // Check if final rows have settled into their correct positions
     if (this.pendingRows.length === 0) {
-      let allSettled = true;
-      for (const active of this.activeRows) {
-        if (active.isFinal && active.currentRow !== active.targetRow) {
-          allSettled = false;
-          break;
-        }
+      // Non-final (chaotic) rows won't move once pendingRows is empty (active rows
+      // only advance when dequeuing). Hide and discard them to avoid infinite loop.
+      this.activeRows = this.activeRows.filter((active) => {
         if (!active.isFinal) {
-          allSettled = false;
-          break;
+          for (const ch of active.chars) {
+            ch.isVisible = false;
+          }
+          return false;
         }
-      }
+        return true;
+      });
+
+      const allSettled = this.activeRows.every(
+        (active) => active.currentRow === active.targetRow,
+      );
       if (allSettled) {
-        // Snap final rows to their target positions
+        // Snap final rows to their exact input coordinates
         for (const active of this.activeRows) {
           for (const ch of active.chars) {
             ch.motion.setCoordinate(ch.inputCoord);

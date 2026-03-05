@@ -57,7 +57,7 @@ export class SliceEffect {
     const { sliceDirection } = this.config;
 
     if (sliceDirection === "vertical") {
-      const centerCol = Math.floor((dims.textLeft + dims.textRight) / 2);
+      const centerCol = dims.textCenterColumn;
       for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
         const speed = this.config.movementSpeed;
         const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
@@ -71,7 +71,7 @@ export class SliceEffect {
       }
     } else if (sliceDirection === "horizontal") {
       const speed = this.config.movementSpeed * 2;
-      const centerRow = Math.floor((dims.textTop + dims.textBottom) / 2);
+      const centerRow = dims.textCenterRow;
       for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
         const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);

@@ -2,189 +2,109 @@ import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { ParticleSystem } from "../particles";
+import { buildSpanningTree } from "../graph";
 
 export interface SmokeConfig {
-  smokeColors: Color[];
-  particlesPerChar: number;
-  smokeTTL: number;
-  smokeRiseSpeed: number;
-  smokeDriftRange: number;
-  dissolveDelay: number;
+  startingColor: Color;
+  smokeSymbols: string[];
+  smokeGradientStops: Color[];
+  /** No-op in TS: DOM renderer has no canvas fill chars concept */
+  useWholeCanvas: boolean;
   finalGradientStops: Color[];
   finalGradientSteps: number;
-  finalGradientFrames: number;
   finalGradientDirection: GradientDirection;
 }
 
 export const defaultSmokeConfig: SmokeConfig = {
-  smokeColors: [color("8c8c8c"), color("aaaaaa"), color("c8c8c8"), color("e6e6e6")],
-  particlesPerChar: 4,
-  smokeTTL: 28,
-  smokeRiseSpeed: 0.14,
-  smokeDriftRange: 1,
-  dissolveDelay: 2,
-  finalGradientStops: [color("ffffff"), color("8c8c8c")],
+  startingColor: color("7A7A7A"),
+  smokeSymbols: ["░", "▒", "▓", "▒", "░"],
+  smokeGradientStops: [color("242424"), color("FFFFFF")],
+  useWholeCanvas: false,
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
-  finalGradientFrames: 8,
   finalGradientDirection: "vertical",
 };
 
-function shuffle<T>(arr: T[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
 export class SmokeEffect {
   private canvas: Canvas;
-  private config: SmokeConfig;
-  private ps: ParticleSystem;
-  private queue: EffectCharacter[] = [];
-  private dissolving: Set<EffectCharacter> = new Set();
-  private dissolved: Set<EffectCharacter> = new Set();
-  private restoring: Set<EffectCharacter> = new Set();
-  private restoreStarted = false;
-  private frameCount = 0;
-  private nextReleaseFrame = 0;
-  private colorMapping: Map<string, Color> = new Map();
+  private pendingChars: EffectCharacter[] = [];
+  private activeChars: Set<EffectCharacter> = new Set();
 
-  constructor(canvas: Canvas, config: SmokeConfig, container: HTMLElement) {
+  constructor(canvas: Canvas, config: SmokeConfig) {
     this.canvas = canvas;
-    this.config = config;
-    this.ps = new ParticleSystem(container, canvas.dims);
-    this.build();
+    this.build(config);
   }
 
-  private build(): void {
+  private build(config: SmokeConfig): void {
     const { dims } = this.canvas;
-    const { config } = this;
 
+    // Final gradient: maps each character coord to its final color
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
       dims.textBottom, dims.textTop, dims.textLeft, dims.textRight,
       config.finalGradientDirection,
     );
 
-    const chars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle(chars);
-    this.queue = chars;
+    // Smoke gradient: smoke_gradient_stops + reversed(final_gradient_stops)
+    // Matches Python: Gradient(*smoke_gradient_stops, *final_gradient_stops[::-1], steps=(3, 4))
+    const smokeGradientStops: Color[] = [
+      ...config.smokeGradientStops,
+      ...[...config.finalGradientStops].reverse(),
+    ];
+    const smokeGradient = new Gradient(smokeGradientStops, [3, 4]);
 
-    const smokeHexes = config.smokeColors.map(c => c.rgbHex);
+    const blackFallback = color("000000");
+    // Include space characters so smoke animates through them, matching Python's
+    // get_characters(inner_fill_chars=True). This ensures continuous flood-fill across spaces.
+    const chars = this.canvas.getCharacters();
 
     for (const ch of chars) {
       ch.isVisible = true;
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: config.startingColor.rgbHex };
 
-      // Dissolve: character fades through smoke symbols to space
-      const dissolveScene = ch.newScene("dissolve");
-      dissolveScene.addFrame(ch.inputSymbol, 4, smokeHexes[0]);
-      dissolveScene.addFrame("▓", 3, smokeHexes[0]);
-      dissolveScene.addFrame("▒", 3, smokeHexes[1] ?? smokeHexes[0]);
-      dissolveScene.addFrame("░", 3, smokeHexes[2] ?? smokeHexes[0]);
-      dissolveScene.addFrame("·", 3, smokeHexes[smokeHexes.length - 1]);
-      dissolveScene.addFrame(".", 3, smokeHexes[smokeHexes.length - 1]);
-      dissolveScene.addFrame(" ", 1, null);
-
-      ch.eventHandler.register("SCENE_COMPLETE", "dissolve", "CALLBACK", {
-        callback: (char: EffectCharacter) => {
-          this.dissolved.add(char);
-          this.dissolving.delete(char);
-        },
-        args: [],
-      });
-
-      // Restore: smoke color → final gradient color
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const restoreGrad = new Gradient(
-        [config.smokeColors[config.smokeColors.length - 1], finalColor],
-        config.finalGradientFrames,
-      );
-      const restoreScene = ch.newScene("restore");
-      restoreScene.applyGradientToSymbols(ch.inputSymbol, 1, restoreGrad);
+      const charFinalColor = colorMapping.get(key) ?? blackFallback;
+
+      // Paint gradient: final_gradient_stops + char_final_color, steps=5
+      // Matches Python: Gradient(*final_gradient_stops, char_final_color, steps=5)
+      const paintGradient = new Gradient([...config.finalGradientStops, charFinalColor], 5);
+
+      const smokeScene = ch.newScene("smoke");
+      smokeScene.applyGradientToSymbols(config.smokeSymbols, 3, smokeGradient);
+
+      const paintScene = ch.newScene("paint");
+      paintScene.applyGradientToSymbols([ch.inputSymbol], 5, paintGradient);
+
+      // Chain: smoke complete → activate paint
+      ch.eventHandler.register("SCENE_COMPLETE", "smoke", "ACTIVATE_SCENE", "paint");
     }
-  }
 
-  private spawnParticles(ch: EffectCharacter): void {
-    const { config } = this;
-    const smokeSymbols = ["▓", "▒", "░", "·", "."];
-
-    for (let i = 0; i < config.particlesPerChar; i++) {
-      const smokeColor = config.smokeColors[
-        Math.floor(Math.random() * config.smokeColors.length)
-      ];
-      const symbol = smokeSymbols[i % smokeSymbols.length];
-      const riseHeight = 3 + Math.floor(Math.random() * 3);
-      const driftOffset = Math.round((Math.random() * 2 - 1) * config.smokeDriftRange);
-
-      const pChar = this.ps.emit({
-        symbol,
-        coord: { ...ch.inputCoord },
-        fgColor: smokeColor.rgbHex,
-        ttl: config.smokeTTL,
-      });
-
-      const risePath = pChar.motion.newPath("rise", config.smokeRiseSpeed);
-      risePath.addWaypoint({
-        column: Math.max(1, ch.inputCoord.column + driftOffset),
-        row: ch.inputCoord.row + riseHeight,
-      });
-      pChar.motion.activatePath("rise");
-    }
+    // Build spanning tree from a random start, then return characters in BFS traversal order.
+    // Matches Python's smoke effect: PrimsWeighted builds the tree, BreadthFirst traverses it
+    // wave-by-wave so nearby characters activate at similar times (flood-fill spread).
+    this.pendingChars = buildSpanningTree(chars, { startStrategy: "random", traversal: "bfs" });
   }
 
   step(): boolean {
-    this.frameCount++;
-
-    // Staggered release: one char per dissolveDelay frames
-    if (this.queue.length > 0 && this.frameCount >= this.nextReleaseFrame) {
-      const ch = this.queue.shift()!;
-      ch.activateScene("dissolve");
-      this.dissolving.add(ch);
-      this.nextReleaseFrame = this.frameCount + this.config.dissolveDelay;
-    }
-
-    for (const ch of this.dissolving) {
-      ch.tick();
-    }
-
-    // Snapshot to avoid mutation while iterating
-    for (const ch of [...this.dissolved]) {
-      this.dissolved.delete(ch);
-      ch.currentVisual = { symbol: " ", fgColor: null };
-      this.spawnParticles(ch);
-    }
-
-    this.ps.tick();
-
-    // Once all dissolved and particles are gone, restore all chars
-    if (
-      !this.restoreStarted &&
-      this.queue.length === 0 &&
-      this.dissolving.size === 0 &&
-      this.dissolved.size === 0 &&
-      this.ps.count === 0
-    ) {
-      this.restoreStarted = true;
-      for (const ch of this.canvas.getNonSpaceCharacters()) {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: null };
-        ch.activateScene("restore");
-        this.restoring.add(ch);
-      }
-    }
-
-    for (const ch of [...this.restoring]) {
-      ch.tick();
-      if (!ch.isActive) {
-        this.restoring.delete(ch);
-      }
-    }
-
-    if (this.restoreStarted && this.restoring.size === 0) {
+    if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
       return false;
     }
 
-    return true;
+    // Release one character per tick, matching Python BFS one-step-per-frame
+    if (this.pendingChars.length > 0) {
+      const ch = this.pendingChars.shift();
+      if (!ch) return false;
+      ch.activateScene("smoke");
+      this.activeChars.add(ch);
+    }
+
+    for (const ch of this.activeChars) {
+      ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
+    }
+
+    return this.pendingChars.length > 0 || this.activeChars.size > 0;
   }
 }

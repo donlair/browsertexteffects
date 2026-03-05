@@ -103,8 +103,8 @@ export function extrapolateAlongRay(
   target: Coord,
   offsetFromTarget: number,
 ): Coord {
-  const totalDistance = findLengthOfLine(origin, target) + offsetFromTarget;
   const lineLen = findLengthOfLine(origin, target);
+  const totalDistance = lineLen + offsetFromTarget;
   if (totalDistance === 0 || (origin.column === target.column && origin.row === target.row)) {
     return target;
   }

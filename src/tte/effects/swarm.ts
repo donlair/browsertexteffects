@@ -1,9 +1,10 @@
-import { type Color, type Coord, type GradientDirection, color } from "../types";
+import { type Color, type GradientDirection, color } from "../types";
+import type { Coord } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { findCoordsInCircle, findCoordsOnCircle } from "../geometry";
-import { outCubic } from "../easing";
+import { findCoordsOnCircle, findCoordsInCircle } from "../geometry";
+import { outSine, inOutSine, inOutQuad } from "../easing";
 
 export interface SwarmConfig {
   baseColors: Color[];
@@ -32,16 +33,21 @@ export const defaultSwarmConfig: SwarmConfig = {
 interface SwarmGroup {
   chars: EffectCharacter[];
   spawnCoord: Coord;
-  activationDelay: number;
-  activated: boolean;
-}
-
-function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  /** `N_swarm_area` path IDs in launch order */
+  areaPathIds: string[];
 }
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 export class SwarmEffect {
@@ -49,10 +55,12 @@ export class SwarmEffect {
   private config: SwarmConfig;
   private activeChars: Set<EffectCharacter> = new Set();
   private pendingSwarms: SwarmGroup[] = [];
-  private charPathId: Map<number, string> = new Map();
-  private frameCount = 0;
+  private currentSwarm: SwarmGroup | null = null;
+  /** When true, pop the next swarm on the next step() call (matches Python call_next). */
+  private callNext = true;
+  /** Highest area index any char in currentSwarm has reached (for coordination). */
+  private currentGroupAreaIndex = 0;
   private colorMapping: Map<string, Color> = new Map();
-  private pathCounter = 0;
 
   constructor(canvas: Canvas, config: SwarmConfig) {
     this.canvas = canvas;
@@ -63,14 +71,6 @@ export class SwarmEffect {
   private build(): void {
     const { dims } = this.canvas;
 
-    const center: Coord = {
-      column: Math.round((dims.left + dims.right) / 2),
-      row: Math.round((dims.top + dims.bottom) / 2),
-    };
-
-    const canvasWidth = dims.right - dims.left + 1;
-    const canvasHeight = dims.top - dims.bottom + 1;
-
     // Build final gradient color mapping
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(
@@ -78,127 +78,216 @@ export class SwarmEffect {
       this.config.finalGradientDirection,
     );
 
-    // Place swarm area centers on a circle that circumscribes the canvas.
-    // findCoordsOnCircle doubles the x-distance, so halve the radius so that
-    // at angle=0 the point lands near the canvas right edge.
-    const areaCircleRadius = Math.round(Math.max(canvasWidth / 4, canvasHeight / 2));
-    const numAreas = randInt(this.config.swarmAreaCountRange[0], this.config.swarmAreaCountRange[1]);
-    const areaCenters = findCoordsOnCircle(center, areaCircleRadius, numAreas);
-    if (areaCenters.length === 0) areaCenters.push(center);
-
-    // Local scatter radius within each area
-    const localRadius = Math.max(3, Math.round(Math.min(canvasWidth, canvasHeight) * 0.12));
-
-    const areaLocalCoords: Map<string, Coord[]> = new Map();
-    for (const ac of areaCenters) {
-      const key = `${ac.column},${ac.row}`;
-      const pts = findCoordsInCircle(ac, localRadius * 2);
-      areaLocalCoords.set(key, pts.length > 0 ? pts : [ac]);
-    }
-
-    // Sort non-space chars bottom→top, right→left (matches Python ordering)
+    // Sort non-space chars bottom→top, right→left (matches Python BOTTOM_TO_TOP_RIGHT_TO_LEFT)
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()].sort((a, b) => {
       if (a.inputCoord.row !== b.inputCoord.row) return a.inputCoord.row - b.inputCoord.row;
       return b.inputCoord.column - a.inputCoord.column;
     });
 
     const swarmSize = Math.max(1, Math.round(nonSpaceChars.length * this.config.swarmSize));
+    const swarms = this.makeSwarms(nonSpaceChars, swarmSize);
 
-    let swarmIdx = 0;
-    for (let i = 0; i < nonSpaceChars.length; i += swarmSize) {
-      const groupChars = nonSpaceChars.slice(i, i + swarmSize);
-      const baseColor = this.config.baseColors[swarmIdx % this.config.baseColors.length];
+    // Canvas radius (matches Python: max(min(canvas.right, canvas.top) // 2, 1))
+    const canvasRadius = Math.max(Math.floor(Math.min(dims.right, dims.top) / 2), 1);
+    // Local scatter radius (matches Python: max(min(canvas.right, canvas.top) // 6, 1) * 2)
+    const localRadius = Math.max(Math.floor(Math.min(dims.right, dims.top) / 6), 1) * 2;
 
-      // Each swarm visits a sequence of area centers (shared for coordinated movement)
-      const numVisits = randInt(this.config.swarmAreaCountRange[0], this.config.swarmAreaCountRange[1]);
-      const sharedAreaSequence: Coord[] = [];
-      for (let v = 0; v < numVisits; v++) {
-        sharedAreaSequence.push(areaCenters[v % areaCenters.length]);
+    for (let swarmIdx = 0; swarmIdx < swarms.length; swarmIdx++) {
+      const groupChars = swarms[swarmIdx];
+      // Python uses random.choice(config.base_color) — pick randomly, not cyclically
+      const baseColor = randItem(this.config.baseColors);
+
+      // One spawn coord outside canvas per swarm (matches Python random_coord(outside_scope=True))
+      const swarmSpawn = this.canvas.randomCoord({ outsideScope: true });
+
+      // Build area coordinate map chained from swarmSpawn (matches Python's while loop).
+      // areaCoordMap[i] = local coords around the i-th focus (starting from swarmSpawn).
+      const areaCoordMap: Coord[][] = [];
+      const areaPathIds: string[] = [];
+      let lastFocus: Coord = swarmSpawn;
+
+      const areaCount = Math.floor(
+        Math.random() * (this.config.swarmAreaCountRange[1] - this.config.swarmAreaCountRange[0] + 1),
+      ) + this.config.swarmAreaCountRange[0];
+
+      while (areaCoordMap.length < areaCount) {
+        // Find next area center on a circle from lastFocus, preferring in-canvas coords
+        const candidates = shuffle(findCoordsOnCircle(lastFocus, canvasRadius));
+        let nextFocus: Coord = this.canvas.randomCoord();
+        for (const c of candidates) {
+          if (this.canvas.coordIsInCanvas(c)) {
+            nextFocus = c;
+            break;
+          }
+        }
+        // Local coords around lastFocus (not nextFocus) — matches Python's map ordering
+        const localCoords = findCoordsInCircle(lastFocus, localRadius);
+        areaCoordMap.push(localCoords.length > 0 ? localCoords : [lastFocus]);
+        areaPathIds.push(`${areaCoordMap.length - 1}_swarm_area`);
+        lastFocus = nextFocus;
       }
 
-      const spawnCoord = sharedAreaSequence[0];
-      const swarm: SwarmGroup = {
-        chars: groupChars,
-        spawnCoord,
-        activationDelay: swarmIdx * 12,
-        activated: false,
-      };
+      // Build flash gradient mirror (matches Python's swarm_gradient_mirror):
+      // base→flash (7 steps) + 10 flash frames + flash→base reversed
+      const swarmGrad = new Gradient([baseColor, this.config.flashColor], 7);
+      const flashMirror: Color[] = [
+        ...swarmGrad.spectrum,
+        ...Array(10).fill(this.config.flashColor),
+        ...swarmGrad.spectrum.slice().reverse(),
+      ];
 
       for (const ch of groupChars) {
-        // Flash scene (looping): pulse between base and flash color during swarming
-        const flashScene = ch.newScene("flash", true);
-        flashScene.addFrame(ch.inputSymbol, 3, baseColor.rgbHex);
-        flashScene.addFrame(ch.inputSymbol, 2, this.config.flashColor.rgbHex);
+        // Flash scene: gradient mirror, 1 tick per frame, NOT looping (matches Python)
+        const flashScene = ch.newScene("flash", false);
+        for (const c of flashMirror) {
+          flashScene.addFrame(ch.inputSymbol, 1, c.rgbHex);
+        }
 
-        // Landing scene: gradient from flash color to final position color
+        // Landing scene: flash→final gradient, 3 ticks per frame (matches Python steps=10)
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const lastStop = this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
         const finalColor = this.colorMapping.get(key) ?? lastStop;
+        const landGrad = new Gradient([this.config.flashColor, finalColor], 10);
         const landScene = ch.newScene("land");
-        const landGrad = new Gradient([this.config.flashColor, finalColor], this.config.finalGradientSteps);
-        landScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, landGrad);
-
-        // Build swarm path: visits each area (with 2 inner scatter movements), then home
-        const pathId = `sw_${this.pathCounter++}`;
-        const path = ch.motion.newPath(pathId, { speed: 0.35, ease: outCubic });
-
-        for (const areaCenter of sharedAreaSequence) {
-          // swarmCoordination controls how often a char follows the shared area vs. a random one
-          const useShared = Math.random() < this.config.swarmCoordination;
-          const effectiveCenter = useShared ? areaCenter : randItem(areaCenters);
-          const akey = `${effectiveCenter.column},${effectiveCenter.row}`;
-          const pts = areaLocalCoords.get(akey) ?? [effectiveCenter];
-
-          path.addWaypoint(randItem(pts)); // arrive at area
-          path.addWaypoint(randItem(pts)); // inner movement 1
-          path.addWaypoint(randItem(pts)); // inner movement 2
+        for (const c of landGrad.spectrum) {
+          landScene.addFrame(ch.inputSymbol, 3, c.rgbHex);
         }
 
-        path.addWaypoint(ch.inputCoord); // return home
+        // Build per-area paths: outer (speed 0.4, outSine) + 2 inner (speed 0.18, inOutSine)
+        // Chained via ACTIVATE_PATH events (replaces Python's chain_paths).
+        for (let areaIdx = 0; areaIdx < areaCoordMap.length; areaIdx++) {
+          const localCoords = areaCoordMap[areaIdx];
+          const areaPathId = areaPathIds[areaIdx];
 
-        ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "land");
-        this.charPathId.set(ch.id, pathId);
+          // Outer path — entry to area
+          const outerPath = ch.motion.newPath(areaPathId, { speed: 0.4, ease: outSine });
+          outerPath.addWaypoint(randItem(localCoords));
+
+          // Outer path events (matches Python)
+          ch.eventHandler.register("PATH_ACTIVATED", areaPathId, "ACTIVATE_SCENE", "flash");
+          ch.eventHandler.register("PATH_ACTIVATED", areaPathId, "SET_LAYER", 1);
+          ch.eventHandler.register("PATH_COMPLETE", areaPathId, "DEACTIVATE_SCENE");
+          ch.eventHandler.register("PATH_COMPLETE", areaPathId, "ACTIVATE_PATH", `inner_${areaIdx}_0`);
+
+          // Inner path 0
+          const inner0Id = `inner_${areaIdx}_0`;
+          const inner0 = ch.motion.newPath(inner0Id, { speed: 0.18, ease: inOutSine });
+          inner0.addWaypoint(randItem(localCoords));
+          ch.eventHandler.register("PATH_COMPLETE", inner0Id, "ACTIVATE_PATH", `inner_${areaIdx}_1`);
+
+          // Inner path 1 — chains to next area or input_path
+          const inner1Id = `inner_${areaIdx}_1`;
+          const inner1 = ch.motion.newPath(inner1Id, { speed: 0.18, ease: inOutSine });
+          inner1.addWaypoint(randItem(localCoords));
+          const nextPathId = areaIdx + 1 < areaCoordMap.length
+            ? areaPathIds[areaIdx + 1]
+            : "input_path";
+          ch.eventHandler.register("PATH_COMPLETE", inner1Id, "ACTIVATE_PATH", nextPathId);
+        }
+
+        // Landing path — returns character to its input coordinate
+        const inputPath = ch.motion.newPath("input_path", { speed: 0.45, ease: inOutQuad });
+        inputPath.addWaypoint(ch.inputCoord);
+
+        // Landing path events (matches Python)
+        ch.eventHandler.register("PATH_ACTIVATED", "input_path", "ACTIVATE_SCENE", "flash");
+        ch.eventHandler.register("PATH_COMPLETE", "input_path", "ACTIVATE_SCENE", "land");
+        ch.eventHandler.register("PATH_COMPLETE", "input_path", "SET_LAYER", 0);
       }
 
-      this.pendingSwarms.push(swarm);
-      swarmIdx++;
+      this.pendingSwarms.push({ chars: groupChars, spawnCoord: swarmSpawn, areaPathIds });
     }
 
-    // All characters start visible but blank; they appear when their swarm launches
+    // All characters start hidden; they become visible when their swarm launches
     for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = true;
-      if (ch.isSpace) continue;
-      ch.currentVisual = { symbol: " ", fgColor: null };
+      ch.isVisible = false;
     }
   }
 
+  /**
+   * Chunk characters into swarms and merge a small final swarm into the previous one.
+   * Matches Python SwarmIterator.make_swarms().
+   */
+  private makeSwarms(chars: EffectCharacter[], swarmSize: number): EffectCharacter[][] {
+    // Python pops from end of BOTTOM_TO_TOP_RIGHT_TO_LEFT list → top chars first
+    const remaining = [...chars]; // sorted ascending row, descending col within row
+    const swarms: EffectCharacter[][] = [];
+    while (remaining.length > 0) {
+      const newSwarm: EffectCharacter[] = [];
+      for (let i = 0; i < swarmSize && remaining.length > 0; i++) {
+        const ch = remaining.pop();
+        if (ch) newSwarm.push(ch);
+      }
+      swarms.push(newSwarm);
+    }
+    // Merge final swarm into previous if it's smaller than half the swarm size
+    if (swarms.length >= 2) {
+      const finalSwarm = swarms[swarms.length - 1];
+      if (finalSwarm.length < Math.floor(swarmSize / 2)) {
+        swarms.pop();
+        swarms[swarms.length - 1].push(...finalSwarm);
+      }
+    }
+    return swarms;
+  }
+
   private launchSwarm(swarm: SwarmGroup): void {
-    swarm.activated = true;
     for (const ch of swarm.chars) {
+      ch.isVisible = true;
       ch.motion.setCoordinate(swarm.spawnCoord);
-      ch.activateScene("flash");
-      ch.motion.activatePath(this.charPathId.get(ch.id)!);
+      ch.motion.activatePath(swarm.areaPathIds[0]);
       this.activeChars.add(ch);
     }
   }
 
   step(): boolean {
-    this.frameCount++;
-
-    for (const swarm of this.pendingSwarms) {
-      if (!swarm.activated && this.frameCount >= swarm.activationDelay) {
-        this.launchSwarm(swarm);
+    // Pop and launch the next swarm when ready (matches Python call_next logic)
+    if (this.pendingSwarms.length > 0 && this.callNext) {
+      this.callNext = false;
+      // Python pops from end (last swarm = last built = bottom chars first)
+      const swarm = this.pendingSwarms.pop();
+      if (swarm) {
+        this.currentSwarm = swarm;
+        this.currentGroupAreaIndex = 0;
+        this.launchSwarm(this.currentSwarm);
       }
     }
 
-    for (const ch of this.activeChars) {
+    if (this.currentSwarm !== null) {
+      // When the total active character count drops below the current swarm size,
+      // trigger the next swarm launch. Matches Python: len(active_characters) < len(current_swarm).
+      if (this.activeChars.size < this.currentSwarm.chars.length) {
+        this.callNext = true;
+      }
+
+      // Dynamic coordination: if any char advances to a higher area, push others there.
+      // Matches Python's per-tick coordination logic in SwarmIterator.__next__().
+      for (const ch of this.currentSwarm.chars) {
+        const pathId = ch.motion.activePath?.id;
+        if (pathId?.includes("_swarm_area")) {
+          const areaIdx = parseInt(pathId.split("_swarm_area")[0], 10);
+          if (areaIdx > this.currentGroupAreaIndex) {
+            this.currentGroupAreaIndex = areaIdx;
+            for (const other of this.currentSwarm.chars) {
+              if (other !== ch && Math.random() < this.config.swarmCoordination) {
+                const path = other.motion.paths.get(pathId);
+                if (path) other.motion.activatePath(path);
+              }
+            }
+            break; // Only handle one leader per tick (matches Python's break)
+          }
+        }
+      }
+    }
+
+    // Tick all active characters
+    for (const ch of [...this.activeChars]) {
       ch.tick();
       if (!ch.isActive) {
         this.activeChars.delete(ch);
       }
     }
 
-    const allLaunched = this.pendingSwarms.every(s => s.activated);
-    return !(allLaunched && this.activeChars.size === 0);
+    return this.pendingSwarms.length > 0 || this.activeChars.size > 0;
   }
 }

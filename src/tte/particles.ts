@@ -62,9 +62,7 @@ export class ParticleSystem {
     span.style.position = "absolute";
     span.style.lineHeight = `${this.lineHeight}em`;
     span.textContent = config.symbol;
-    if (config.fgColor) {
-      span.style.color = `#${config.fgColor}`;
-    }
+    span.style.color = config.fgColor ? `#${config.fgColor}` : "";
     this._positionSpan(span, config.coord);
     this.container.appendChild(span);
 
@@ -91,9 +89,7 @@ export class ParticleSystem {
       // Update span from character state
       const vis = p.character.currentVisual;
       p.span.textContent = vis.symbol;
-      if (vis.fgColor) {
-        p.span.style.color = `#${vis.fgColor}`;
-      }
+      p.span.style.color = vis.fgColor ? `#${vis.fgColor}` : "";
 
       // Update position from motion
       const coord = p.character.motion.currentCoord;

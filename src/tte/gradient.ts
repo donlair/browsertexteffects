@@ -3,8 +3,9 @@ import { type Color, type GradientDirection, color, rgbInts } from "./types";
 export class Gradient {
   spectrum: Color[];
 
-  constructor(stops: Color[], steps: number | number[] = 1) {
-    this.spectrum = this._generate(stops, Array.isArray(steps) ? steps : [steps]);
+  constructor(stops: Color[], steps: number | number[] = 1, loop: boolean = false) {
+    const effectiveStops = loop && stops.length > 0 ? [...stops, stops[0]] : stops;
+    this.spectrum = this._generate(effectiveStops, Array.isArray(steps) ? steps : [steps]);
   }
 
   getColorAtFraction(fraction: number): Color {
@@ -41,9 +42,9 @@ export class Gradient {
       const startRgb = rgbInts(start);
       const endRgb = rgbInts(end);
 
-      const redDelta = Math.trunc((endRgb[0] - startRgb[0]) / stepCount);
-      const greenDelta = Math.trunc((endRgb[1] - startRgb[1]) / stepCount);
-      const blueDelta = Math.trunc((endRgb[2] - startRgb[2]) / stepCount);
+      const redDelta = Math.floor((endRgb[0] - startRgb[0]) / stepCount);
+      const greenDelta = Math.floor((endRgb[1] - startRgb[1]) / stepCount);
+      const blueDelta = Math.floor((endRgb[2] - startRgb[2]) / stepCount);
 
       const rangeStart = spectrum.length > 0 ? 1 : 0;
       for (let i = rangeStart; i < stepCount; i++) {

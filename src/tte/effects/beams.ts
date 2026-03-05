@@ -10,7 +10,7 @@ export interface BeamsConfig {
   beamRowSpeed: [number, number];
   beamColumnSpeed: [number, number];
   beamGradientStops: Color[];
-  beamGradientSteps: number;
+  beamGradientSteps: number | number[];
   beamGradientFrames: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
@@ -26,7 +26,7 @@ export const defaultBeamsConfig: BeamsConfig = {
   beamRowSpeed: [1.5, 6.0],
   beamColumnSpeed: [0.9, 1.5],
   beamGradientStops: [color("ffffff"), color("00D1FF"), color("8A008A")],
-  beamGradientSteps: 6,
+  beamGradientSteps: [2, 6],
   beamGradientFrames: 2,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
@@ -62,7 +62,7 @@ export class BeamsEffect {
   private canvas: Canvas;
   private config: BeamsConfig;
   private phase: "beams" | "wipe" = "beams";
-  private frameCount = 0;
+  private beamDelay = 0; // counts down; launch when 0
   private pendingGroups: BeamGroup[] = [];
   private activeGroups: BeamGroup[] = [];
   private activeChars: Set<EffectCharacter> = new Set();
@@ -81,36 +81,29 @@ export class BeamsEffect {
 
     // Build gradients
     const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
-    const dimColor = adjustBrightness(config.beamGradientStops[config.beamGradientStops.length - 1], 0.3);
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(
       dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection,
     );
 
-    // Init all chars to dim state
-    for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = true;
-      if (!ch.isSpace) {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: dimColor.rgbHex };
-      }
-    }
-
-    // Build per-char scenes
+    // Build per-char scenes; chars start invisible (visible when beam hits)
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       const { column, row } = ch.inputCoord;
       const finalColor = colorMapping.get(coordKey(column, row)) ?? config.finalGradientStops[0];
+      const dimColor = adjustBrightness(finalColor, 0.3);
+      const fadeGradient = new Gradient([finalColor, dimColor], 10);
+      const brightenGradient = new Gradient([dimColor, finalColor], 10);
 
       const rowScene = ch.newScene("beam_row");
       rowScene.applyGradientToSymbols(config.beamRowSymbols, config.beamGradientFrames, beamGradient);
-      rowScene.addFrame(ch.inputSymbol, 4, dimColor.rgbHex);
+      rowScene.applyGradientToSymbols(ch.inputSymbol, 2, fadeGradient);
 
       const colScene = ch.newScene("beam_column");
       colScene.applyGradientToSymbols(config.beamColumnSymbols, config.beamGradientFrames, beamGradient);
-      colScene.addFrame(ch.inputSymbol, 4, dimColor.rgbHex);
+      colScene.applyGradientToSymbols(ch.inputSymbol, 2, fadeGradient);
 
-      const brightenGrad = new Gradient([dimColor, finalColor], config.finalGradientSteps);
       const brightenScene = ch.newScene("brighten");
-      brightenScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, brightenGrad);
+      brightenScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, brightenGradient);
     }
 
     // Build row beam groups
@@ -151,27 +144,38 @@ export class BeamsEffect {
       diagMap.get(key)?.push(ch);
     }
     const sortedKeys = [...diagMap.keys()].sort((a, b) => a - b);
-    this.wipeGroups = sortedKeys.map((k) => diagMap.get(k)!);
+    this.wipeGroups = sortedKeys.map((k) => diagMap.get(k) ?? []);
   }
 
   step(): boolean {
-    this.frameCount++;
-
     if (this.phase === "beams") {
-      if (this.frameCount % this.config.beamDelay === 0 && this.pendingGroups.length > 0) {
-        const batchSize = randInt(1, 5);
-        for (let i = 0; i < batchSize && this.pendingGroups.length > 0; i++) {
-          this.activeGroups.push(this.pendingGroups.shift()!);
+      // Launch first batch immediately (beamDelay=0 initially), then every beamDelay ticks
+      if (this.beamDelay === 0) {
+        if (this.pendingGroups.length > 0) {
+          const batchSize = randInt(1, 5);
+          for (let i = 0; i < batchSize && this.pendingGroups.length > 0; i++) {
+            const group = this.pendingGroups.shift();
+            if (group) this.activeGroups.push(group);
+          }
+          this.beamDelay = this.config.beamDelay;
         }
+      } else {
+        this.beamDelay--;
       }
 
       for (const group of this.activeGroups) {
         group.counter += group.speed;
-        while (group.counter >= 1 && group.nextIdx < group.chars.length) {
-          const ch = group.chars[group.nextIdx++];
-          ch.activateScene(group.sceneId);
-          this.activeChars.add(ch);
-          group.counter -= 1;
+        // Python only advances when int(counter) > 1 (i.e. counter >= 2.0),
+        // consuming int(counter) characters per tick then subtracting 1 per char.
+        const steps = Math.floor(group.counter);
+        if (steps > 1) {
+          for (let s = 0; s < steps && group.nextIdx < group.chars.length; s++) {
+            const ch = group.chars[group.nextIdx++];
+            ch.isVisible = true;
+            ch.activateScene(group.sceneId);
+            this.activeChars.add(ch);
+            group.counter -= 1;
+          }
         }
       }
       this.activeGroups = this.activeGroups.filter((g) => g.nextIdx < g.chars.length);
@@ -185,6 +189,7 @@ export class BeamsEffect {
       const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
       for (let i = this.wipeIdx; i < end; i++) {
         for (const ch of this.wipeGroups[i]) {
+          ch.isVisible = true;
           ch.activateScene("brighten");
           this.activeChars.add(ch);
         }

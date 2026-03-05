@@ -2,7 +2,7 @@ import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { buildSpanningTree } from "../graph";
+import { buildSpanningTreeSimple } from "../graph";
 
 export interface BurnConfig {
   burnSpeed: number;
@@ -18,13 +18,13 @@ export interface BurnConfig {
 
 export const defaultBurnConfig: BurnConfig = {
   burnSpeed: 3,
-  burnSymbols: ["▓", "▒", "░", "█", "▀", "▝", "."],
-  burnFrameDuration: 3,
+  burnSymbols: ["'", ".", "▖", "▙", "█", "▜", "▀", "▝", "."],
+  burnFrameDuration: 4,
   burnColors: [color("ffffff"), color("fff75d"), color("fe650d"), color("8A003C"), color("510100")],
   startingColor: color("837373"),
   finalGradientStops: [color("00c3ff"), color("ffff1c")],
   finalGradientSteps: 12,
-  finalGradientFrames: 6,
+  finalGradientFrames: 4,
   finalGradientDirection: "vertical",
 };
 
@@ -76,15 +76,16 @@ export class BurnEffect {
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
       const lastBurnColor = this.config.burnColors[this.config.burnColors.length - 1];
       const finalScene = ch.newScene("final");
-      const charGradient = new Gradient([lastBurnColor, finalColor], 10);
+      const charGradient = new Gradient([lastBurnColor, finalColor], 8);
       finalScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
 
       // Chain: burn complete → activate final
       ch.eventHandler.register("SCENE_COMPLETE", "burn", "ACTIVATE_SCENE", "final");
     }
 
-    // Compute spanning tree order for organic spread
-    this.pendingChars = buildSpanningTree(nonSpace);
+    // Compute spanning tree order for organic spread.
+    // Matches Python's PrimsSimple: randomly picks edge chars and links random neighbors.
+    this.pendingChars = buildSpanningTreeSimple(nonSpace, { startStrategy: "random" });
   }
 
   step(): boolean {
@@ -95,7 +96,8 @@ export class BurnEffect {
     // Ignite chars
     let ignited = 0;
     while (this.pendingChars.length > 0 && ignited < this.config.burnSpeed) {
-      const ch = this.pendingChars.shift()!;
+      const ch = this.pendingChars.shift();
+      if (!ch) break;
       ch.activateScene("burn");
       this.activeChars.add(ch);
       ignited++;

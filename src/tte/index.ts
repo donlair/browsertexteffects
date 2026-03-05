@@ -38,8 +38,8 @@ import { SwarmEffect, type SwarmConfig, defaultSwarmConfig } from "./effects/swa
 import { LaserEtchEffect, type LaserEtchConfig, defaultLaserEtchConfig } from "./effects/laseretch";
 import { OrbittingVolleyEffect, type OrbittingVolleyConfig, defaultOrbittingVolleyConfig } from "./effects/orbittingvolley";
 
-export { color } from "./types";
-export type { Color, GradientDirection, Grouping, EasingFunction } from "./types";
+export { color, colorPair, rgbInts, adjustBrightness, xtermToHex } from "./types";
+export type { Color, ColorPair, Coord, GradientDirection, Grouping, EasingFunction } from "./types";
 export type { DecryptConfig } from "./effects/decrypt";
 export type { SlideConfig } from "./effects/slide";
 export type { WipeConfig } from "./effects/wipe";
@@ -120,6 +120,7 @@ export * as geometry from "./geometry";
 export * as graph from "./graph";
 export { ParticleSystem } from "./particles";
 export type { ParticleConfig } from "./particles";
+export { EventHandler } from "./events";
 export type { EventType, ActionType, EventCallback, EventAction } from "./events";
 
 export type EffectName = "decrypt" | "slide" | "wipe" | "randomsequence" | "middleout" | "colorshift" | "scattered" | "pour" | "sweep" | "expand" | "waves" | "rain" | "print" | "burn" | "matrix" | "highlight" | "rings" | "errorcorrect" | "unstable" | "overflow" | "bouncyballs" | "fireworks" | "spotlights" | "vhstape" | "blackhole" | "smoke" | "bubbles" | "spray" | "beams" | "slice" | "synthgrid" | "binarypath" | "thunderstorm" | "crumble" | "swarm" | "laseretch" | "orbittingvolley";
@@ -265,7 +266,7 @@ export function createEffect(
     effect = new BlackholeEffect(canvas, cfg);
   } else if (effectName === "smoke") {
     const cfg = { ...defaultSmokeConfig, ...config } as SmokeConfig;
-    effect = new SmokeEffect(canvas, cfg, container);
+    effect = new SmokeEffect(canvas, cfg);
   } else if (effectName === "bubbles") {
     const cfg = { ...defaultBubblesConfig, ...config } as BubblesConfig;
     effect = new BubblesEffect(canvas, cfg);
@@ -332,7 +333,7 @@ export function createEffectOnScroll(
   container: HTMLElement,
   text: string,
   effectName: EffectName,
-  config?: EffectConfig,
+  config?: EffectConfig & { lineHeight?: number; onComplete?: () => void },
 ): EffectHandle {
   const handle = createEffect(container, text, effectName, config);
 

@@ -114,7 +114,7 @@ export class SlideEffect {
         for (const ch of groups[gi]) {
           ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startingRow });
         }
-      } else if (this.config.grouping === "diagonal") {
+      } else if (this.config.grouping === "diagonalTopLeftToBottomRight") {
         const lastChar = group[group.length - 1];
         const distFromBottom = lastChar.inputCoord.row - (dims.bottom - 1);
         let startingCoord: Coord = {
@@ -169,7 +169,8 @@ export class SlideEffect {
 
     if (this.pendingGroups.length > 0) {
       if (this.currentGap >= this.config.gap) {
-        this.activeGroups.push(this.pendingGroups.shift()!);
+        const group = this.pendingGroups.shift();
+        if (group) this.activeGroups.push(group);
         this.currentGap = 0;
       } else {
         this.currentGap++;
@@ -178,7 +179,8 @@ export class SlideEffect {
 
     for (const group of this.activeGroups) {
       if (group.length > 0) {
-        const ch = group.shift()!;
+        const ch = group.shift();
+        if (!ch) continue;
         ch.isVisible = true;
         ch.motion.activatePath("input_path");
         this.activeChars.add(ch);

@@ -12,6 +12,8 @@ export interface VhstapeConfig {
   glitchLineDuration: number;
   glitchWaveHeight: number;
   glitchLineColors: Color[];
+  glitchWaveColors: Color[];
+  noiseColors: Color[];
   noiseDuration: number;
   noiseSymbols: string[];
   redrawLineDelay: number;
@@ -29,13 +31,18 @@ export const defaultVhstapeConfig: VhstapeConfig = {
   glitchLineDuration: 10,
   glitchWaveHeight: 3,
   glitchLineColors: [
-    color("ff0000"), color("00ff00"), color("0000ff"),
-    color("ff00ff"), color("ffff00"), color("00ffff"),
+    color("ffffff"), color("ff0000"), color("00ff00"), color("0000ff"), color("ffffff"),
+  ],
+  glitchWaveColors: [
+    color("ffffff"), color("ff0000"), color("00ff00"), color("0000ff"), color("ffffff"),
+  ],
+  noiseColors: [
+    color("1e1e1f"), color("3c3b3d"), color("6d6c70"), color("a2a1a6"), color("cbc9cf"), color("ffffff"),
   ],
   noiseDuration: 30,
-  noiseSymbols: ["░", "▒", "▓", "█", "·", "•", "▪", "▫"],
+  noiseSymbols: ["#", "*", ".", ":"],
   redrawLineDelay: 4,
-  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
   finalGradientDirection: "vertical",
 };
@@ -104,10 +111,7 @@ export class VhstapeEffect {
       const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
 
       const redrawScene = ch.newScene("redraw");
-      const blockChars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
-      for (const block of blockChars) {
-        redrawScene.addFrame(block, 1, finalColor.rgbHex);
-      }
+      redrawScene.addFrame("█", 6, "ffffff");
       redrawScene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
 
       ch.isVisible = true;
@@ -290,9 +294,10 @@ export class VhstapeEffect {
       const sym = this.config.noiseSymbols[
         Math.floor(Math.random() * this.config.noiseSymbols.length)
       ];
-      const gray = randInt(40, 200);
-      const hex = gray.toString(16).padStart(2, "0");
-      ch.currentVisual = { symbol: sym, fgColor: `${hex}${hex}${hex}` };
+      const noiseColor = this.config.noiseColors[
+        Math.floor(Math.random() * this.config.noiseColors.length)
+      ];
+      ch.currentVisual = { symbol: sym, fgColor: noiseColor.rgbHex };
     }
   }
 }

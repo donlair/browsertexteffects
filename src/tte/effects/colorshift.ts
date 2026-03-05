@@ -1,5 +1,6 @@
 import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
+import { findNormalizedDistanceFromCenter } from "../geometry";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
 
@@ -30,15 +31,24 @@ export const defaultColorShiftConfig: ColorShiftConfig = {
 export class ColorShiftEffect {
   private canvas: Canvas;
   private config: ColorShiftConfig;
-  private animChars: EffectCharacter[] = [];
   private activeChars: Set<EffectCharacter> = new Set();
   private cyclesCompleted: Map<number, number> = new Map();
-  private charFinished: Set<number> = new Set();
 
   constructor(canvas: Canvas, config: ColorShiftConfig) {
     this.canvas = canvas;
     this.config = config;
     this.build();
+  }
+
+  // Called via CALLBACK event when the gradient scene completes — matches Python's loop_tracker.
+  private loopTracker(character: EffectCharacter): void {
+    const count = (this.cyclesCompleted.get(character.id) || 0) + 1;
+    this.cyclesCompleted.set(character.id, count);
+    if (this.config.cycles === 0 || count < this.config.cycles) {
+      character.activateScene("loop");
+    } else {
+      character.activateScene("final");
+    }
   }
 
   private build(): void {
@@ -50,22 +60,21 @@ export class ColorShiftEffect {
       this.config.finalGradientDirection,
     );
 
-    const waveGradient = new Gradient(this.config.gradientStops, this.config.gradientSteps);
+    // loop=true matches Python default (no_loop=False → loop=True): wraps last color back to first
+    const waveGradient = new Gradient(this.config.gradientStops, this.config.gradientSteps, true);
     const spectrum = waveGradient.spectrum;
 
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) ch.isVisible = true;
     }
 
-    this.animChars = this.canvas.getNonSpaceCharacters();
     const maxCol = dims.textRight;
     const maxRow = dims.textTop;
     const minCol = dims.textLeft;
     const minRow = dims.textBottom;
 
-    for (const ch of this.animChars) {
+    for (const ch of this.canvas.getNonSpaceCharacters()) {
       ch.isVisible = true;
-      this.cyclesCompleted.set(ch.id, 0);
 
       let offset: number;
       const col = ch.inputCoord.column;
@@ -79,12 +88,8 @@ export class ColorShiftEffect {
         const maxSum = (maxRow - minRow) + (maxCol - minCol);
         offset = maxSum > 0 ? ((row - minRow) + (col - minCol)) / maxSum : 0;
       } else {
-        // radial
-        const cx = (maxCol + minCol) / 2;
-        const cy = (maxRow + minRow) / 2;
-        const maxDist = Math.sqrt((maxCol - cx) ** 2 + (maxRow - cy) ** 2) || 1;
-        const dist = Math.sqrt((col - cx) ** 2 + (row - cy) ** 2);
-        offset = dist / maxDist;
+        // radial — matches Python: geometry.find_normalized_distance_from_center(text bounds)
+        offset = findNormalizedDistanceFromCenter(minRow, maxRow, minCol, maxCol, ch.inputCoord);
       }
 
       if (this.config.reverseTravelDirection) offset = 1 - offset;
@@ -92,7 +97,9 @@ export class ColorShiftEffect {
       const shift = Math.floor(offset * spectrum.length) % spectrum.length;
       const shifted = [...spectrum.slice(shift), ...spectrum.slice(0, shift)];
 
-      const loopScene = ch.newScene("loop", true);
+      // Non-looping scene: SCENE_COMPLETE fires after each pass, callback handles re-activation.
+      // Matches Python architecture (gradient_scn is non-looping, loop_tracker callback restarts it).
+      const loopScene = ch.newScene("loop");
       for (const c of shifted) {
         loopScene.addFrame(ch.inputSymbol, this.config.gradientFrames, c.rgbHex);
       }
@@ -100,8 +107,19 @@ export class ColorShiftEffect {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = finalColorMapping.get(key) || this.config.finalGradientStops[0];
       const finalScene = ch.newScene("final");
-      const charGradient = new Gradient([spectrum[shift], finalColor], 10);
-      finalScene.applyGradientToSymbols(ch.inputSymbol, 3, charGradient);
+      // Start final gradient from last color of shifted spectrum (matches Python: colors[-1])
+      const lastShiftedColor = shifted[shifted.length - 1] ?? shifted[0];
+      // steps=8 matches Python; frame duration uses gradientFrames (matches Python)
+      const charGradient = new Gradient([lastShiftedColor, finalColor], 8);
+      finalScene.applyGradientToSymbols(ch.inputSymbol, this.config.gradientFrames, charGradient);
+
+      // Register cycle-tracking callback on SCENE_COMPLETE (matches Python's loop_tracker pattern)
+      ch.eventHandler.register(
+        "SCENE_COMPLETE",
+        "loop",
+        "CALLBACK",
+        { callback: (c: EffectCharacter) => this.loopTracker(c), args: [] },
+      );
 
       ch.activateScene("loop");
       this.activeChars.add(ch);
@@ -111,29 +129,10 @@ export class ColorShiftEffect {
   step(): boolean {
     if (this.activeChars.size === 0) return false;
 
-    for (const ch of this.activeChars) {
-      if (this.charFinished.has(ch.id)) {
-        ch.tick();
-        if (!ch.isActive) {
-          this.activeChars.delete(ch);
-        }
-        continue;
-      }
-
-      // Looping phase: manually tick and count cycles
+    for (const ch of [...this.activeChars]) {
       ch.tick();
-      const loopScene = ch.scenes.get("loop")!;
-      // isComplete for looping scenes is always true (by design), so we track
-      // when the scene wraps by checking if frames were recycled.
-      // We detect cycle completion by checking if we're back at frame 0
-      if (loopScene.frames.length > 0 && loopScene.playedFrames.length === 0) {
-        // A looping scene just recycled its frames
-        const count = (this.cyclesCompleted.get(ch.id) || 0) + 1;
-        this.cyclesCompleted.set(ch.id, count);
-        if (count >= this.config.cycles) {
-          this.charFinished.add(ch.id);
-          ch.activateScene("final");
-        }
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
       }
     }
 

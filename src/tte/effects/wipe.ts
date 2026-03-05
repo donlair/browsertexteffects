@@ -2,10 +2,11 @@ import { type Color, type EasingFunction, type Grouping, type GradientDirection,
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { inOutSine } from "../easing";
+import { SequenceEaser, inOutCirc } from "../easing";
 
 export interface WipeConfig {
   wipeDirection: Grouping;
+  wipeEase: EasingFunction;
   wipeDelay: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
@@ -14,7 +15,8 @@ export interface WipeConfig {
 }
 
 export const defaultWipeConfig: WipeConfig = {
-  wipeDirection: "diagonal",
+  wipeDirection: "diagonalTopLeftToBottomRight",
+  wipeEase: inOutCirc,
   wipeDelay: 0,
   finalGradientStops: [color("833ab4"), color("fd1d1d"), color("fcb045")],
   finalGradientSteps: 12,
@@ -25,22 +27,18 @@ export const defaultWipeConfig: WipeConfig = {
 export class WipeEffect {
   private canvas: Canvas;
   private config: WipeConfig;
-  private pending: EffectCharacter[] = [];
   private activeChars: Set<EffectCharacter> = new Set();
-  private currentStep = 0;
-  private totalSteps = 0;
-  private delayCounter = 0;
-  private totalChars = 0;
-  private revealedCount = 0;
-  private easing: EasingFunction = inOutSine;
+  private easer: SequenceEaser<EffectCharacter[]>;
+  private delayCounter: number;
 
   constructor(canvas: Canvas, config: WipeConfig) {
     this.canvas = canvas;
     this.config = config;
-    this.build();
+    this.delayCounter = 0;
+    this.easer = this.build();
   }
 
-  private build(): void {
+  private build(): SequenceEaser<EffectCharacter[]> {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(
@@ -53,49 +51,53 @@ export class WipeEffect {
     }
 
     const groups = this.canvas.getCharactersGrouped(this.config.wipeDirection, { includeSpaces: false });
-    const ordered: EffectCharacter[] = [];
+
     for (const group of groups) {
       for (const ch of group) {
-        ordered.push(ch);
+        const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+        const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
+        const scene = ch.newScene("wipe");
+        const wipeGradient = new Gradient(
+          [this.config.finalGradientStops[0], finalColor],
+          this.config.finalGradientSteps,
+        );
+        scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, wipeGradient);
       }
     }
 
-    for (const ch of ordered) {
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-      const scene = ch.newScene("gradient");
-      const charGradient = new Gradient(
-        [this.config.finalGradientStops[0], finalColor],
-        10,
-      );
-      scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
-    }
-
-    this.pending = ordered;
-    this.totalChars = ordered.length;
-    this.totalSteps = this.totalChars;
+    return new SequenceEaser<EffectCharacter[]>(groups, this.config.wipeEase);
   }
 
   step(): boolean {
-    if (this.pending.length === 0 && this.activeChars.size === 0) {
+    if (this.activeChars.size === 0 && this.easer.isComplete()) {
       return false;
     }
 
-    if (this.pending.length > 0) {
-      if (this.config.wipeDelay > 0 && this.delayCounter < this.config.wipeDelay) {
-        this.delayCounter++;
-      } else {
-        this.delayCounter = 0;
-        this.currentStep++;
-        const progress = this.easing(Math.min(this.currentStep / this.totalSteps, 1));
-        const targetCount = Math.floor(progress * this.totalChars);
-        while (this.revealedCount < targetCount && this.pending.length > 0) {
-          const ch = this.pending.shift()!;
-          ch.isVisible = true;
-          ch.activateScene("gradient");
-          this.activeChars.add(ch);
-          this.revealedCount++;
+    if (!this.easer.isComplete()) {
+      if (this.delayCounter === 0) {
+        this.easer.step();
+        for (const group of this.easer.added) {
+          for (const ch of group) {
+            ch.isVisible = true;
+            ch.activateScene("wipe");
+            this.activeChars.add(ch);
+          }
         }
+        for (const group of this.easer.removed) {
+          for (const ch of group) {
+            if (ch.activeScene) {
+              ch.activeScene.reset();
+              ch.activeScene = null;
+            }
+            const wipeScene = ch.scenes.get("wipe");
+            if (wipeScene) wipeScene.reset();
+            ch.isVisible = false;
+            this.activeChars.delete(ch);
+          }
+        }
+        this.delayCounter = this.config.wipeDelay;
+      } else {
+        this.delayCounter--;
       }
     }
 
@@ -106,6 +108,6 @@ export class WipeEffect {
       }
     }
 
-    return this.pending.length > 0 || this.activeChars.size > 0;
+    return !this.easer.isComplete() || this.activeChars.size > 0;
   }
 }

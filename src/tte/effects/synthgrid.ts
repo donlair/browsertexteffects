@@ -1,6 +1,6 @@
 import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
-import type { Canvas } from "../canvas";
+import type { Canvas, CanvasDimensions } from "../canvas";
 import type { EffectCharacter } from "../character";
 
 export interface SynthGridConfig {
@@ -19,21 +19,41 @@ export interface SynthGridConfig {
 export const defaultSynthGridConfig: SynthGridConfig = {
   gridRowSymbol: "─",
   gridColumnSymbol: "│",
-  gridGradientStops: [color("ff00ff"), color("ffffff")],
+  gridGradientStops: [color("CC00CC"), color("ffffff")],  // Python default: CC00CC
   gridGradientSteps: 12,
   gridGradientDirection: "diagonal",
-  textGradientStops: [color("8f00ff"), color("00ffff"), color("ffffff")],
+  textGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   textGradientSteps: 12,
   textGradientDirection: "vertical",
   textGenerationSymbols: ["░", "▒", "▓"],
   maxActiveBlocks: 0.1,
 };
 
+function randInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 function shuffle<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+}
+
+/**
+ * Matches Python's find_even_gap(): find the divisor closest to 20% of dimension
+ * that divides `dimension - 2` evenly (or with remainder ≤ 1).
+ */
+function findEvenGap(dimension: number): number {
+  const d = dimension - 2;
+  if (d <= 0) return 0;
+  const potential: number[] = [];
+  for (let i = d; i > 4; i--) {
+    if (d % i <= 1) potential.push(i);
+  }
+  if (potential.length === 0) return 4;
+  const target = Math.floor(d / 5);
+  return potential.reduce((best, g) => Math.abs(g - target) < Math.abs(best - target) ? g : best);
 }
 
 const LINE_HEIGHT = 1.2;
@@ -137,9 +157,30 @@ export class SynthGridEffect {
     this.container.removeChild(probe);
   }
 
+  private _computeGaps(dims: CanvasDimensions): { rowGap: number; colGap: number } {
+    let rowGap: number;
+    let colGap: number;
+    // Matches Python: if canvas.top > 2 * canvas.right (tall text), use row-primary gap
+    if (dims.top > 2 * dims.right) {
+      rowGap = findEvenGap(dims.top) + 1;
+      colGap = rowGap * 2;
+    } else {
+      colGap = findEvenGap(dims.right) + 1;
+      rowGap = Math.floor(colGap / 2);
+    }
+    return { rowGap: Math.max(1, rowGap), colGap: Math.max(1, colGap) };
+  }
+
   private build(): void {
     const { dims } = this.canvas;
     const { config } = this;
+
+    // Grid gradient maps over full canvas bounds (matches Python: 1, top, 1, right)
+    const gridGradient = new Gradient(config.gridGradientStops, config.gridGradientSteps);
+    const gridColorMapping = gridGradient.buildCoordinateColorMapping(
+      dims.bottom, dims.top, dims.left, dims.right,
+      config.gridGradientDirection,
+    );
 
     const textGradient = new Gradient(config.textGradientStops, config.textGradientSteps);
     this.textColorMapping = textGradient.buildCoordinateColorMapping(
@@ -148,23 +189,25 @@ export class SynthGridEffect {
     );
     this.textGradientSpectrum = textGradient.spectrum;
 
-    const gridGradient = new Gradient(config.gridGradientStops, config.gridGradientSteps);
-    const gridColorMapping = gridGradient.buildCoordinateColorMapping(
-      dims.textBottom, dims.textTop, dims.textLeft, dims.textRight,
-      config.gridGradientDirection,
-    );
+    const { rowGap, colGap } = this._computeGaps(dims);
 
-    const longestDim = Math.max(dims.textRight, dims.textTop);
-    const gap = Math.max(2, Math.round(longestDim * 0.2));
+    // Compute internal line positions (not including border positions)
+    const internalRowLines: number[] = [];
+    for (let r = dims.bottom + rowGap; r < dims.top; r += rowGap) {
+      if (dims.top - r < 2) continue;
+      internalRowLines.push(r);
+    }
+    const internalColLines: number[] = [];
+    for (let c = dims.left + colGap; c < dims.right; c += colGap) {
+      if (dims.right - c < 2) continue;
+      internalColLines.push(c);
+    }
 
-    const rowLines: number[] = [];
-    for (let r = gap; r <= dims.textTop; r += gap) rowLines.push(r);
-    const colLines: number[] = [];
-    for (let c = gap; c <= dims.textRight; c += gap) colLines.push(c);
-
-    for (const row of rowLines) {
+    // Horizontal lines: border (bottom + top) + internal rows
+    // Each spans full canvas width [left, right]
+    for (const row of [dims.bottom, dims.top, ...internalRowLines]) {
       const positions: Array<{ col: number; row: number }> = [];
-      for (let col = dims.textLeft; col <= dims.textRight; col++) {
+      for (let col = dims.left; col <= dims.right; col++) {
         positions.push({ col, row });
       }
       this.hLines.push(new GridLine(
@@ -173,9 +216,11 @@ export class SynthGridEffect {
       ));
     }
 
-    for (const col of colLines) {
+    // Vertical lines: border (left + right) + internal cols
+    // Span rows [bottom, top) exclusive of top (corners handled by h-lines), matching Python range(bottom, top)
+    for (const col of [dims.left, dims.right, ...internalColLines]) {
       const positions: Array<{ col: number; row: number }> = [];
-      for (let row = dims.textTop; row >= dims.textBottom; row--) {
+      for (let row = dims.bottom; row < dims.top; row++) {
         positions.push({ col, row });
       }
       this.vLines.push(new GridLine(
@@ -184,8 +229,10 @@ export class SynthGridEffect {
       ));
     }
 
-    const rowBounds = [0, ...rowLines, dims.textTop + 1];
-    const colBounds = [0, ...colLines, dims.textRight + 1];
+    // Block boundaries: only internal lines divide blocks (borders are visual-only)
+    // Ranges use [r1, r2) = left-closed, right-open — matching Python's range(prev, current)
+    const rowBounds = [dims.bottom, ...internalRowLines, dims.top + 1];
+    const colBounds = [dims.left, ...internalColLines, dims.right + 1];
     const nonSpaceChars = this.canvas.getNonSpaceCharacters();
 
     const blocks: EffectCharacter[][] = [];
@@ -197,8 +244,8 @@ export class SynthGridEffect {
         const c2 = colBounds[ci + 1];
         const block = nonSpaceChars.filter(
           ch =>
-            ch.inputCoord.row > r1 && ch.inputCoord.row < r2 &&
-            ch.inputCoord.column > c1 && ch.inputCoord.column < c2,
+            ch.inputCoord.row >= r1 && ch.inputCoord.row < r2 &&
+            ch.inputCoord.column >= c1 && ch.inputCoord.column < c2,
         );
         if (block.length > 0) blocks.push(block);
       }
@@ -207,9 +254,11 @@ export class SynthGridEffect {
     this.pendingBlocks = blocks;
     this.totalBlocks = blocks.length;
 
+    // Build dissolve scenes: random 15-30 frames (matches Python's randint(15, 30))
     for (const ch of nonSpaceChars) {
       const dissolveScene = ch.newScene("dissolve");
-      for (let i = 0; i < 20; i++) {
+      const frameCount = randInt(15, 30);
+      for (let i = 0; i < frameCount; i++) {
         const sym = config.textGenerationSymbols[
           Math.floor(Math.random() * config.textGenerationSymbols.length)
         ];
@@ -255,8 +304,7 @@ export class SynthGridEffect {
       }
 
       case "add_chars": {
-        const maxConcurrent = Math.max(1, Math.ceil(this.config.maxActiveBlocks * this.totalBlocks));
-
+        // Tick all active characters first (matches Python: update() called after group pop)
         for (const ch of [...this.activeChars]) {
           ch.tick();
           if (!ch.isActive) {
@@ -264,11 +312,14 @@ export class SynthGridEffect {
           }
         }
 
-        while (this.activeBlockCount < maxConcurrent && this.pendingBlocks.length > 0) {
-          this.activateBlock(this.pendingBlocks.shift()!);
+        // At most one group per tick (matches Python behavior: single pop per __next__ call)
+        const threshold = this.totalBlocks * this.config.maxActiveBlocks;
+        if (this.activeBlockCount < threshold && this.pendingBlocks.length > 0) {
+          const block = this.pendingBlocks.shift();
+          if (block) this.activateBlock(block);
         }
 
-        if (this.pendingBlocks.length === 0 && this.activeChars.size === 0) {
+        if (this.pendingBlocks.length === 0 && this.activeChars.size === 0 && this.activeBlockCount === 0) {
           this._revealGridLineChars();
           this.phase = "collapse";
         }
@@ -297,7 +348,7 @@ export class SynthGridEffect {
     return true;
   }
 
-  // Reveal any non-space characters that were excluded from blocks (on grid lines)
+  // Reveal any non-space characters that were excluded from blocks (safety net)
   private _revealGridLineChars(): void {
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       if (!ch.isVisible) {

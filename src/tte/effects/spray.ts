@@ -8,7 +8,7 @@ import { outExpo } from "../easing";
 export interface SprayConfig {
   sprayColors: Color[];
   spraySymbols: string[];
-  sourcePosition: "bottom-left" | "bottom-right" | "top-left" | "top-right" | "center";
+  sourcePosition: "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw" | "center";
   arcHeight: number;
   flightSpeed: number;
   flightEasing: EasingFunction;
@@ -20,17 +20,17 @@ export interface SprayConfig {
 }
 
 export const defaultSprayConfig: SprayConfig = {
-  sprayColors: [color("ff9900"), color("ffcc00"), color("ffffff")],
+  sprayColors: [color("8A008A"), color("00D1FF"), color("ffffff")],
   spraySymbols: ["*", "·", ".", "+"],
-  sourcePosition: "bottom-left",
+  sourcePosition: "e",
   arcHeight: 4,
   flightSpeed: 0.3,
   flightEasing: outExpo,
   charsPerTick: 3,
-  finalGradientStops: [color("ff9900"), color("ffcc00"), color("ffffff")],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
   finalGradientFrames: 8,
-  finalGradientDirection: "diagonal",
+  finalGradientDirection: "vertical",
 };
 
 function shuffle<T>(arr: T[]): void {
@@ -57,15 +57,18 @@ export class SprayEffect {
 
   private resolveSource(): Coord {
     const { dims } = this.canvas;
+    const midCol = Math.floor(dims.right / 2);
+    const midRow = Math.floor(dims.top / 2);
     switch (this.config.sourcePosition) {
-      case "bottom-left":  return { column: dims.left,  row: dims.bottom };
-      case "bottom-right": return { column: dims.right, row: dims.bottom };
-      case "top-left":     return { column: dims.left,  row: dims.top };
-      case "top-right":    return { column: dims.right, row: dims.top };
-      case "center":       return {
-        column: Math.round((dims.left + dims.right) / 2),
-        row:    Math.round((dims.bottom + dims.top) / 2),
-      };
+      case "n":      return { column: midCol,          row: dims.top    };
+      case "ne":     return { column: dims.right - 1,  row: dims.top    };
+      case "e":      return { column: dims.right - 1,  row: midRow      };
+      case "se":     return { column: dims.right - 1,  row: dims.bottom };
+      case "s":      return { column: midCol,      row: dims.bottom };
+      case "sw":     return { column: dims.left,   row: dims.bottom };
+      case "w":      return { column: dims.left,   row: midRow      };
+      case "nw":     return { column: dims.left,   row: dims.top    };
+      case "center": return { column: dims.centerColumn, row: dims.centerRow };
     }
   }
 
@@ -139,7 +142,8 @@ export class SprayEffect {
     // Release charsPerTick chars from the queue
     const toRelease = Math.min(this.config.charsPerTick, this.queue.length);
     for (let i = 0; i < toRelease; i++) {
-      const ch = this.queue.shift()!;
+      const ch = this.queue.shift();
+      if (!ch) break;
       ch.motion.setCoordinate(this.source);
       ch.isVisible = true;
       ch.activateScene("flight");

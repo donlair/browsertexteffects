@@ -56,7 +56,7 @@ while true; do
     cat "$PROMPT_FILE" | claude -p \
         --model sonnet \
         --dangerously-skip-permissions \
-        --max-turns=4 \
+        --max-turns=40 \
         --no-session-persistence \
         --output-format=text
 

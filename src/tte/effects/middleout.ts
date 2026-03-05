@@ -56,9 +56,6 @@ export class MiddleOutEffect {
 
     this.animChars = this.canvas.getNonSpaceCharacters();
 
-    const centerRow = Math.round((dims.textTop + dims.textBottom) / 2);
-    const centerCol = Math.round((dims.textLeft + dims.textRight) / 2);
-
     for (const ch of this.animChars) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       this.characterFinalColorMap.set(ch.id, colorMapping.get(key) || this.config.finalGradientStops[0]);
@@ -66,11 +63,14 @@ export class MiddleOutEffect {
       ch.isVisible = true;
       ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.config.startingColor.rgbHex };
 
+      // Start all characters at canvas center (matches Python: motion.set_coordinate(canvas.center))
+      ch.motion.setCoordinate(dims.center);
+
       const centerPath = ch.motion.newPath("center_path", this.config.centerMovementSpeed, this.config.centerEasing);
       if (this.config.expandDirection === "vertical") {
-        centerPath.addWaypoint({ column: ch.inputCoord.column, row: centerRow });
+        centerPath.addWaypoint({ column: ch.inputCoord.column, row: dims.centerRow });
       } else {
-        centerPath.addWaypoint({ column: centerCol, row: ch.inputCoord.row });
+        centerPath.addWaypoint({ column: dims.centerColumn, row: ch.inputCoord.row });
       }
 
       ch.motion.activatePath("center_path");
@@ -84,10 +84,10 @@ export class MiddleOutEffect {
       fullPath.addWaypoint(ch.inputCoord);
       ch.motion.activatePath("full_path");
 
-      const finalColor = this.characterFinalColorMap.get(ch.id)!;
+      const finalColor = this.characterFinalColorMap.get(ch.id) ?? this.config.startingColor;
       const scene = ch.newScene("gradient");
       const charGradient = new Gradient([this.config.startingColor, finalColor], 10);
-      scene.applyGradientToSymbols(ch.inputSymbol, 3, charGradient);
+      scene.applyGradientToSymbols(ch.inputSymbol, 6, charGradient);
       ch.activateScene("gradient");
 
       this.activeChars.add(ch);

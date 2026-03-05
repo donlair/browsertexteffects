@@ -78,7 +78,8 @@ export class OrbittingVolleyEffect {
     this.canvas = canvas;
     this.config = config;
     this.totalChars = 0;
-    this.delayCounter = config.launchDelay;
+    // Python initializes delay to 0 so the first volley fires on tick 1
+    this.delayCounter = 0;
     this.build();
   }
 
@@ -162,7 +163,8 @@ export class OrbittingVolleyEffect {
       const launchCoord = { ...this.perimeter[Math.round(launcher.perimIdx) % perimLen] };
 
       for (let i = 0; i < count; i++) {
-        const ch = launcher.magazine.shift()!;
+        const ch = launcher.magazine.shift();
+        if (!ch) break;
         const pathId = `fly_${this.pathCounter++}`;
 
         ch.motion.setCoordinate(launchCoord);

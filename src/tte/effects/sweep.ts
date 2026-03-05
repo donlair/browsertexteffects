@@ -24,10 +24,10 @@ export const defaultSweepConfig: SweepConfig = {
   finalGradientDirection: "vertical",
 };
 
+const SHADES_OF_GRAY = ["A0A0A0", "808080", "404040", "202020", "101010"];
+
 function randGray(): string {
-  const v = Math.floor(Math.random() * 128) + 64;
-  const hex = v.toString(16).padStart(2, "0");
-  return `${hex}${hex}${hex}`;
+  return SHADES_OF_GRAY[Math.floor(Math.random() * SHADES_OF_GRAY.length)];
 }
 
 export class SweepEffect {
@@ -40,6 +40,7 @@ export class SweepEffect {
   private lastGroupIndex = -1;
   private activeChars: Set<EffectCharacter> = new Set();
   private colorMapping: Map<string, Color> = new Map();
+  private finalGradient!: Gradient;
 
   constructor(canvas: Canvas, config: SweepConfig) {
     this.canvas = canvas;
@@ -49,8 +50,8 @@ export class SweepEffect {
 
   private build(): void {
     const { dims } = this.canvas;
-    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+    this.finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
+    this.colorMapping = this.finalGradient.buildCoordinateColorMapping(
       dims.textBottom, dims.textTop, dims.textLeft, dims.textRight,
       this.config.finalGradientDirection,
     );
@@ -73,13 +74,13 @@ export class SweepEffect {
       direction === "left_to_right" ? a - b : b - a,
     );
 
-    return sortedKeys.map((k) => colMap.get(k)!);
+    return sortedKeys.map((k) => colMap.get(k) ?? []);
   }
 
   private setupPhase1(): void {
     this.groups = this.getColumnGroups(this.config.firstSweepDirection);
     this.currentStep = 0;
-    this.totalSteps = this.groups.length * 3;
+    this.totalSteps = 100;
     this.lastGroupIndex = -1;
 
     // Build reveal scenes
@@ -97,7 +98,7 @@ export class SweepEffect {
   private setupPhase2(): void {
     this.groups = this.getColumnGroups(this.config.secondSweepDirection);
     this.currentStep = 0;
-    this.totalSteps = this.groups.length * 3;
+    this.totalSteps = 100;
     this.lastGroupIndex = -1;
 
     // Build color scenes
@@ -105,13 +106,12 @@ export class SweepEffect {
       for (const ch of group) {
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
-        const colorGradient = new Gradient([this.config.finalGradientStops[0], finalColor], this.config.sweepSymbols.length + 1);
+        const spectrum = this.finalGradient.spectrum;
 
         const scene = ch.newScene("color");
-        const colors = colorGradient.spectrum;
-        for (let i = 0; i < this.config.sweepSymbols.length; i++) {
-          const c = colors[Math.min(i, colors.length - 1)];
-          scene.addFrame(this.config.sweepSymbols[i], 5, c.rgbHex);
+        for (const sym of this.config.sweepSymbols) {
+          const c = spectrum[Math.floor(Math.random() * spectrum.length)];
+          scene.addFrame(sym, 5, c.rgbHex);
         }
         scene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
       }
@@ -143,6 +143,9 @@ export class SweepEffect {
     }
     this.lastGroupIndex = targetGroupIndex;
 
+    // Check if groups are exhausted — switch phase immediately (Python: doesn't wait for active chars)
+    const easerComplete = this.currentStep >= this.totalSteps;
+
     // Tick active chars
     for (const ch of this.activeChars) {
       ch.tick();
@@ -151,14 +154,12 @@ export class SweepEffect {
       }
     }
 
-    // Check if phase is complete
-    if (this.currentStep >= this.totalSteps && this.activeChars.size === 0) {
+    if (easerComplete) {
       if (this.phase === "reveal") {
+        // Switch to color phase immediately; active reveal chars keep ticking next step
         this.phase = "color";
-        this.activeChars.clear();
         this.setupPhase2();
-        return true;
-      } else {
+      } else if (this.phase === "color" && this.activeChars.size === 0) {
         this.phase = "done";
         return false;
       }

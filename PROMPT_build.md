@@ -1,7 +1,7 @@
 Execute ONE task from an implementation plan using the process described below.
 
 1. Read the implementation plan file ( `verification-plan.md` ). Select the SINGLE most important next task.
-2. Launch up to 2 parallel Explore subagents (use `subagent_type: "Explore"`) to:
+2. Perform the following:
 
 - Find files relevant to the selected task
 - Identify existing patterns and conventions
@@ -18,13 +18,6 @@ Consolidate findings before proceeding. 3. Write or update any tests that would 
 
 - Add operational learnings (correct commands, gotchas)
 - Keep it brief and operational only
-
-**Commit and push:**
-
-```bash
-git add -A                                                                               git commit -m "feat: <description of what was implemented>"
-git push
-```
 
 ## Critical Guidelines
 

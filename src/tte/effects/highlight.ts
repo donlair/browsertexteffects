@@ -2,7 +2,7 @@ import { type Color, type GradientDirection, type Grouping, color, adjustBrightn
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { inOutCirc } from "../easing";
+import { SequenceEaser, inOutCirc } from "../easing";
 
 export interface HighlightConfig {
   highlightBrightness: number;
@@ -25,11 +25,8 @@ export const defaultHighlightConfig: HighlightConfig = {
 export class HighlightEffect {
   private canvas: Canvas;
   private config: HighlightConfig;
-  private groups: EffectCharacter[][] = [];
   private colorMapping: Map<string, Color> = new Map();
-  private currentStep = 0;
-  private totalSteps = 0;
-  private lastGroupIndex = -1;
+  private easer!: SequenceEaser<EffectCharacter[]>;
   private activeChars: Set<EffectCharacter> = new Set();
 
   constructor(canvas: Canvas, config: HighlightConfig) {
@@ -55,59 +52,47 @@ export class HighlightEffect {
     }
 
     // Group characters and build highlight scenes
-    this.groups = this.canvas.getCharactersGrouped(this.config.highlightDirection, { includeSpaces: false });
-    this.totalSteps = this.groups.length * 3;
+    const groups = this.canvas.getCharactersGrouped(this.config.highlightDirection, { includeSpaces: false });
+    this.easer = new SequenceEaser<EffectCharacter[]>(groups, inOutCirc);
 
-    for (const group of this.groups) {
+    for (const group of groups) {
       for (const ch of group) {
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const baseColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
         const brightColor = adjustBrightness(baseColor, this.config.highlightBrightness);
 
-        // Build a gradient: base → bright → bright → base
+        // Gradient: base→bright (3 steps), bright plateau (highlightWidth steps), bright→base (3 steps)
         const highlightGradient = new Gradient(
           [baseColor, brightColor, brightColor, baseColor],
-          this.config.highlightWidth,
+          [3, this.config.highlightWidth, 3],
         );
 
         const scene = ch.newScene("highlight");
         for (const c of highlightGradient.spectrum) {
           scene.addFrame(ch.inputSymbol, 2, c.rgbHex);
         }
-        // Final frame returns to base color
-        scene.addFrame(ch.inputSymbol, 1, baseColor.rgbHex);
       }
     }
   }
 
   step(): boolean {
-    this.currentStep++;
-    const progress = inOutCirc(Math.min(this.currentStep / this.totalSteps, 1));
-    const targetGroupIndex = Math.min(
-      Math.floor(progress * this.groups.length),
-      this.groups.length - 1,
-    );
+    if (this.activeChars.size === 0 && this.easer.isComplete()) {
+      return false;
+    }
 
-    // Activate newly reached groups
-    for (let i = this.lastGroupIndex + 1; i <= targetGroupIndex; i++) {
-      for (const ch of this.groups[i]) {
+    this.easer.step();
+    for (const group of this.easer.added) {
+      for (const ch of group) {
         ch.activateScene("highlight");
         this.activeChars.add(ch);
       }
     }
-    this.lastGroupIndex = targetGroupIndex;
 
-    // Tick active chars
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
         this.activeChars.delete(ch);
       }
-    }
-
-    // Done when all groups processed and no active chars remain
-    if (this.currentStep >= this.totalSteps && this.activeChars.size === 0) {
-      return false;
     }
 
     return true;

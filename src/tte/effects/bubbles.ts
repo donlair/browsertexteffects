@@ -2,48 +2,77 @@ import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { outExpo } from "../easing";
+import { outExpo, inOutExpo } from "../easing";
+import { findCoordsOnCircle } from "../geometry";
 
 export interface BubblesConfig {
   bubbleColors: Color[];
-  bubbleSymbols: string[];
-  riseHeight: number;
-  riseSpeed: number;
-  wobbleAmount: number;
-  bubblesPerTick: number;
+  popColor: Color;
+  bubbleSpeed: number;
+  bubbleDelay: number;
+  popCondition: "row" | "bottom" | "anywhere";
   finalGradientStops: Color[];
   finalGradientSteps: number;
-  finalGradientFrames: number;
   finalGradientDirection: GradientDirection;
 }
 
 export const defaultBubblesConfig: BubblesConfig = {
-  bubbleColors: [color("00d4ff"), color("87e8ff"), color("ffffff"), color("b0f0ff")],
-  bubbleSymbols: ["○", "◯", "°"],
-  riseHeight: 5,
-  riseSpeed: 0.2,
-  wobbleAmount: 1,
-  bubblesPerTick: 3,
-  finalGradientStops: [color("00d4ff"), color("ffffff")],
+  bubbleColors: [color("d33aff"), color("7395c4"), color("43c2a7"), color("02ff7f")],
+  popColor: color("ffffff"),
+  bubbleSpeed: 0.5,
+  bubbleDelay: 20,
+  popCondition: "row",
+  finalGradientStops: [color("d33aff"), color("02ff7f")],
   finalGradientSteps: 12,
-  finalGradientFrames: 8,
   finalGradientDirection: "diagonal",
 };
 
-function shuffle<T>(arr: T[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+interface BubbleState {
+  characters: EffectCharacter[];
+  radius: number;
+  anchorCol: number;
+  anchorRow: number;
+  targetCol: number;
+  lowestRow: number;
+  landed: boolean;
+}
+
+function setCharCoordinates(bubble: BubbleState): void {
+  const anchor = { column: Math.round(bubble.anchorCol), row: Math.round(bubble.anchorRow) };
+  const points = findCoordsOnCircle(anchor, bubble.radius, bubble.characters.length, false);
+  for (let i = 0; i < bubble.characters.length; i++) {
+    const point = points[i] ?? anchor;
+    bubble.characters[i].motion.setCoordinate(point);
+    if (point.row === bubble.lowestRow) {
+      bubble.landed = true;
+    }
+  }
+}
+
+function moveBubble(bubble: BubbleState, speed: number, popCondition: BubblesConfig["popCondition"]): void {
+  const dx = bubble.targetCol - bubble.anchorCol;
+  const dy = bubble.lowestRow - bubble.anchorRow;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= speed || dist === 0) {
+    bubble.anchorCol = bubble.targetCol;
+    bubble.anchorRow = bubble.lowestRow;
+  } else {
+    bubble.anchorCol += (dx / dist) * speed;
+    bubble.anchorRow += (dy / dist) * speed;
+  }
+  setCharCoordinates(bubble);
+  if (popCondition === "anywhere" && Math.random() < 0.002) {
+    bubble.landed = true;
   }
 }
 
 export class BubblesEffect {
   private canvas: Canvas;
   private config: BubblesConfig;
-  private queue: EffectCharacter[] = [];
+  private pendingBubbles: BubbleState[] = [];
+  private animatingBubbles: BubbleState[] = [];
   private activeChars: Set<EffectCharacter> = new Set();
-  private risePathIds: Map<EffectCharacter, string> = new Map();
-  private colorMapping: Map<string, Color> = new Map();
+  private stepsSinceLastBubble: number = 0;
 
   constructor(canvas: Canvas, config: BubblesConfig) {
     this.canvas = canvas;
@@ -56,70 +85,134 @@ export class BubblesEffect {
     const { config } = this;
 
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+    const colorMap = finalGradient.buildCoordinateColorMapping(
       dims.textBottom, dims.textTop, dims.textLeft, dims.textRight,
       config.finalGradientDirection,
     );
+    const popColorHex = config.popColor.rgbHex;
 
-    const chars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle(chars);
-    this.queue = chars;
+    // Set up per-character scenes and paths
+    for (const ch of this.canvas.getNonSpaceCharacters()) {
+      ch.isVisible = false;
 
-    for (let i = 0; i < chars.length; i++) {
-      const ch = chars[i];
-      ch.isVisible = true;
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      const finalColor = colorMap.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
 
-      const bubbleColor = config.bubbleColors[
-        Math.floor(Math.random() * config.bubbleColors.length)
-      ];
+      // pop_1: "*" × 9 frames at popColor
+      const pop1 = ch.newScene("pop_1");
+      pop1.addFrame("*", 9, popColorHex);
 
-      // Looping bubble scene: cycles through bubble symbols
-      const bubbleScene = ch.newScene("bubble", true);
-      for (const sym of config.bubbleSymbols) {
-        bubbleScene.addFrame(sym, 5, bubbleColor.rgbHex);
+      // pop_2: "'" × 9 frames at popColor
+      const pop2 = ch.newScene("pop_2");
+      pop2.addFrame("'", 9, popColorHex);
+
+      // final_scene: gradient from popColor → finalColor applied to inputSymbol, 6 frames per step
+      const finalScene = ch.newScene("final_scene");
+      const charGrad = new Gradient([config.popColor, finalColor], 8);
+      finalScene.applyGradientToSymbols(ch.inputSymbol, 6, charGrad);
+
+      // Scene chain: pop_1 → pop_2 → final_scene
+      ch.eventHandler.register("SCENE_COMPLETE", "pop_1", "ACTIVATE_SCENE", "pop_2");
+      ch.eventHandler.register("SCENE_COMPLETE", "pop_2", "ACTIVATE_SCENE", "final_scene");
+
+      // Final path: back to input coord at speed 0.3 with inOutExpo
+      const finalPath = ch.motion.newPath("final", 0.3, inOutExpo);
+      finalPath.addWaypoint(ch.inputCoord);
+
+      // When pop_out completes, activate the final path
+      ch.eventHandler.register("PATH_COMPLETE", "pop_out", "ACTIVATE_PATH", "final");
+    }
+
+    // Group characters into bubbles, bottom-to-top row order, 5–20 chars per bubble
+    const allChars: EffectCharacter[] = [];
+    for (const row of this.canvas.getCharactersGrouped("rowBottomToTop", { includeSpaces: false })) {
+      allChars.push(...row);
+    }
+
+    while (allChars.length > 0) {
+      const maxSize = Math.min(allChars.length, 20);
+      const groupSize = allChars.length < 5
+        ? allChars.length
+        : Math.floor(Math.random() * (maxSize - 5 + 1)) + 5;
+      const group = allChars.splice(0, groupSize);
+
+      const lowestRow = config.popCondition === "row"
+        ? Math.min(...group.map((c) => c.inputCoord.row))
+        : dims.bottom;
+
+      const radius = Math.max(Math.floor(group.length / 5), 1);
+      const originCol = dims.left + Math.floor(Math.random() * (dims.right - dims.left + 1));
+      const targetCol = dims.left + Math.floor(Math.random() * (dims.right - dims.left + 1));
+
+      // Bubble sheen: input symbol in a random bubble color (same for all chars in this bubble)
+      const bubbleColor = config.bubbleColors[Math.floor(Math.random() * config.bubbleColors.length)];
+      for (const ch of group) {
+        const sheenScene = ch.newScene("sheen");
+        sheenScene.addFrame(ch.inputSymbol, 1, bubbleColor.rgbHex);
+        ch.activateScene("sheen");
       }
 
-      // Pop: brief bright flash then space
-      const popScene = ch.newScene("pop");
-      popScene.addFrame("*", 2, "ffffff");
-      popScene.addFrame("✦", 2, "ffffff");
-      popScene.addFrame("·", 2, bubbleColor.rgbHex);
-      popScene.addFrame(" ", 1, null);
+      const bubble: BubbleState = {
+        characters: group,
+        radius,
+        anchorCol: originCol,
+        anchorRow: dims.top + 10,
+        targetCol,
+        lowestRow,
+        landed: false,
+      };
+      setCharCoordinates(bubble);
+      this.pendingBubbles.push(bubble);
+    }
+  }
 
-      // Restore: bubble color → final gradient color
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const restoreGrad = new Gradient([bubbleColor, finalColor], config.finalGradientFrames);
-      const restoreScene = ch.newScene("restore");
-      restoreScene.applyGradientToSymbols(ch.inputSymbol, 1, restoreGrad);
+  private popBubble(bubble: BubbleState): void {
+    const anchor = { column: Math.round(bubble.anchorCol), row: Math.round(bubble.anchorRow) };
+    const outPoints = findCoordsOnCircle(anchor, bubble.radius + 3, bubble.characters.length);
 
-      // Rise path: home → wobble midpoint → peak
-      const riseId = `rise_${i}`;
-      this.risePathIds.set(ch, riseId);
-      const risePath = ch.motion.newPath(riseId, config.riseSpeed, outExpo);
-      const midCol = ch.inputCoord.column + Math.round((Math.random() * 2 - 1) * config.wobbleAmount);
-      risePath.addWaypoint({ column: midCol, row: ch.inputCoord.row + Math.floor(config.riseHeight / 2) });
-      risePath.addWaypoint({ column: ch.inputCoord.column, row: ch.inputCoord.row + config.riseHeight });
+    for (let i = 0; i < bubble.characters.length; i++) {
+      const ch = bubble.characters[i];
+      const point = outPoints[i] ?? anchor;
+      const popOutPath = ch.motion.newPath("pop_out", 0.3, outExpo);
+      popOutPath.addWaypoint(point);
+    }
 
-      // Rise complete → pop scene
-      ch.eventHandler.register("PATH_COMPLETE", riseId, "ACTIVATE_SCENE", "pop");
-
-      // Pop complete → teleport home + restore
-      ch.eventHandler.register("SCENE_COMPLETE", "pop", "SET_COORDINATE", ch.inputCoord);
-      ch.eventHandler.register("SCENE_COMPLETE", "pop", "ACTIVATE_SCENE", "restore");
+    for (const ch of bubble.characters) {
+      ch.activateScene("pop_1");
+      ch.motion.activatePath("pop_out");
+      this.activeChars.add(ch);
     }
   }
 
   step(): boolean {
-    const toRelease = Math.min(this.config.bubblesPerTick, this.queue.length);
-    for (let i = 0; i < toRelease; i++) {
-      const ch = this.queue.shift()!;
-      ch.motion.setCoordinate(ch.inputCoord);
-      ch.activateScene("bubble");
-      ch.motion.activatePath(this.risePathIds.get(ch)!);
-      this.activeChars.add(ch);
+    if (this.pendingBubbles.length > 0 && this.stepsSinceLastBubble >= this.config.bubbleDelay) {
+      const bubble = this.pendingBubbles.shift();
+      if (!bubble) return true;
+      for (const ch of bubble.characters) {
+        ch.isVisible = true;
+      }
+      this.animatingBubbles.push(bubble);
+      this.stepsSinceLastBubble = 0;
+    }
+    this.stepsSinceLastBubble++;
+
+    // Pop landed bubbles
+    for (const bubble of this.animatingBubbles) {
+      if (bubble.landed) {
+        this.popBubble(bubble);
+      }
+    }
+    this.animatingBubbles = this.animatingBubbles.filter((b) => !b.landed);
+
+    // Move remaining animating bubbles and step their animations
+    for (const bubble of this.animatingBubbles) {
+      moveBubble(bubble, this.config.bubbleSpeed, this.config.popCondition);
+      for (const ch of bubble.characters) {
+        ch.tick();
+      }
     }
 
+    // Tick active chars (post-pop: following pop_out → final paths)
     for (const ch of [...this.activeChars]) {
       ch.tick();
       if (!ch.isActive) {
@@ -127,6 +220,6 @@ export class BubblesEffect {
       }
     }
 
-    return this.queue.length > 0 || this.activeChars.size > 0;
+    return this.pendingBubbles.length > 0 || this.animatingBubbles.length > 0 || this.activeChars.size > 0;
   }
 }
