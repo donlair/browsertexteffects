@@ -3449,39 +3449,94 @@ class RainColumn {
   length;
   fallDelay;
   fallTimer;
-  startDelay;
-  fillMode = false;
   exhausted = false;
   config;
   rainGradientColors;
-  constructor(chars, config, startDelay, rainGradientColors) {
+  canvasBottom;
+  phase = "rain";
+  holdTime = 0;
+  columnDropChance = 0.08;
+  constructor(chars, config, rainGradientColors, canvasBottom) {
     this.allChars = chars;
     this.config = config;
     this.rainGradientColors = rainGradientColors;
-    this.startDelay = startDelay;
-    this.fallDelay = randInt3(config.rainFallDelayRange[0], config.rainFallDelayRange[1]);
-    this.fallTimer = this.fallDelay;
-    this.length = randInt3(Math.max(1, Math.floor(chars.length * 0.1)), chars.length);
-    this.pendingChars = [...chars];
+    this.canvasBottom = canvasBottom;
+    this.fallDelay = 0;
+    this.fallTimer = 0;
+    this.length = 0;
+    this.pendingChars = [];
+    this.setupColumn("rain");
   }
-  get isActive() {
-    return this.startDelay <= 0 && !this.exhausted;
+  get hasPendingChars() {
+    return this.pendingChars.length > 0;
   }
-  get isExhausted() {
-    return this.exhausted;
+  get hasVisibleChars() {
+    return this.visibleChars.length > 0;
   }
   getVisibleChars() {
     return this.visibleChars;
   }
-  tick() {
-    if (this.startDelay > 0) {
-      this.startDelay--;
-      return;
+  setupColumn(phase) {
+    this.phase = phase;
+    for (const ch of this.allChars) {
+      ch.isVisible = ch.isSpace;
+      ch.motion.setCoordinate(ch.inputCoord);
     }
+    this.visibleChars = [];
+    this.pendingChars = [...this.allChars];
+    this.exhausted = false;
+    this.columnDropChance = 0.08;
+    if (phase === "fill") {
+      this.fallDelay = randInt3(Math.max(1, Math.floor(this.config.rainFallDelayRange[0] / 3)), Math.max(1, Math.floor(this.config.rainFallDelayRange[1] / 3)));
+      this.length = this.allChars.length;
+    } else {
+      this.fallDelay = randInt3(this.config.rainFallDelayRange[0], this.config.rainFallDelayRange[1]);
+      this.length = randInt3(Math.max(1, Math.floor(this.allChars.length * 0.1)), this.allChars.length);
+    }
+    this.fallTimer = 0;
+    this.holdTime = 0;
+    if (this.length === this.allChars.length) {
+      this.holdTime = randInt3(20, 45);
+    }
+  }
+  dropColumn() {
+    const outOfCanvas = [];
+    for (const ch of this.visibleChars) {
+      ch.motion.setCoordinate({
+        column: ch.motion.currentCoord.column,
+        row: ch.motion.currentCoord.row - 1
+      });
+      if (ch.motion.currentCoord.row < this.canvasBottom) {
+        ch.isVisible = false;
+        outOfCanvas.push(ch);
+      }
+    }
+    if (outOfCanvas.length > 0) {
+      this.visibleChars = this.visibleChars.filter((ch) => !outOfCanvas.includes(ch));
+    }
+  }
+  trimColumn() {
+    if (this.visibleChars.length === 0)
+      return;
+    const tail = this.visibleChars.shift();
+    tail.isVisible = false;
+    if (this.visibleChars.length > 1) {
+      this.fadeLastCharacter();
+    }
+  }
+  fadeLastCharacter() {
+    const lastColors = this.rainGradientColors.slice(-3);
+    const baseColor = randChoice2(lastColors);
+    const darkerHex = adjustBrightness(baseColor, 0.65).rgbHex;
+    this.visibleChars[0].currentVisual = {
+      symbol: this.visibleChars[0].currentVisual.symbol,
+      fgColor: darkerHex
+    };
+  }
+  tick() {
     if (this.exhausted)
       return;
-    this.fallTimer--;
-    if (this.fallTimer <= 0) {
+    if (this.fallTimer === 0) {
       this.fallTimer = this.fallDelay;
       if (this.pendingChars.length > 0) {
         const ch = this.pendingChars.shift();
@@ -3508,23 +3563,20 @@ class RainColumn {
             fgColor: randChoice2(this.rainGradientColors).rgbHex
           };
         }
-        if (!this.fillMode) {
-          const tail = this.visibleChars.shift();
-          if (tail)
-            tail.isVisible = false;
+        if (this.holdTime > 0) {
+          this.holdTime--;
+        } else if (this.phase === "rain") {
+          if (Math.random() < this.columnDropChance) {
+            this.dropColumn();
+          }
+          this.trimColumn();
         }
       }
-      if (!this.fillMode && this.visibleChars.length > this.length) {
-        const tail = this.visibleChars.shift();
-        if (tail)
-          tail.isVisible = false;
+      if (this.visibleChars.length > this.length) {
+        this.trimColumn();
       }
-      if (!this.fillMode && this.pendingChars.length === 0 && this.visibleChars.length === 0) {
-        this.exhausted = true;
-      }
-      if (this.fillMode && this.pendingChars.length === 0) {
-        this.exhausted = true;
-      }
+    } else {
+      this.fallTimer--;
     }
     for (const ch of this.visibleChars) {
       if (Math.random() < this.config.symbolSwapChance) {
@@ -3541,33 +3593,14 @@ class RainColumn {
       }
     }
   }
-  enterFillMode() {
-    this.fillMode = true;
-    this.exhausted = false;
-    this.fallDelay = randInt3(Math.max(1, Math.floor(this.config.rainFallDelayRange[0] / 3)), Math.max(1, Math.floor(this.config.rainFallDelayRange[1] / 3)));
-    this.fallTimer = this.fallDelay;
-    this.length = this.allChars.length;
-    this.pendingChars = this.allChars.filter((ch) => !ch.isVisible);
-  }
-  reset(startDelay) {
-    for (const ch of this.allChars) {
-      ch.isVisible = ch.isSpace;
-    }
-    this.visibleChars = [];
-    this.pendingChars = [...this.allChars];
-    this.startDelay = startDelay;
-    this.exhausted = false;
-    this.fillMode = false;
-    this.fallDelay = randInt3(this.config.rainFallDelayRange[0], this.config.rainFallDelayRange[1]);
-    this.fallTimer = this.fallDelay;
-    this.length = randInt3(Math.max(1, Math.floor(this.allChars.length * 0.1)), this.allChars.length);
-  }
 }
 
 class MatrixEffect {
   canvas;
   config;
-  columns = [];
+  pendingColumns = [];
+  activeColumns = [];
+  columnDelay = 0;
   columnChars = [];
   phase = "rain";
   rainTicks = 0;
@@ -3608,43 +3641,48 @@ class MatrixEffect {
       }
     }
     for (const group of this.columnChars) {
-      const delay = randInt3(0, this.config.columnDelayRange[1] * this.columnChars.length);
-      this.columns.push(new RainColumn(group, this.config, delay, this.rainGradientColors));
+      this.pendingColumns.push(new RainColumn(group, this.config, this.rainGradientColors, dims.bottom));
+    }
+    for (let i = this.pendingColumns.length - 1;i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.pendingColumns[i], this.pendingColumns[j]] = [this.pendingColumns[j], this.pendingColumns[i]];
     }
   }
   step() {
-    if (this.phase === "rain") {
-      this.rainTicks++;
-      for (const col of this.columns) {
-        col.tick();
-        if (col.isExhausted) {
-          col.reset(randInt3(this.config.columnDelayRange[0], this.config.columnDelayRange[1] * 3));
-        }
-      }
-      if (this.rainTicks >= this.config.rainTime) {
-        this.phase = "fill";
-        for (const col of this.columns) {
-          col.enterFillMode();
-        }
-      }
-      return true;
-    }
-    if (this.phase === "fill") {
-      let allFillDone = true;
-      for (const col of this.columns) {
-        if (!col.isExhausted) {
-          col.tick();
-          allFillDone = false;
-        }
-      }
-      if (allFillDone) {
-        this.phase = "resolve";
-        for (const col of this.columns) {
-          const visible = col.getVisibleChars().filter((ch) => !ch.isSpace);
-          if (visible.length > 0) {
-            this.fullColumnState.push({ chars: [...visible] });
+    if (this.phase === "rain" || this.phase === "fill") {
+      if (this.columnDelay === 0) {
+        if (this.phase === "rain") {
+          const count = randInt3(1, 3);
+          for (let i = 0;i < count && this.pendingColumns.length > 0; i++) {
+            this.activeColumns.push(this.pendingColumns.shift());
+          }
+        } else {
+          while (this.pendingColumns.length > 0) {
+            this.activeColumns.push(this.pendingColumns.shift());
           }
         }
+        this.columnDelay = this.phase === "rain" ? randInt3(this.config.columnDelayRange[0], this.config.columnDelayRange[1]) : 1;
+      } else {
+        this.columnDelay--;
+      }
+      for (const col of this.activeColumns) {
+        col.tick();
+        if (!col.hasPendingChars) {
+          if (col.phase === "fill" && !this.fullColumnState.some((s) => s.col === col)) {
+            const visible = col.getVisibleChars();
+            if (visible.length > 0) {
+              this.fullColumnState.push({ chars: [...visible], col });
+            }
+          } else if (!col.hasVisibleChars) {
+            col.setupColumn(this.phase);
+            this.pendingColumns.push(col);
+          }
+        }
+      }
+      this.activeColumns = this.activeColumns.filter((col) => col.hasVisibleChars);
+      if (this.phase === "fill" && this.pendingColumns.length === 0 && this.activeColumns.every((col) => !col.hasPendingChars && col.phase === "fill")) {
+        this.phase = "resolve";
+        this.activeColumns = [];
         for (const group of this.columnChars) {
           for (const ch of group) {
             if (ch.isSpace) {
@@ -3653,6 +3691,19 @@ class MatrixEffect {
           }
         }
         this.resolveTimer = this.config.resolveDelay;
+      }
+      if (this.phase === "rain") {
+        this.rainTicks++;
+        if (this.rainTicks >= this.config.rainTime) {
+          this.phase = "fill";
+          for (const col of this.activeColumns) {
+            col.holdTime = 0;
+            col.columnDropChance = 1;
+          }
+          for (const col of this.pendingColumns) {
+            col.setupColumn("fill");
+          }
+        }
       }
       return true;
     }
@@ -3674,8 +3725,12 @@ class MatrixEffect {
             for (let i = 0;i < count && state.chars.length > 0; i++) {
               const idx = randInt3(0, state.chars.length - 1);
               const ch = state.chars.splice(idx, 1)[0];
-              ch.activateScene("resolve");
-              this.resolvingChars.add(ch);
+              if (ch.isSpace) {
+                ch.isVisible = false;
+              } else {
+                ch.activateScene("resolve");
+                this.resolvingChars.add(ch);
+              }
             }
             this.resolveTimer = this.config.resolveDelay;
           } else {

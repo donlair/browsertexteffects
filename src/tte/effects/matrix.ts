@@ -1,4 +1,4 @@
-import { type Color, color, type GradientDirection } from "../types";
+import { type Color, color, type GradientDirection, adjustBrightness } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
@@ -20,7 +20,7 @@ export interface MatrixConfig {
 }
 
 // Python's MATRIX_SYMBOLS_COMMON + MATRIX_SYMBOLS_KATA
-const RAIN_SYMBOLS_COMMON = ["2","5","9","8","Z","*",")",":",".","\"","=","+","-","¦","|","_"];
+const RAIN_SYMBOLS_COMMON = ["2","5","9","8","Z","*",")",":",".",'"',"=","+","-","¦","|","_"];
 const RAIN_SYMBOLS_KATA = [
   "ｦ","ｱ","ｳ","ｴ","ｵ","ｶ","ｷ","ｹ","ｺ","ｻ","ｼ","ｽ","ｾ","ｿ",
   "ﾀ","ﾂ","ﾃ","ﾅ","ﾆ","ﾇ","ﾈ","ﾊ","ﾋ","ﾎ","ﾏ","ﾐ","ﾑ","ﾒ","ﾓ","ﾔ","ﾕ","ﾗ","ﾘ","ﾜ",
@@ -57,46 +57,105 @@ class RainColumn {
   private length: number;
   private fallDelay: number;
   private fallTimer: number;
-  private startDelay: number;
-  private fillMode = false;
   private exhausted = false;
   private config: MatrixConfig;
   private rainGradientColors: Color[];
+  private canvasBottom: number;
 
-  constructor(chars: EffectCharacter[], config: MatrixConfig, startDelay: number, rainGradientColors: Color[]) {
+  phase: "rain" | "fill" = "rain";
+  holdTime = 0;
+  columnDropChance = 0.08;
+
+  constructor(chars: EffectCharacter[], config: MatrixConfig, rainGradientColors: Color[], canvasBottom: number) {
     this.allChars = chars;
     this.config = config;
     this.rainGradientColors = rainGradientColors;
-    this.startDelay = startDelay;
-    this.fallDelay = randInt(config.rainFallDelayRange[0], config.rainFallDelayRange[1]);
-    this.fallTimer = this.fallDelay;
-    // Python: randint(max(1, int(len*0.1)), len(chars)) — allows full-height columns
-    this.length = randInt(Math.max(1, Math.floor(chars.length * 0.1)), chars.length);
-    this.pendingChars = [...chars];
+    this.canvasBottom = canvasBottom;
+
+    // Initialize via setupColumn
+    this.fallDelay = 0;
+    this.fallTimer = 0;
+    this.length = 0;
+    this.pendingChars = [];
+    this.setupColumn("rain");
   }
 
-  get isActive(): boolean {
-    return this.startDelay <= 0 && !this.exhausted;
-  }
-
-  get isExhausted(): boolean {
-    return this.exhausted;
-  }
+  get hasPendingChars(): boolean { return this.pendingChars.length > 0; }
+  get hasVisibleChars(): boolean { return this.visibleChars.length > 0; }
 
   getVisibleChars(): EffectCharacter[] {
     return this.visibleChars;
   }
 
-  tick(): void {
-    if (this.startDelay > 0) {
-      this.startDelay--;
-      return;
+  setupColumn(phase: "rain" | "fill"): void {
+    this.phase = phase;
+    for (const ch of this.allChars) {
+      ch.isVisible = ch.isSpace;
+      ch.motion.setCoordinate(ch.inputCoord);
     }
+    this.visibleChars = [];
+    this.pendingChars = [...this.allChars];
+    this.exhausted = false;
+    this.columnDropChance = 0.08;
 
+    if (phase === "fill") {
+      this.fallDelay = randInt(
+        Math.max(1, Math.floor(this.config.rainFallDelayRange[0] / 3)),
+        Math.max(1, Math.floor(this.config.rainFallDelayRange[1] / 3)),
+      );
+      this.length = this.allChars.length;
+    } else {
+      this.fallDelay = randInt(this.config.rainFallDelayRange[0], this.config.rainFallDelayRange[1]);
+      this.length = randInt(Math.max(1, Math.floor(this.allChars.length * 0.1)), this.allChars.length);
+    }
+    this.fallTimer = 0; // Python sets active_rain_fall_delay = 0
+
+    this.holdTime = 0;
+    if (this.length === this.allChars.length) {
+      this.holdTime = randInt(20, 45);
+    }
+  }
+
+  private dropColumn(): void {
+    const outOfCanvas: EffectCharacter[] = [];
+    for (const ch of this.visibleChars) {
+      ch.motion.setCoordinate({
+        column: ch.motion.currentCoord.column,
+        row: ch.motion.currentCoord.row - 1,
+      });
+      if (ch.motion.currentCoord.row < this.canvasBottom) {
+        ch.isVisible = false;
+        outOfCanvas.push(ch);
+      }
+    }
+    if (outOfCanvas.length > 0) {
+      this.visibleChars = this.visibleChars.filter(ch => !outOfCanvas.includes(ch));
+    }
+  }
+
+  private trimColumn(): void {
+    if (this.visibleChars.length === 0) return;
+    const tail = this.visibleChars.shift()!;
+    tail.isVisible = false;
+    if (this.visibleChars.length > 1) {
+      this.fadeLastCharacter();
+    }
+  }
+
+  private fadeLastCharacter(): void {
+    const lastColors = this.rainGradientColors.slice(-3);
+    const baseColor = randChoice(lastColors);
+    const darkerHex = adjustBrightness(baseColor, 0.65).rgbHex;
+    this.visibleChars[0].currentVisual = {
+      symbol: this.visibleChars[0].currentVisual.symbol,
+      fgColor: darkerHex,
+    };
+  }
+
+  tick(): void {
     if (this.exhausted) return;
 
-    this.fallTimer--;
-    if (this.fallTimer <= 0) {
+    if (this.fallTimer === 0) {
       this.fallTimer = this.fallDelay;
 
       // Reveal next char
@@ -130,28 +189,23 @@ class RainColumn {
           };
         }
 
-        // Trim tail (rain phase only)
-        if (!this.fillMode) {
-          const tail = this.visibleChars.shift();
-          if (tail) tail.isVisible = false;
+        // Hold time gates trimming
+        if (this.holdTime > 0) {
+          this.holdTime--;
+        } else if (this.phase === "rain") {
+          if (Math.random() < this.columnDropChance) {
+            this.dropColumn();
+          }
+          this.trimColumn();
         }
       }
 
-      // Trim if over max length
-      if (!this.fillMode && this.visibleChars.length > this.length) {
-        const tail = this.visibleChars.shift();
-        if (tail) tail.isVisible = false;
+      // Trim if over max length (both phases)
+      if (this.visibleChars.length > this.length) {
+        this.trimColumn();
       }
-
-      // Check if column is exhausted (non-fill mode only)
-      if (!this.fillMode && this.pendingChars.length === 0 && this.visibleChars.length === 0) {
-        this.exhausted = true;
-      }
-
-      // Fill mode exhausted when all chars visible
-      if (this.fillMode && this.pendingChars.length === 0) {
-        this.exhausted = true;
-      }
+    } else {
+      this.fallTimer--;
     }
 
     // Apply symbol/color volatility to visible chars
@@ -172,48 +226,20 @@ class RainColumn {
       }
     }
   }
-
-  enterFillMode(): void {
-    this.fillMode = true;
-    this.exhausted = false;
-    // Python: fresh randint from range // 3 (not dividing current delay)
-    this.fallDelay = randInt(
-      Math.max(1, Math.floor(this.config.rainFallDelayRange[0] / 3)),
-      Math.max(1, Math.floor(this.config.rainFallDelayRange[1] / 3)),
-    );
-    this.fallTimer = this.fallDelay;
-    this.length = this.allChars.length;
-    // Re-queue any chars that aren't visible
-    this.pendingChars = this.allChars.filter((ch) => !ch.isVisible);
-  }
-
-  reset(startDelay: number): void {
-    // Hide all chars and re-queue
-    for (const ch of this.allChars) {
-      ch.isVisible = ch.isSpace;
-    }
-    this.visibleChars = [];
-    this.pendingChars = [...this.allChars];
-    this.startDelay = startDelay;
-    this.exhausted = false;
-    this.fillMode = false;
-    this.fallDelay = randInt(this.config.rainFallDelayRange[0], this.config.rainFallDelayRange[1]);
-    this.fallTimer = this.fallDelay;
-    this.length = randInt(Math.max(1, Math.floor(this.allChars.length * 0.1)), this.allChars.length);
-  }
 }
 
 export class MatrixEffect {
   private canvas: Canvas;
   private config: MatrixConfig;
-  private columns: RainColumn[] = [];
+  private pendingColumns: RainColumn[] = [];
+  private activeColumns: RainColumn[] = [];
+  private columnDelay = 0;
   private columnChars: EffectCharacter[][] = [];
   private phase: "rain" | "fill" | "resolve" = "rain";
   private rainTicks = 0;
   private resolvingChars: Set<EffectCharacter> = new Set();
   private rainGradientColors: Color[] = [];
-  // Full columns (all pending exhausted) waiting to be resolved staggered
-  private fullColumnState: Array<{ chars: EffectCharacter[] }> = [];
+  private fullColumnState: Array<{ chars: EffectCharacter[]; col?: RainColumn }> = [];
   private resolveTimer = 0;
 
   constructor(canvas: Canvas, config: MatrixConfig) {
@@ -269,51 +295,65 @@ export class MatrixEffect {
       }
     }
 
-    // Create RainColumn per column with staggered start delays
+    // Create RainColumn per column (no staggered delays)
     for (const group of this.columnChars) {
-      const delay = randInt(0, this.config.columnDelayRange[1] * this.columnChars.length);
-      this.columns.push(new RainColumn(group, this.config, delay, this.rainGradientColors));
+      this.pendingColumns.push(
+        new RainColumn(group, this.config, this.rainGradientColors, dims.bottom),
+      );
+    }
+    // Shuffle for random spawn order (matching Python)
+    for (let i = this.pendingColumns.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.pendingColumns[i], this.pendingColumns[j]] = [this.pendingColumns[j], this.pendingColumns[i]];
     }
   }
 
   step(): boolean {
-    if (this.phase === "rain") {
-      this.rainTicks++;
-
-      for (const col of this.columns) {
-        col.tick();
-        if (col.isExhausted) {
-          col.reset(randInt(this.config.columnDelayRange[0], this.config.columnDelayRange[1] * 3));
-        }
-      }
-
-      if (this.rainTicks >= this.config.rainTime) {
-        this.phase = "fill";
-        for (const col of this.columns) {
-          col.enterFillMode();
-        }
-      }
-      return true;
-    }
-
-    if (this.phase === "fill") {
-      let allFillDone = true;
-      for (const col of this.columns) {
-        if (!col.isExhausted) {
-          col.tick();
-          allFillDone = false;
-        }
-      }
-
-      if (allFillDone) {
-        this.phase = "resolve";
-        // Collect visible chars per column for staggered resolve
-        for (const col of this.columns) {
-          const visible = col.getVisibleChars().filter((ch) => !ch.isSpace);
-          if (visible.length > 0) {
-            this.fullColumnState.push({ chars: [...visible] });
+    if (this.phase === "rain" || this.phase === "fill") {
+      // Spawn columns
+      if (this.columnDelay === 0) {
+        if (this.phase === "rain") {
+          const count = randInt(1, 3);
+          for (let i = 0; i < count && this.pendingColumns.length > 0; i++) {
+            this.activeColumns.push(this.pendingColumns.shift()!);
+          }
+        } else {
+          while (this.pendingColumns.length > 0) {
+            this.activeColumns.push(this.pendingColumns.shift()!);
           }
         }
+        this.columnDelay = this.phase === "rain"
+          ? randInt(this.config.columnDelayRange[0], this.config.columnDelayRange[1])
+          : 1;
+      } else {
+        this.columnDelay--;
+      }
+
+      // Tick columns
+      for (const col of this.activeColumns) {
+        col.tick();
+        if (!col.hasPendingChars) {
+          if (col.phase === "fill" && !this.fullColumnState.some(s => s.col === col)) {
+            const visible = col.getVisibleChars();
+            if (visible.length > 0) {
+              this.fullColumnState.push({ chars: [...visible], col });
+            }
+          } else if (!col.hasVisibleChars) {
+            col.setupColumn(this.phase);
+            this.pendingColumns.push(col);
+          }
+        }
+      }
+      this.activeColumns = this.activeColumns.filter(col => col.hasVisibleChars);
+
+      // Check fill→resolve transition
+      if (
+        this.phase === "fill" &&
+        this.pendingColumns.length === 0 &&
+        this.activeColumns.every(col => !col.hasPendingChars && col.phase === "fill")
+      ) {
+        this.phase = "resolve";
+        this.activeColumns = [];
         // Reset spaces to their original blank symbol
         for (const group of this.columnChars) {
           for (const ch of group) {
@@ -324,12 +364,28 @@ export class MatrixEffect {
         }
         this.resolveTimer = this.config.resolveDelay;
       }
+
+      // Check rain→fill transition
+      if (this.phase === "rain") {
+        this.rainTicks++;
+        // Python uses wall-clock seconds; TS uses ticks (~15s at 60fps)
+        if (this.rainTicks >= this.config.rainTime) {
+          this.phase = "fill";
+          for (const col of this.activeColumns) {
+            col.holdTime = 0;
+            col.columnDropChance = 1;
+          }
+          for (const col of this.pendingColumns) {
+            col.setupColumn("fill");
+          }
+        }
+      }
+
       return true;
     }
 
     if (this.phase === "resolve") {
       // Apply symbol/color volatility to chars still waiting to be resolved
-      // (Python calls column.tick() during resolve phase, which runs volatility logic)
       for (const state of this.fullColumnState) {
         for (const ch of state.chars) {
           if (Math.random() < this.config.symbolSwapChance) {
@@ -350,8 +406,12 @@ export class MatrixEffect {
             for (let i = 0; i < count && state.chars.length > 0; i++) {
               const idx = randInt(0, state.chars.length - 1);
               const ch = state.chars.splice(idx, 1)[0];
-              ch.activateScene("resolve");
-              this.resolvingChars.add(ch);
+              if (ch.isSpace) {
+                ch.isVisible = false;
+              } else {
+                ch.activateScene("resolve");
+                this.resolvingChars.add(ch);
+              }
             }
             this.resolveTimer = this.config.resolveDelay;
           } else {
