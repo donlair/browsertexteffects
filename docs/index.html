@@ -785,6 +785,7 @@
       if (Array.isArray(value)) {
         if (value.length === 0) return 'string[]';
         if (typeof value[0] === 'string') return 'string[]';
+        if (typeof value[0] === 'number') return 'number[]';
         if (typeof value[0] === 'object' && value[0] !== null && 'rgbHex' in value[0]) return 'Color[]';
         return 'string[]';
       }
@@ -852,12 +853,12 @@
           input.step = '1';
           group.appendChild(input);
 
-        } else if (type === 'string[]') {
+        } else if (type === 'string[]' || type === 'number[]') {
           const textarea = document.createElement('textarea');
           textarea.className = 'field-input';
           textarea.id = 'field-' + key;
           textarea.dataset.fieldKey = key;
-          textarea.dataset.fieldType = 'string[]';
+          textarea.dataset.fieldType = type;
           textarea.value = defaultValue.join('\n');
           group.appendChild(textarea);
 
@@ -924,6 +925,8 @@
           config[key] = el.value;
         } else if (type === 'string[]') {
           config[key] = el.value.split('\n').filter(s => s.length > 0);
+        } else if (type === 'number[]') {
+          config[key] = el.value.split('\n').filter(s => s.length > 0).map(Number);
         } else if (type === 'Color') {
           config[key] = hexToColor(el.closest('.field-group').querySelector('input[type="color"]').value);
         } else if (type === 'Color[]') {

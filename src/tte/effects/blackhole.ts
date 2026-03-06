@@ -67,6 +67,12 @@ export class BlackholeEffect {
   private colorMapping: Map<string, Color> = new Map();
   private pathCounter = 0;
 
+  // Starfield palette (gray-to-white) and consumed gradient map
+  private starfieldColors: Color[] = [];
+  private consumedGradientMap: Map<string, Gradient> = new Map();
+  // Track which starfield color each char was assigned
+  private charStarColor: Map<EffectCharacter, Color> = new Map();
+
   constructor(canvas: Canvas, config: BlackholeConfig) {
     this.canvas = canvas;
     this.config = config;
@@ -90,6 +96,18 @@ export class BlackholeEffect {
       Math.min(Math.round(canvasWidth * 0.3), Math.round(canvasHeight * 0.2)),
     );
 
+    // Build starfield gradient (gray-to-white, matching Python)
+    const starfieldGradient = new Gradient([color("4a4a4d"), color("ffffff")], 6);
+    this.starfieldColors = starfieldGradient.spectrum;
+
+    // Pre-build consumed gradient map: for each starfield color, a 10-step gradient to black
+    for (const sc of this.starfieldColors) {
+      const key = sc.rgbHex;
+      if (!this.consumedGradientMap.has(key)) {
+        this.consumedGradientMap.set(key, new Gradient([sc, color("000000")], 10));
+      }
+    }
+
     // Build final gradient color mapping
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(
@@ -112,12 +130,30 @@ export class BlackholeEffect {
     // Generate ring coords matching exactly ringCount evenly-spaced positions
     this.ringCoords = findCoordsOnCircle(this.center, this.blackholeRadius, ringCount);
 
-    // All characters start invisible
+    // ALL characters start visible as stars (matching Python's initial starfield)
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
       if (!ch.isSpace) {
-        ch.currentVisual = { symbol: " ", fgColor: null };
+        const starSymbol = STAR_SYMBOLS[Math.floor(Math.random() * STAR_SYMBOLS.length)];
+        const starColor = this.starfieldColors[Math.floor(Math.random() * this.starfieldColors.length)];
+        this.charStarColor.set(ch, starColor);
+
+        // Create a star scene for the initial starfield appearance
+        const starScene = ch.newScene("initial_star", true);
+        starScene.addFrame(starSymbol, 1, starColor.rgbHex);
+
+        ch.currentVisual = { symbol: starSymbol, fgColor: starColor.rgbHex };
+        ch.activateScene("initial_star");
       }
+    }
+
+    // Place starfield chars at random canvas positions
+    for (const ch of this.starfieldChars) {
+      const randomCoord: Coord = {
+        column: randInt(dims.left, dims.right),
+        row: randInt(dims.bottom, dims.top),
+      };
+      ch.motion.setCoordinate(randomCoord);
     }
 
     // Build ring character scenes and paths
@@ -126,7 +162,7 @@ export class BlackholeEffect {
       const ch = this.ringChars[i];
       this.ringActivationDelays.push(i * staggerStep);
 
-      // Ring color scene (looping)
+      // Ring color scene (looping) — activated when formation path starts
       const ringScene = ch.newScene("ring_color", true);
       ringScene.addFrame("*", 1, this.config.blackholeColor.rgbHex);
 
@@ -136,7 +172,7 @@ export class BlackholeEffect {
       const formPath = ch.motion.newPath(formId, { speed: 0.7, ease: inOutSine });
       formPath.addWaypoint(ringTarget);
 
-      // Orbit path: looping, traverse all ring coords
+      // Orbit path: looping, traverse all ring coords (built but NOT auto-activated)
       const orbitId = `orbit_${i}`;
       const startIdx = i % this.ringCoords.length;
       const orbitPath = ch.motion.newPath(orbitId, {
@@ -148,11 +184,8 @@ export class BlackholeEffect {
         const idx = (startIdx + j) % this.ringCoords.length;
         orbitPath.addWaypoint(this.ringCoords[idx]);
       }
-      // Close the loop back to start
-      orbitPath.addWaypoint(this.ringCoords[startIdx]);
 
-      // Event: form path complete → activate orbit
-      ch.eventHandler.register("PATH_COMPLETE", formId, "ACTIVATE_PATH", orbitId);
+      // NO event-based orbit activation — we'll batch-activate in transitionToConsuming
     }
   }
 
@@ -160,63 +193,39 @@ export class BlackholeEffect {
     this.phase = "consuming";
     this.phaseFrames = 0;
 
-    const { dims } = this.canvas;
+    // Batch-activate all ring char orbits (like Python's rotate_blackhole())
+    for (let i = 0; i < this.ringChars.length; i++) {
+      const ch = this.ringChars[i];
+      ch.motion.activatePath(`orbit_${i}`);
+    }
 
     for (const ch of this.starfieldChars) {
-      const starColor = this.config.starColors[
-        Math.floor(Math.random() * this.config.starColors.length)
-      ];
-      const starSymbol = STAR_SYMBOLS[Math.floor(Math.random() * STAR_SYMBOLS.length)];
+      const starColor = this.charStarColor.get(ch) || this.starfieldColors[0];
+      const starSymbol = ch.currentVisual.symbol;
 
-      // Star scene: looping, star symbol with star color fading toward black
-      const starScene = ch.newScene("star", true);
-      const fadeGrad = new Gradient([starColor, color("000000")], 6);
-      starScene.applyGradientToSymbols(starSymbol, 2, fadeGrad);
+      // Consumed scene: gradient from star color → black, synced to distance
+      const consumedScene = ch.newScene("consumed", false, { sync: "DISTANCE" });
+      const consumedGrad = this.consumedGradientMap.get(starColor.rgbHex) ||
+        new Gradient([starColor, color("000000")], 10);
+      consumedScene.applyGradientToSymbols(starSymbol, 1, consumedGrad);
+      // Add final blank frame
+      consumedScene.addFrame(" ", 1, null);
 
-      // Place at random canvas position
-      const randomCoord: Coord = {
-        column: randInt(dims.left, dims.right),
-        row: randInt(dims.bottom, dims.top),
-      };
-      ch.motion.setCoordinate(randomCoord);
-
-      // Singularity path: spiral waypoints toward center
+      // Singularity path: straight to center (matching Python)
       const singId = `sing_${this.pathCounter++}`;
       const singPath = ch.motion.newPath(singId, {
         speed: randRange(0.17, 0.30),
         ease: inExpo,
       });
-      this.buildSpiralWaypoints(singPath, randomCoord);
+      singPath.addWaypoint(this.center);
 
-      ch.currentVisual = { symbol: starSymbol, fgColor: starColor.rgbHex };
-      ch.activateScene("star");
+      // When singularity path activates → activate consumed scene + set layer 2
+      ch.eventHandler.register("PATH_ACTIVATED", singId, "ACTIVATE_SCENE", "consumed");
+      ch.eventHandler.register("PATH_ACTIVATED", singId, "SET_LAYER", 2);
+
       ch.motion.activatePath(singId);
       this.activeStarChars.add(ch);
     }
-  }
-
-  private buildSpiralWaypoints(path: ReturnType<EffectCharacter["motion"]["newPath"]>, start: Coord): void {
-    // Create intermediate waypoints at shrinking radii with angular offsets
-    const steps = 4;
-    const startAngle = Math.atan2(
-      start.row - this.center.row,
-      start.column - this.center.column,
-    );
-
-    for (let s = 1; s <= steps; s++) {
-      const fraction = s / (steps + 1);
-      const radius = this.blackholeRadius * (1 - fraction);
-      if (radius < 1) break;
-
-      // Rotate ~90 degrees per step for spiral feel
-      const angle = startAngle + (Math.PI / 2) * s;
-      const wp: Coord = {
-        column: Math.round(this.center.column + radius * 2 * Math.cos(angle)),
-        row: Math.round(this.center.row + radius * Math.sin(angle)),
-      };
-      path.addWaypoint(wp);
-    }
-    path.addWaypoint(this.center);
   }
 
   private transitionToCollapsing(): void {
@@ -347,7 +356,7 @@ export class BlackholeEffect {
             this.phaseFrames >= this.ringActivationDelays[i] &&
             !this.activeRingChars.has(ch)
           ) {
-            ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.config.blackholeColor.rgbHex };
+            // Switch from star scene to blackhole ring scene
             ch.activateScene("ring_color");
             ch.motion.activatePath(`form_${i}`);
             this.activeRingChars.add(ch);
@@ -359,12 +368,16 @@ export class BlackholeEffect {
           ch.tick();
         }
 
-        // Transition when all ring chars activated and all orbiting
-        // (form path completed → orbit auto-activated via event)
+        // Tick starfield chars (so their star scenes animate)
+        for (const ch of this.starfieldChars) {
+          ch.tick();
+        }
+
+        // Transition when all ring chars activated and all formation paths complete
         if (
           this.activeRingChars.size === this.ringChars.length &&
           [...this.activeRingChars].every(
-            (ch) => ch.motion.activePath?.id.startsWith("orbit_"),
+            (ch) => ch.motion.movementIsComplete(),
           )
         ) {
           this.transitionToConsuming();
@@ -400,7 +413,6 @@ export class BlackholeEffect {
         }
 
         // Transition when all ring chars have no active path or scene
-        // (waits for collapse paths + unstable scene on first char to finish)
         const allCollapsed = [...this.activeRingChars].every((ch) => !ch.isActive);
         if (allCollapsed) {
           this.transitionToExploding();

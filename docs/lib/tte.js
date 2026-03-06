@@ -44,17 +44,31 @@ class Scene {
   isLooping;
   frames = [];
   playedFrames = [];
-  constructor(id, isLooping = false) {
+  ease = null;
+  frameIndexMap = [];
+  easingTotalSteps = 0;
+  easingCurrentStep = 0;
+  sync = null;
+  constructor(id, isLooping = false, options) {
     this.id = id;
     this.isLooping = isLooping;
+    if (options) {
+      this.ease = options.ease ?? null;
+      this.sync = options.sync ?? null;
+    }
   }
   addFrame(symbol, duration, fgColor = null, formatting) {
     const { bgColor = null, ...rest } = formatting ?? {};
-    this.frames.push({
+    const frame = {
       visual: { symbol, fgColor, bgColor, ...rest },
       duration,
       ticksElapsed: 0
-    });
+    };
+    this.frames.push(frame);
+    for (let i = 0;i < duration; i++) {
+      this.frameIndexMap.push(frame);
+    }
+    this.easingTotalSteps += duration;
   }
   applyGradientToSymbols(symbols, duration, fgGradient, bgGradient = null) {
     const syms = typeof symbols === "string" ? [symbols] : symbols;
@@ -107,6 +121,9 @@ class Scene {
     return visual;
   }
   get isComplete() {
+    if (this.ease) {
+      return this.easingCurrentStep >= this.easingTotalSteps || this.isLooping;
+    }
     return this.frames.length === 0 || this.isLooping;
   }
   reset() {
@@ -116,7 +133,182 @@ class Scene {
     }
     this.frames = [...this.playedFrames];
     this.playedFrames = [];
+    this.easingCurrentStep = 0;
   }
+  getVisualAtIndex(index) {
+    const i = Math.max(0, Math.min(index, this.frames.length - 1));
+    return this.frames[i].visual;
+  }
+  getNextVisualEased() {
+    const stepRatio = this.easingCurrentStep / Math.max(this.easingTotalSteps, 1);
+    const easedRatio = this.ease(stepRatio);
+    const frameIndex = Math.round(easedRatio * Math.max(this.easingTotalSteps - 1, 0));
+    const clampedIndex = Math.max(0, Math.min(frameIndex, this.easingTotalSteps - 1));
+    const frame = this.frameIndexMap[clampedIndex];
+    this.easingCurrentStep++;
+    if (this.easingCurrentStep >= this.easingTotalSteps) {
+      if (this.isLooping) {
+        this.easingCurrentStep = 0;
+      } else {
+        this.playedFrames.push(...this.frames);
+        this.frames = [];
+      }
+    }
+    return frame.visual;
+  }
+}
+
+// src/tte/geometry.ts
+var exports_geometry = {};
+__export(exports_geometry, {
+  findNormalizedDistanceFromCenter: () => findNormalizedDistanceFromCenter,
+  findLengthOfLine: () => findLengthOfLine,
+  findLengthOfBezierCurve: () => findLengthOfBezierCurve,
+  findCoordsOnRect: () => findCoordsOnRect,
+  findCoordsOnCircle: () => findCoordsOnCircle,
+  findCoordsInRect: () => findCoordsInRect,
+  findCoordsInCircle: () => findCoordsInCircle,
+  findCoordOnLine: () => findCoordOnLine,
+  findCoordOnBezierCurve: () => findCoordOnBezierCurve,
+  extrapolateAlongRay: () => extrapolateAlongRay
+});
+function findCoordsOnCircle(origin, radius, coordsLimit = 0, unique = true) {
+  const points = [];
+  if (!radius)
+    return points;
+  const seen = new Set;
+  if (!coordsLimit) {
+    coordsLimit = Math.round(2 * Math.PI * radius);
+  }
+  const angleStep = 2 * Math.PI / coordsLimit;
+  for (let i = 0;i < coordsLimit; i++) {
+    const angle = angleStep * i;
+    let x = origin.column + radius * Math.cos(angle);
+    const xDiff = x - origin.column;
+    x += xDiff;
+    const y = origin.row + radius * Math.sin(angle);
+    const point = { column: Math.round(x), row: Math.round(y) };
+    if (unique) {
+      const key = `${point.column},${point.row}`;
+      if (!seen.has(key)) {
+        points.push(point);
+      }
+      seen.add(key);
+    } else {
+      points.push(point);
+    }
+  }
+  return points;
+}
+function findCoordsInCircle(center, diameter) {
+  const coords = [];
+  if (!diameter)
+    return coords;
+  const h = center.column;
+  const k = center.row;
+  const aSquared = diameter ** 2;
+  const bSquared = (diameter / 2) ** 2;
+  for (let x = h - diameter;x <= h + diameter; x++) {
+    const xComponent = (x - h) ** 2 / aSquared;
+    const maxYOffset = Math.floor((bSquared * (1 - xComponent)) ** 0.5);
+    for (let y = k - maxYOffset;y <= k + maxYOffset; y++) {
+      coords.push({ column: x, row: y });
+    }
+  }
+  return coords;
+}
+function findCoordsInRect(origin, distance) {
+  const coords = [];
+  if (!distance)
+    return coords;
+  const left = origin.column - distance;
+  const right = origin.column + distance;
+  const top = origin.row - distance;
+  const bottom = origin.row + distance;
+  for (let col = left;col <= right; col++) {
+    for (let row = top;row <= bottom; row++) {
+      coords.push({ column: col, row });
+    }
+  }
+  return coords;
+}
+function findCoordsOnRect(origin, halfWidth, halfHeight) {
+  const coords = [];
+  if (!halfWidth || !halfHeight)
+    return coords;
+  for (let col = origin.column - halfWidth;col <= origin.column + halfWidth; col++) {
+    if (col === origin.column - halfWidth || col === origin.column + halfWidth) {
+      for (let row = origin.row - halfHeight;row <= origin.row + halfHeight; row++) {
+        coords.push({ column: col, row });
+      }
+    } else {
+      coords.push({ column: col, row: origin.row - halfHeight });
+      coords.push({ column: col, row: origin.row + halfHeight });
+    }
+  }
+  return coords;
+}
+function extrapolateAlongRay(origin, target, offsetFromTarget) {
+  const lineLen = findLengthOfLine(origin, target);
+  const totalDistance = lineLen + offsetFromTarget;
+  if (totalDistance === 0 || origin.column === target.column && origin.row === target.row) {
+    return target;
+  }
+  const t = totalDistance / lineLen;
+  const nextColumn = (1 - t) * origin.column + t * target.column;
+  const nextRow = (1 - t) * origin.row + t * target.row;
+  return { column: Math.round(nextColumn), row: Math.round(nextRow) };
+}
+function findCoordOnBezierCurve(start, control, end, t) {
+  const points = [start, ...control, end];
+  function deCasteljau(pts, t2) {
+    if (pts.length === 1)
+      return pts[0];
+    const newPoints = [];
+    for (let i = 0;i < pts.length - 1; i++) {
+      const x = (1 - t2) * pts[i].column + t2 * pts[i + 1].column;
+      const y = (1 - t2) * pts[i].row + t2 * pts[i + 1].row;
+      newPoints.push({ column: x, row: y });
+    }
+    return deCasteljau(newPoints, t2);
+  }
+  const result = deCasteljau(points, t);
+  return { column: Math.round(result.column), row: Math.round(result.row) };
+}
+function findCoordOnLine(start, end, t) {
+  const x = (1 - t) * start.column + t * end.column;
+  const y = (1 - t) * start.row + t * end.row;
+  return { column: Math.round(x), row: Math.round(y) };
+}
+function findLengthOfBezierCurve(start, control, end) {
+  const ctrlArray = Array.isArray(control) ? control : [control];
+  let length = 0;
+  let prevCoord = start;
+  for (let i = 1;i <= 9; i++) {
+    const coord = findCoordOnBezierCurve(start, ctrlArray, end, i / 10);
+    length += findLengthOfLine(prevCoord, coord, true);
+    prevCoord = coord;
+  }
+  return length;
+}
+function findLengthOfLine(coord1, coord2, doubleRowDiff = false) {
+  const colDiff = coord2.column - coord1.column;
+  const rowDiff = coord2.row - coord1.row;
+  if (doubleRowDiff) {
+    return Math.hypot(colDiff, 2 * rowDiff);
+  }
+  return Math.hypot(colDiff, rowDiff);
+}
+function findNormalizedDistanceFromCenter(bottom, top, left, right, coord) {
+  const yOffset = bottom - 1;
+  const xOffset = left - 1;
+  const adjRight = right - xOffset;
+  const adjTop = top - yOffset;
+  const centerX = adjRight / 2;
+  const centerY = adjTop / 2;
+  const maxDistance = (adjRight ** 2 + (adjTop * 2) ** 2) ** 0.5;
+  const distance = ((coord.column - xOffset - centerX) ** 2 + ((coord.row - yOffset - centerY) * 2) ** 2) ** 0.5;
+  return distance / (maxDistance / 2);
 }
 
 // src/tte/motion.ts
@@ -138,6 +330,7 @@ class Path {
   loop = false;
   totalLoops = 0;
   currentLoop = 0;
+  lastDistanceFactor = 0;
   constructor(id, speedOrConfig = 1, ease = null) {
     this.id = id;
     if (typeof speedOrConfig === "object" && speedOrConfig !== null) {
@@ -153,12 +346,12 @@ class Path {
       this.ease = ease;
     }
   }
-  addWaypoint(coord) {
-    const wp = { coord };
+  addWaypoint(coord, bezierControl) {
+    const wp = bezierControl !== undefined ? { coord, bezierControl } : { coord };
     this.waypoints.push(wp);
     if (this.waypoints.length >= 2) {
       const prev = this.waypoints[this.waypoints.length - 2];
-      const dist = lineLength(prev.coord, coord);
+      const dist = wp.bezierControl !== undefined ? findLengthOfBezierCurve(prev.coord, wp.bezierControl, coord) : lineLength(prev.coord, coord);
       this.totalDistance += dist;
       this.segments.push({ start: prev, end: wp, distance: dist });
       this.maxSteps = Math.round(this.totalDistance / this.speed);
@@ -174,6 +367,7 @@ class Path {
     }
     this.currentStep++;
     const distanceFactor = this.ease ? this.ease(this.currentStep / this.maxSteps) : this.currentStep / this.maxSteps;
+    this.lastDistanceFactor = distanceFactor;
     let distToTravel = distanceFactor * this.totalDistance;
     let activeSegment = this.segments[this.segments.length - 1];
     let foundIndex = this.segments.length - 1;
@@ -190,6 +384,10 @@ class Path {
       return activeSegment.end.coord;
     }
     const t = Math.min(distToTravel / activeSegment.distance, 1);
+    if (activeSegment.end.bezierControl !== undefined) {
+      const ctrl = Array.isArray(activeSegment.end.bezierControl) ? activeSegment.end.bezierControl : [activeSegment.end.bezierControl];
+      return findCoordOnBezierCurve(activeSegment.start.coord, ctrl, activeSegment.end.coord, t);
+    }
     return coordOnLine(activeSegment.start.coord, activeSegment.end.coord, t);
   }
   get isComplete() {
@@ -251,7 +449,7 @@ class Motion {
       p.originSegment = null;
     }
     const firstWp = p.waypoints[0];
-    const dist = lineLength(this.currentCoord, firstWp.coord);
+    const dist = firstWp.bezierControl !== undefined ? findLengthOfBezierCurve(this.currentCoord, firstWp.bezierControl, firstWp.coord) : lineLength(this.currentCoord, firstWp.coord);
     const originSeg = {
       start: { coord: { ...this.currentCoord } },
       end: firstWp,
@@ -333,7 +531,6 @@ function coordOnLine(start, end, t) {
 // src/tte/events.ts
 class EventHandler {
   registry = new Map;
-  constructor() {}
   register(event, callerId, action, target = null) {
     const key = `${event}:${callerId}`;
     if (!this.registry.has(key)) {
@@ -368,13 +565,15 @@ class EffectCharacter {
     this.motion = new Motion(this.inputCoord);
     this.eventHandler = new EventHandler;
   }
-  newScene(id, isLooping = false) {
-    const scene = new Scene(id, isLooping);
+  newScene(id, isLooping = false, options) {
+    const scene = new Scene(id, isLooping, options);
     this.scenes.set(id, scene);
     return scene;
   }
   activateScene(sceneOrId) {
     const scene = typeof sceneOrId === "string" ? this.scenes.get(sceneOrId) : sceneOrId;
+    if (!scene)
+      return;
     this.activeScene = scene;
     this.currentVisual = scene.activate();
     this._handleActions("SCENE_ACTIVATED", scene.id);
@@ -409,14 +608,45 @@ class EffectCharacter {
       this._handleActions("PATH_COMPLETE", pathWasActive.id);
     }
     if (this.activeScene && this.activeScene.frames.length > 0) {
-      this.currentVisual = this.activeScene.getNextVisual();
-      if (this.activeScene.isComplete) {
-        const completedScene = this.activeScene;
-        if (!this.activeScene.isLooping) {
-          this.activeScene.reset();
-          this.activeScene = null;
+      const scene = this.activeScene;
+      if (scene.sync && this.motion.activePath) {
+        const path = this.motion.activePath;
+        let progress;
+        if (scene.sync === "STEP") {
+          progress = Math.max(path.currentStep, 1) / Math.max(path.maxSteps, 1);
+        } else {
+          progress = path.lastDistanceFactor;
         }
+        const frameIdx = Math.round((scene.frames.length - 1) * progress);
+        this.currentVisual = scene.getVisualAtIndex(frameIdx);
+      } else if (scene.sync && !this.motion.activePath) {
+        this.currentVisual = scene.getVisualAtIndex(scene.frames.length - 1);
+        scene.playedFrames.push(...scene.frames);
+        scene.frames = [];
+        const completedScene = scene;
+        scene.reset();
+        this.activeScene = null;
         this._handleActions("SCENE_COMPLETE", completedScene.id);
+      } else if (scene.ease) {
+        this.currentVisual = scene.getNextVisualEased();
+        if (scene.isComplete) {
+          const completedScene = scene;
+          if (!scene.isLooping) {
+            scene.reset();
+            this.activeScene = null;
+          }
+          this._handleActions("SCENE_COMPLETE", completedScene.id);
+        }
+      } else {
+        this.currentVisual = scene.getNextVisual();
+        if (scene.isComplete) {
+          const completedScene = scene;
+          if (!scene.isLooping) {
+            scene.reset();
+            this.activeScene = null;
+          }
+          this._handleActions("SCENE_COMPLETE", completedScene.id);
+        }
       }
     }
   }
@@ -616,7 +846,7 @@ class Canvas {
       for (const ch of sorted) {
         if (!rowMap.has(ch.inputCoord.row))
           rowMap.set(ch.inputCoord.row, []);
-        rowMap.get(ch.inputCoord.row).push(ch);
+        rowMap.get(ch.inputCoord.row)?.push(ch);
       }
       const rows = [...rowMap.entries()].sort((a, b) => grouping === "row" ? b[0] - a[0] : a[0] - b[0]);
       return rows.map(([, chars]) => chars);
@@ -626,7 +856,7 @@ class Canvas {
       for (const ch of sorted) {
         if (!colMap.has(ch.inputCoord.column))
           colMap.set(ch.inputCoord.column, []);
-        colMap.get(ch.inputCoord.column).push(ch);
+        colMap.get(ch.inputCoord.column)?.push(ch);
       }
       const cols = [...colMap.entries()].sort((a, b) => grouping === "column" ? a[0] - b[0] : b[0] - a[0]);
       return cols.map(([, chars]) => chars);
@@ -637,7 +867,7 @@ class Canvas {
         const key = ch.inputCoord.row + ch.inputCoord.column;
         if (!diagMap.has(key))
           diagMap.set(key, []);
-        diagMap.get(key).push(ch);
+        diagMap.get(key)?.push(ch);
       }
       const diags = [...diagMap.entries()].sort((a, b) => grouping === "diagonal" ? a[0] - b[0] : b[0] - a[0]);
       return diags.map(([, chars]) => chars);
@@ -648,7 +878,7 @@ class Canvas {
         const key = ch.inputCoord.column - ch.inputCoord.row;
         if (!diagMap.has(key))
           diagMap.set(key, []);
-        diagMap.get(key).push(ch);
+        diagMap.get(key)?.push(ch);
       }
       const diags = [...diagMap.entries()].sort((a, b) => grouping === "diagonalTopLeftToBottomRight" ? a[0] - b[0] : b[0] - a[0]);
       return diags.map(([, chars]) => chars);
@@ -660,10 +890,10 @@ class Canvas {
         const dist = Math.abs(ch.inputCoord.column - textCenter.column) + Math.abs(ch.inputCoord.row - textCenter.row);
         if (!distMap.has(dist))
           distMap.set(dist, []);
-        distMap.get(dist).push(ch);
+        distMap.get(dist)?.push(ch);
       }
       const distances = [...distMap.keys()].sort((a, b) => grouping === "centerToOutside" ? a - b : b - a);
-      return distances.map((d) => distMap.get(d));
+      return distances.map((d) => distMap.get(d) ?? []);
     }
     return [sorted];
   }
@@ -713,7 +943,7 @@ class DOMRenderer {
     }
     const sortedRows = [...rowMap.keys()].sort((a, b) => b - a);
     for (let i = 0;i < sortedRows.length; i++) {
-      const rowChars = rowMap.get(sortedRows[i]);
+      const rowChars = rowMap.get(sortedRows[i]) ?? [];
       rowChars.sort((a, b) => a.inputCoord.column - b.inputCoord.column);
       const maxCol = rowChars[rowChars.length - 1].inputCoord.column;
       const colToChar = new Map;
@@ -792,7 +1022,7 @@ class DOMRenderer {
     this.container.style.width = `${Math.round(maxCol * cw)}px`;
     this.container.style.height = `${Math.round(totalRows * ch)}px`;
     for (const char of this.canvas.characters) {
-      const displayY = this.rowToDisplayY.get(char.inputCoord.row);
+      const displayY = this.rowToDisplayY.get(char.inputCoord.row) ?? 0;
       const col = char.inputCoord.column;
       const span = document.createElement("span");
       span.textContent = char.inputSymbol;
@@ -909,8 +1139,277 @@ class DOMRenderer {
 }
 
 // src/tte/types.ts
+var XTERM_TO_HEX = {
+  0: "000000",
+  1: "800000",
+  2: "008000",
+  3: "808000",
+  4: "000080",
+  5: "800080",
+  6: "008080",
+  7: "c0c0c0",
+  8: "808080",
+  9: "ff0000",
+  10: "00ff00",
+  11: "ffff00",
+  12: "0000ff",
+  13: "ff00ff",
+  14: "00ffff",
+  15: "ffffff",
+  16: "000000",
+  17: "00005f",
+  18: "000087",
+  19: "0000af",
+  20: "0000d7",
+  21: "0000ff",
+  22: "005f00",
+  23: "005f5f",
+  24: "005f87",
+  25: "005faf",
+  26: "005fd7",
+  27: "005fff",
+  28: "008700",
+  29: "00875f",
+  30: "008787",
+  31: "0087af",
+  32: "0087d7",
+  33: "0087ff",
+  34: "00af00",
+  35: "00af5f",
+  36: "00af87",
+  37: "00afaf",
+  38: "00afd7",
+  39: "00afff",
+  40: "00d700",
+  41: "00d75f",
+  42: "00d787",
+  43: "00d7af",
+  44: "00d7d7",
+  45: "00d7ff",
+  46: "00ff00",
+  47: "00ff5f",
+  48: "00ff87",
+  49: "00ffaf",
+  50: "00ffd7",
+  51: "00ffff",
+  52: "5f0000",
+  53: "5f005f",
+  54: "5f0087",
+  55: "5f00af",
+  56: "5f00d7",
+  57: "5f00ff",
+  58: "5f5f00",
+  59: "5f5f5f",
+  60: "5f5f87",
+  61: "5f5faf",
+  62: "5f5fd7",
+  63: "5f5fff",
+  64: "5f8700",
+  65: "5f875f",
+  66: "5f8787",
+  67: "5f87af",
+  68: "5f87d7",
+  69: "5f87ff",
+  70: "5faf00",
+  71: "5faf5f",
+  72: "5faf87",
+  73: "5fafaf",
+  74: "5fafd7",
+  75: "5fafff",
+  76: "5fd700",
+  77: "5fd75f",
+  78: "5fd787",
+  79: "5fd7af",
+  80: "5fd7d7",
+  81: "5fd7ff",
+  82: "5fff00",
+  83: "5fff5f",
+  84: "5fff87",
+  85: "5fffaf",
+  86: "5fffd7",
+  87: "5fffff",
+  88: "870000",
+  89: "87005f",
+  90: "870087",
+  91: "8700af",
+  92: "8700d7",
+  93: "8700ff",
+  94: "875f00",
+  95: "875f5f",
+  96: "875f87",
+  97: "875faf",
+  98: "875fd7",
+  99: "875fff",
+  100: "878700",
+  101: "87875f",
+  102: "878787",
+  103: "8787af",
+  104: "8787d7",
+  105: "8787ff",
+  106: "87af00",
+  107: "87af5f",
+  108: "87af87",
+  109: "87afaf",
+  110: "87afd7",
+  111: "87afff",
+  112: "87d700",
+  113: "87d75f",
+  114: "87d787",
+  115: "87d7af",
+  116: "87d7d7",
+  117: "87d7ff",
+  118: "87ff00",
+  119: "87ff5f",
+  120: "87ff87",
+  121: "87ffaf",
+  122: "87ffd7",
+  123: "87ffff",
+  124: "af0000",
+  125: "af005f",
+  126: "af0087",
+  127: "af00af",
+  128: "af00d7",
+  129: "af00ff",
+  130: "af5f00",
+  131: "af5f5f",
+  132: "af5f87",
+  133: "af5faf",
+  134: "af5fd7",
+  135: "af5fff",
+  136: "af8700",
+  137: "af875f",
+  138: "af8787",
+  139: "af87af",
+  140: "af87d7",
+  141: "af87ff",
+  142: "afaf00",
+  143: "afaf5f",
+  144: "afaf87",
+  145: "afafaf",
+  146: "afafd7",
+  147: "afafff",
+  148: "afd700",
+  149: "afd75f",
+  150: "afd787",
+  151: "afd7af",
+  152: "afd7d7",
+  153: "afd7ff",
+  154: "afff00",
+  155: "afff5f",
+  156: "afff87",
+  157: "afffaf",
+  158: "afffd7",
+  159: "afffff",
+  160: "d70000",
+  161: "d7005f",
+  162: "d70087",
+  163: "d700af",
+  164: "d700d7",
+  165: "d700ff",
+  166: "d75f00",
+  167: "d75f5f",
+  168: "d75f87",
+  169: "d75faf",
+  170: "d75fd7",
+  171: "d75fff",
+  172: "d78700",
+  173: "d7875f",
+  174: "d78787",
+  175: "d787af",
+  176: "d787d7",
+  177: "d787ff",
+  178: "d7af00",
+  179: "d7af5f",
+  180: "d7af87",
+  181: "d7afaf",
+  182: "d7afd7",
+  183: "d7afff",
+  184: "d7d700",
+  185: "d7d75f",
+  186: "d7d787",
+  187: "d7d7af",
+  188: "d7d7d7",
+  189: "d7d7ff",
+  190: "d7ff00",
+  191: "d7ff5f",
+  192: "d7ff87",
+  193: "d7ffaf",
+  194: "d7ffd7",
+  195: "d7ffff",
+  196: "ff0000",
+  197: "ff005f",
+  198: "ff0087",
+  199: "ff00af",
+  200: "ff00d7",
+  201: "ff00ff",
+  202: "ff5f00",
+  203: "ff5f5f",
+  204: "ff5f87",
+  205: "ff5faf",
+  206: "ff5fd7",
+  207: "ff5fff",
+  208: "ff8700",
+  209: "ff875f",
+  210: "ff8787",
+  211: "ff87af",
+  212: "ff87d7",
+  213: "ff87ff",
+  214: "ffaf00",
+  215: "ffaf5f",
+  216: "ffaf87",
+  217: "ffafaf",
+  218: "ffafd7",
+  219: "ffafff",
+  220: "ffd700",
+  221: "ffd75f",
+  222: "ffd787",
+  223: "ffd7af",
+  224: "ffd7d7",
+  225: "ffd7ff",
+  226: "ffff00",
+  227: "ffff5f",
+  228: "ffff87",
+  229: "ffffaf",
+  230: "ffffd7",
+  231: "ffffff",
+  232: "080808",
+  233: "121212",
+  234: "1c1c1c",
+  235: "262626",
+  236: "303030",
+  237: "3a3a3a",
+  238: "444444",
+  239: "4e4e4e",
+  240: "585858",
+  241: "626262",
+  242: "6c6c6c",
+  243: "767676",
+  244: "808080",
+  245: "8a8a8a",
+  246: "949494",
+  247: "9e9e9e",
+  248: "a8a8a8",
+  249: "b2b2b2",
+  250: "bcbcbc",
+  251: "c6c6c6",
+  252: "d0d0d0",
+  253: "dadada",
+  254: "e4e4e4",
+  255: "eeeeee"
+};
+function xtermToHex(xterm) {
+  const hex = XTERM_TO_HEX[xterm];
+  if (hex === undefined)
+    throw new Error(`Invalid XTerm-256 color code: ${xterm}`);
+  return hex;
+}
 function color(hex) {
+  if (typeof hex === "number")
+    return { rgbHex: xtermToHex(hex) };
   return { rgbHex: hex.replace("#", "") };
+}
+function colorPair(fg, bg) {
+  return { fg, bg: bg ?? null };
 }
 function rgbInts(c) {
   const hex = c.rgbHex;
@@ -1120,7 +1619,7 @@ class DecryptEffect {
         const duration = randInt(0, 100) <= 30 ? randInt(35, 59) : randInt(3, 5);
         slowScene.addFrame(randChoice(ENCRYPTED_SYMBOLS), duration, cipherColor.rgbHex);
       }
-      const finalColor = this.characterFinalColorMap.get(ch.id);
+      const finalColor = this.characterFinalColorMap.get(ch.id) ?? color("ffffff");
       const discoveredScene = ch.newScene("discovered");
       const discoveredGradient = new Gradient([color("ffffff"), finalColor], 10);
       discoveredScene.applyGradientToSymbols(ch.inputSymbol, 5, discoveredGradient);
@@ -1135,6 +1634,8 @@ class DecryptEffect {
         if (this.typingPending.length > 0 && Math.random() <= 0.75) {
           for (let i = 0;i < this.config.typingSpeed && this.typingPending.length > 0; i++) {
             const ch = this.typingPending.shift();
+            if (!ch)
+              break;
             ch.isVisible = true;
             ch.activateScene("typing");
             this.activeChars.add(ch);
@@ -1530,7 +2031,9 @@ class SlideEffect {
     }
     if (this.pendingGroups.length > 0) {
       if (this.currentGap >= this.config.gap) {
-        this.activeGroups.push(this.pendingGroups.shift());
+        const group = this.pendingGroups.shift();
+        if (group)
+          this.activeGroups.push(group);
         this.currentGap = 0;
       } else {
         this.currentGap++;
@@ -1539,6 +2042,8 @@ class SlideEffect {
     for (const group of this.activeGroups) {
       if (group.length > 0) {
         const ch = group.shift();
+        if (!ch)
+          continue;
         ch.isVisible = true;
         ch.motion.activatePath("input_path");
         this.activeChars.add(ch);
@@ -1576,8 +2081,7 @@ class WipeEffect {
     this.canvas = canvas;
     this.config = config;
     this.delayCounter = 0;
-    this.easer = null;
-    this.build();
+    this.easer = this.build();
   }
   build() {
     const { dims } = this.canvas;
@@ -1597,7 +2101,7 @@ class WipeEffect {
         scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, wipeGradient);
       }
     }
-    this.easer = new SequenceEaser(groups, this.config.wipeEase);
+    return new SequenceEaser(groups, this.config.wipeEase);
   }
   step() {
     if (this.activeChars.size === 0 && this.easer.isComplete()) {
@@ -1696,6 +2200,8 @@ class RandomSequenceEffect {
     }
     for (let i = 0;i < this.charsPerTick && this.pending.length > 0; i++) {
       const ch = this.pending.pop();
+      if (!ch)
+        break;
       ch.isVisible = true;
       ch.activateScene("gradient");
       this.activeChars.add(ch);
@@ -1765,7 +2271,7 @@ class MiddleOutEffect {
       const fullPath = ch.motion.newPath("full_path", this.config.fullMovementSpeed, this.config.fullEasing);
       fullPath.addWaypoint(ch.inputCoord);
       ch.motion.activatePath("full_path");
-      const finalColor = this.characterFinalColorMap.get(ch.id);
+      const finalColor = this.characterFinalColorMap.get(ch.id) ?? this.config.startingColor;
       const scene = ch.newScene("gradient");
       const charGradient = new Gradient([this.config.startingColor, finalColor], 10);
       scene.applyGradientToSymbols(ch.inputSymbol, 6, charGradient);
@@ -1805,159 +2311,6 @@ class MiddleOutEffect {
     }
     return false;
   }
-}
-
-// src/tte/geometry.ts
-var exports_geometry = {};
-__export(exports_geometry, {
-  findNormalizedDistanceFromCenter: () => findNormalizedDistanceFromCenter,
-  findLengthOfLine: () => findLengthOfLine,
-  findLengthOfBezierCurve: () => findLengthOfBezierCurve,
-  findCoordsOnRect: () => findCoordsOnRect,
-  findCoordsOnCircle: () => findCoordsOnCircle,
-  findCoordsInRect: () => findCoordsInRect,
-  findCoordsInCircle: () => findCoordsInCircle,
-  findCoordOnLine: () => findCoordOnLine,
-  findCoordOnBezierCurve: () => findCoordOnBezierCurve,
-  extrapolateAlongRay: () => extrapolateAlongRay
-});
-function findCoordsOnCircle(origin, radius, coordsLimit = 0, unique = true) {
-  const points = [];
-  if (!radius)
-    return points;
-  const seen = new Set;
-  if (!coordsLimit) {
-    coordsLimit = Math.round(2 * Math.PI * radius);
-  }
-  const angleStep = 2 * Math.PI / coordsLimit;
-  for (let i = 0;i < coordsLimit; i++) {
-    const angle = angleStep * i;
-    let x = origin.column + radius * Math.cos(angle);
-    const xDiff = x - origin.column;
-    x += xDiff;
-    const y = origin.row + radius * Math.sin(angle);
-    const point = { column: Math.round(x), row: Math.round(y) };
-    if (unique) {
-      const key = `${point.column},${point.row}`;
-      if (!seen.has(key)) {
-        points.push(point);
-      }
-      seen.add(key);
-    } else {
-      points.push(point);
-    }
-  }
-  return points;
-}
-function findCoordsInCircle(center, diameter) {
-  const coords = [];
-  if (!diameter)
-    return coords;
-  const h = center.column;
-  const k = center.row;
-  const aSquared = diameter ** 2;
-  const bSquared = (diameter / 2) ** 2;
-  for (let x = h - diameter;x <= h + diameter; x++) {
-    const xComponent = (x - h) ** 2 / aSquared;
-    const maxYOffset = Math.floor((bSquared * (1 - xComponent)) ** 0.5);
-    for (let y = k - maxYOffset;y <= k + maxYOffset; y++) {
-      coords.push({ column: x, row: y });
-    }
-  }
-  return coords;
-}
-function findCoordsInRect(origin, distance) {
-  const coords = [];
-  if (!distance)
-    return coords;
-  const left = origin.column - distance;
-  const right = origin.column + distance;
-  const top = origin.row - distance;
-  const bottom = origin.row + distance;
-  for (let col = left;col <= right; col++) {
-    for (let row = top;row <= bottom; row++) {
-      coords.push({ column: col, row });
-    }
-  }
-  return coords;
-}
-function findCoordsOnRect(origin, halfWidth, halfHeight) {
-  const coords = [];
-  if (!halfWidth || !halfHeight)
-    return coords;
-  for (let col = origin.column - halfWidth;col <= origin.column + halfWidth; col++) {
-    if (col === origin.column - halfWidth || col === origin.column + halfWidth) {
-      for (let row = origin.row - halfHeight;row <= origin.row + halfHeight; row++) {
-        coords.push({ column: col, row });
-      }
-    } else {
-      coords.push({ column: col, row: origin.row - halfHeight });
-      coords.push({ column: col, row: origin.row + halfHeight });
-    }
-  }
-  return coords;
-}
-function extrapolateAlongRay(origin, target, offsetFromTarget) {
-  const lineLen = findLengthOfLine(origin, target);
-  const totalDistance = lineLen + offsetFromTarget;
-  if (totalDistance === 0 || origin.column === target.column && origin.row === target.row) {
-    return target;
-  }
-  const t = totalDistance / lineLen;
-  const nextColumn = (1 - t) * origin.column + t * target.column;
-  const nextRow = (1 - t) * origin.row + t * target.row;
-  return { column: Math.round(nextColumn), row: Math.round(nextRow) };
-}
-function findCoordOnBezierCurve(start, control, end, t) {
-  const points = [start, ...control, end];
-  function deCasteljau(pts, t2) {
-    if (pts.length === 1)
-      return pts[0];
-    const newPoints = [];
-    for (let i = 0;i < pts.length - 1; i++) {
-      const x = (1 - t2) * pts[i].column + t2 * pts[i + 1].column;
-      const y = (1 - t2) * pts[i].row + t2 * pts[i + 1].row;
-      newPoints.push({ column: x, row: y });
-    }
-    return deCasteljau(newPoints, t2);
-  }
-  const result = deCasteljau(points, t);
-  return { column: Math.round(result.column), row: Math.round(result.row) };
-}
-function findCoordOnLine(start, end, t) {
-  const x = (1 - t) * start.column + t * end.column;
-  const y = (1 - t) * start.row + t * end.row;
-  return { column: Math.round(x), row: Math.round(y) };
-}
-function findLengthOfBezierCurve(start, control, end) {
-  const ctrlArray = Array.isArray(control) ? control : [control];
-  let length = 0;
-  let prevCoord = start;
-  for (let i = 1;i <= 9; i++) {
-    const coord = findCoordOnBezierCurve(start, ctrlArray, end, i / 10);
-    length += findLengthOfLine(prevCoord, coord, true);
-    prevCoord = coord;
-  }
-  return length;
-}
-function findLengthOfLine(coord1, coord2, doubleRowDiff = false) {
-  const colDiff = coord2.column - coord1.column;
-  const rowDiff = coord2.row - coord1.row;
-  if (doubleRowDiff) {
-    return Math.hypot(colDiff, 2 * rowDiff);
-  }
-  return Math.hypot(colDiff, rowDiff);
-}
-function findNormalizedDistanceFromCenter(bottom, top, left, right, coord) {
-  const yOffset = bottom - 1;
-  const xOffset = left - 1;
-  const adjRight = right - xOffset;
-  const adjTop = top - yOffset;
-  const centerX = adjRight / 2;
-  const centerY = adjTop / 2;
-  const maxDistance = (adjRight ** 2 + (adjTop * 2) ** 2) ** 0.5;
-  const distance = ((coord.column - xOffset - centerX) ** 2 + ((coord.row - yOffset - centerY) * 2) ** 2) ** 0.5;
-  return distance / (maxDistance / 2);
 }
 
 // src/tte/effects/colorshift.ts
@@ -2170,7 +2523,7 @@ class PourEffect {
     }
     const groups = [];
     for (let i = 0;i < sortedKeys.length; i++) {
-      let group = groupMap.get(sortedKeys[i]);
+      let group = groupMap.get(sortedKeys[i]) ?? [];
       if (i % 2 === 1) {
         group = group.slice().reverse();
       }
@@ -2205,13 +2558,17 @@ class PourEffect {
       return false;
     }
     if (this.currentGroup.length === 0 && this.pendingGroups.length > 0) {
-      this.currentGroup = this.pendingGroups.shift();
+      const next = this.pendingGroups.shift();
+      if (next)
+        this.currentGroup = next;
     }
     if (this.currentGroup.length > 0) {
       if (this.currentGap === 0) {
         let activated = 0;
         while (this.currentGroup.length > 0 && activated < this.config.pourSpeed) {
           const ch = this.currentGroup.shift();
+          if (!ch)
+            break;
           ch.isVisible = true;
           ch.motion.activatePath("input_path");
           ch.activateScene("gradient");
@@ -2281,7 +2638,7 @@ class SweepEffect {
       colMap.get(ch.inputCoord.column)?.push(ch);
     }
     const sortedKeys = [...colMap.keys()].sort((a, b) => direction === "left_to_right" ? a - b : b - a);
-    return sortedKeys.map((k) => colMap.get(k));
+    return sortedKeys.map((k) => colMap.get(k) ?? []);
   }
   setupPhase1() {
     this.groups = this.getColumnGroups(this.config.firstSweepDirection);
@@ -2479,6 +2836,8 @@ class WavesEffect {
     if (this.pendingGroups.length > 0) {
       if (this.currentGap >= this.config.gap) {
         const group = this.pendingGroups.shift();
+        if (!group)
+          return true;
         for (const ch of group) {
           ch.isVisible = true;
           ch.activateScene("wave");
@@ -2558,7 +2917,7 @@ class RainEffect {
       const row = ch.inputCoord.row;
       if (!this.pendingByRow.has(row))
         this.pendingByRow.set(row, []);
-      this.pendingByRow.get(row).push(ch);
+      this.pendingByRow.get(row)?.push(ch);
     }
     this.pendingRowQueue = [...this.pendingByRow.keys()].sort((a, b) => a - b);
   }
@@ -2568,7 +2927,9 @@ class RainEffect {
     }
     if (this.pendingCurrent.length === 0 && this.pendingRowQueue.length > 0) {
       const nextRow = this.pendingRowQueue.shift();
-      this.pendingCurrent = this.pendingByRow.get(nextRow);
+      if (nextRow === undefined)
+        return false;
+      this.pendingCurrent = this.pendingByRow.get(nextRow) ?? [];
       this.pendingByRow.delete(nextRow);
     }
     let released = 0;
@@ -2643,11 +3004,15 @@ class PrintEffect {
         const cur = ch.motion.currentCoord;
         ch.motion.setCoordinate({ column: cur.column, row: cur.row + 1 });
       }
-      this.currentRow = this.pendingRows.shift();
+      const next = this.pendingRows.shift();
+      if (next)
+        this.currentRow = next;
     }
     let typed = 0;
     while (this.currentRow.length > 0 && typed < this.config.typingSpeed) {
       const ch = this.currentRow.shift();
+      if (!ch)
+        break;
       ch.isVisible = true;
       ch.activateScene("typing");
       this.activeChars.add(ch);
@@ -2668,6 +3033,7 @@ class PrintEffect {
 var exports_graph = {};
 __export(exports_graph, {
   getNeighbors: () => getNeighbors,
+  buildSpanningTreeSimple: () => buildSpanningTreeSimple,
   buildSpanningTree: () => buildSpanningTree,
   buildCoordMap: () => buildCoordMap
 });
@@ -2738,6 +3104,50 @@ function findStartChar(chars, strategy) {
   return best;
 }
 var defaultWeightFn = (dc, dr) => Math.hypot(dc, dr * 2) + Math.random() * 2;
+function buildSpanningTreeSimple(chars, options) {
+  if (chars.length === 0)
+    return [];
+  const connectivity = options?.connectivity ?? 8;
+  const startStrategy = options?.startStrategy ?? "random";
+  const includeDisconnected = options?.includeDisconnected ?? true;
+  const coordMap = buildCoordMap(chars);
+  const startChar = findStartChar(chars, startStrategy);
+  const linked = new Set;
+  const linkOrder = [];
+  function getUnlinkedNeighbors(ch) {
+    return getNeighbors(ch, coordMap, connectivity).filter((n) => !linked.has(n.id));
+  }
+  function linkChar(ch) {
+    linked.add(ch.id);
+    linkOrder.push(ch);
+  }
+  linkChar(startChar);
+  const edgeChars = getUnlinkedNeighbors(startChar).length > 0 ? [startChar] : [];
+  while (edgeChars.length > 0) {
+    const edgeIdx = Math.floor(Math.random() * edgeChars.length);
+    const current = edgeChars.splice(edgeIdx, 1)[0];
+    const unlinked = getUnlinkedNeighbors(current);
+    if (unlinked.length === 0)
+      continue;
+    const nextIdx = Math.floor(Math.random() * unlinked.length);
+    const next = unlinked.splice(nextIdx, 1)[0];
+    linkChar(next);
+    if (getUnlinkedNeighbors(current).length > 0) {
+      edgeChars.push(current);
+    }
+    if (getUnlinkedNeighbors(next).length > 0) {
+      edgeChars.push(next);
+    }
+  }
+  if (includeDisconnected) {
+    for (const ch of chars) {
+      if (!linked.has(ch.id)) {
+        linkOrder.push(ch);
+      }
+    }
+  }
+  return linkOrder;
+}
 function buildSpanningTree(chars, options) {
   if (chars.length === 0)
     return [];
@@ -2745,23 +3155,30 @@ function buildSpanningTree(chars, options) {
   const startStrategy = options?.startStrategy ?? "bottomCenter";
   const weightFn = options?.weightFn ?? defaultWeightFn;
   const includeDisconnected = options?.includeDisconnected ?? true;
+  const traversal = options?.traversal ?? "insertion";
   const coordMap = buildCoordMap(chars);
   const startChar = findStartChar(chars, startStrategy);
   const inTree = new Set;
   const order = [];
+  const treeChildren = new Map;
   const frontier = [];
-  function addToTree(ch) {
+  function addToTree(ch, parent) {
     inTree.add(ch.id);
     order.push(ch);
+    if (parent) {
+      if (!treeChildren.has(parent.id))
+        treeChildren.set(parent.id, []);
+      treeChildren.get(parent.id)?.push(ch);
+    }
     for (const neighbor of getNeighbors(ch, coordMap, connectivity)) {
       if (!inTree.has(neighbor.id)) {
         const dc = neighbor.inputCoord.column - ch.inputCoord.column;
         const dr = neighbor.inputCoord.row - ch.inputCoord.row;
-        frontier.push({ char: neighbor, weight: weightFn(dc, dr) });
+        frontier.push({ char: neighbor, weight: weightFn(dc, dr), parent: ch });
       }
     }
   }
-  addToTree(startChar);
+  addToTree(startChar, null);
   while (frontier.length > 0) {
     let minIdx = 0;
     for (let i = 1;i < frontier.length; i++) {
@@ -2773,15 +3190,31 @@ function buildSpanningTree(chars, options) {
     frontier.splice(minIdx, 1);
     if (inTree.has(entry.char.id))
       continue;
-    addToTree(entry.char);
+    addToTree(entry.char, entry.parent);
   }
+  const disconnected = [];
   if (includeDisconnected) {
     for (const ch of chars) {
       if (!inTree.has(ch.id)) {
-        order.push(ch);
+        disconnected.push(ch);
       }
     }
   }
+  if (traversal === "bfs") {
+    const bfsOrder = [];
+    const queue = [startChar];
+    while (queue.length > 0) {
+      const ch = queue.shift();
+      if (!ch)
+        break;
+      bfsOrder.push(ch);
+      const children = treeChildren.get(ch.id) ?? [];
+      queue.push(...children);
+    }
+    bfsOrder.push(...disconnected);
+    return bfsOrder;
+  }
+  order.push(...disconnected);
   return order;
 }
 
@@ -2833,7 +3266,7 @@ class BurnEffect {
       finalScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
       ch.eventHandler.register("SCENE_COMPLETE", "burn", "ACTIVATE_SCENE", "final");
     }
-    this.pendingChars = buildSpanningTree(nonSpace);
+    this.pendingChars = buildSpanningTreeSimple(nonSpace, { startStrategy: "random" });
   }
   step() {
     if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
@@ -2842,6 +3275,8 @@ class BurnEffect {
     let ignited = 0;
     while (this.pendingChars.length > 0 && ignited < this.config.burnSpeed) {
       const ch = this.pendingChars.shift();
+      if (!ch)
+        break;
       ch.activateScene("burn");
       this.activeChars.add(ch);
       ignited++;
@@ -2959,6 +3394,8 @@ class RainColumn {
       this.fallTimer = this.fallDelay;
       if (this.pendingChars.length > 0) {
         const ch = this.pendingChars.shift();
+        if (!ch)
+          return;
         ch.isVisible = true;
         ch.currentVisual = {
           symbol: randChoice2(this.config.rainSymbols),
@@ -2982,12 +3419,14 @@ class RainColumn {
         }
         if (!this.fillMode) {
           const tail = this.visibleChars.shift();
-          tail.isVisible = false;
+          if (tail)
+            tail.isVisible = false;
         }
       }
       if (!this.fillMode && this.visibleChars.length > this.length) {
         const tail = this.visibleChars.shift();
-        tail.isVisible = false;
+        if (tail)
+          tail.isVisible = false;
       }
       if (!this.fillMode && this.pendingChars.length === 0 && this.visibleChars.length === 0) {
         this.exhausted = true;
@@ -3188,7 +3627,6 @@ class HighlightEffect {
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
-    this.easer = null;
     this.build();
   }
   build() {
@@ -3685,13 +4123,18 @@ class UnstableEffect {
   stepRumble() {
     this.rumbleStep++;
     for (const ch of this.nonSpaceChars) {
-      ch.motion.setCoordinate(this.jumbledCoords.get(ch));
+      const coord = this.jumbledCoords.get(ch);
+      if (!coord)
+        continue;
+      ch.motion.setCoordinate(coord);
     }
     if (this.rumbleStep > 30 && this.rumbleStep % this.rumbleModDelay === 0) {
       const rowOffset = randInt4(-1, 1);
       const colOffset = randInt4(-1, 1);
       for (const ch of this.nonSpaceChars) {
         const base = this.jumbledCoords.get(ch);
+        if (!base)
+          continue;
         ch.motion.setCoordinate({ column: base.column + colOffset, row: base.row + rowOffset });
       }
       this.rumbleModDelay = Math.max(this.rumbleModDelay - 1, 1);
@@ -3837,6 +4280,8 @@ class OverflowEffect {
         }
       }
       const pending = this.pendingRows.shift();
+      if (!pending)
+        break;
       const startRow = 1;
       for (const ch of pending.chars) {
         ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
@@ -3915,8 +4360,6 @@ var defaultBouncyBallsConfig = {
   ballDelay: 4,
   movementSpeed: 0.45,
   movementEasing: outBounce,
-  bounceCount: 3,
-  holdFrames: 15,
   finalGradientStops: [color("f8ffae"), color("43c6ac")],
   finalGradientSteps: 12,
   finalGradientFrames: 6,
@@ -3933,7 +4376,8 @@ class BouncyBallsEffect {
   canvas;
   config;
   activeChars = new Set;
-  pendingChars = [];
+  pendingRowGroups = [];
+  currentRowGroup = [];
   ticksSinceLastDrop;
   constructor(canvas, config) {
     this.canvas = canvas;
@@ -3945,20 +4389,18 @@ class BouncyBallsEffect {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const rowMap = new Map;
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
         continue;
       }
       const launchCol = ch.inputCoord.column;
-      const launchRow = dims.top + randInt6(3, 8);
+      const launchRow = Math.round(dims.top * (1 + Math.random() * 0.5));
       ch.motion.setCoordinate({ column: launchCol, row: launchRow });
       const bouncePath = ch.motion.newPath("bounce", {
         speed: this.config.movementSpeed,
-        ease: this.config.movementEasing,
-        loop: true,
-        totalLoops: this.config.bounceCount,
-        holdDuration: this.config.holdFrames
+        ease: this.config.movementEasing
       });
       bouncePath.addWaypoint(ch.inputCoord);
       const ballColor = pick(this.config.ballColors);
@@ -3970,22 +4412,30 @@ class BouncyBallsEffect {
       const landScene = ch.newScene("land");
       const charGradient = new Gradient([ballColor, finalColor], 10);
       landScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
-      ch.eventHandler.register("PATH_HOLDING", "bounce", "ACTIVATE_SCENE", "land");
       ch.eventHandler.register("PATH_COMPLETE", "bounce", "ACTIVATE_SCENE", "land");
-      this.pendingChars.push(ch);
+      const row = ch.inputCoord.row;
+      if (!rowMap.has(row))
+        rowMap.set(row, []);
+      rowMap.get(row)?.push(ch);
     }
-    for (let i = this.pendingChars.length - 1;i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [this.pendingChars[i], this.pendingChars[j]] = [this.pendingChars[j], this.pendingChars[i]];
-    }
+    const sortedRows = [...rowMap.keys()].sort((a, b) => a - b);
+    this.pendingRowGroups = sortedRows.map((r) => rowMap.get(r) ?? []);
   }
   step() {
     this.ticksSinceLastDrop++;
-    if (this.pendingChars.length > 0 && this.ticksSinceLastDrop >= this.config.ballDelay) {
+    if (this.currentRowGroup.length === 0 && this.pendingRowGroups.length > 0) {
+      const next = this.pendingRowGroups.shift();
+      if (next)
+        this.currentRowGroup = next;
+    }
+    if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop >= this.config.ballDelay) {
       this.ticksSinceLastDrop = 0;
       const dropCount = randInt6(2, 6);
-      for (let i = 0;i < dropCount && this.pendingChars.length > 0; i++) {
-        const ch = this.pendingChars.shift();
+      for (let i = 0;i < dropCount && this.currentRowGroup.length > 0; i++) {
+        const idx = Math.floor(Math.random() * this.currentRowGroup.length);
+        const [ch] = this.currentRowGroup.splice(idx, 1);
+        if (!ch)
+          continue;
         ch.isVisible = true;
         ch.motion.activatePath("bounce");
         ch.activateScene("ball");
@@ -3998,7 +4448,7 @@ class BouncyBallsEffect {
         this.activeChars.delete(ch);
       }
     }
-    return this.activeChars.size > 0 || this.pendingChars.length > 0;
+    return this.activeChars.size > 0 || this.currentRowGroup.length > 0 || this.pendingRowGroups.length > 0;
   }
 }
 
@@ -4020,12 +4470,6 @@ var defaultFireworksConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "horizontal"
 };
-function shuffle5(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
 function randInt7(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -4050,7 +4494,7 @@ class FireworksEffect {
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle5(nonSpaceChars);
+    nonSpaceChars.sort((a, b) => a.inputCoord.row - b.inputCoord.row);
     const charsPerShell = Math.max(1, Math.round(nonSpaceChars.length * this.config.fireworkVolume));
     const explodeRadius = Math.min(15, Math.max(1, Math.round(dims.right * this.config.explodeDistance)));
     for (let i = 0;i < nonSpaceChars.length; i += charsPerShell) {
@@ -4093,16 +4537,17 @@ class FireworksEffect {
         const launchPath = ch.motion.newPath(`launch_${this.pathCounter}`, 0.35, outExpo);
         launchPath.addWaypoint(launchStart);
         launchPath.addWaypoint(shell.apex);
-        const controlPoint = extrapolateAlongRay(shell.apex, targetOnCircle, 2);
         const explodePath = ch.motion.newPath(`explode_${this.pathCounter}`, { speed: 0.2 + Math.random() * 0.2, ease: outCirc });
-        const bezierSteps = 5;
-        for (let s = 1;s <= bezierSteps; s++) {
-          const t = s / bezierSteps;
-          const pt = findCoordOnBezierCurve(shell.apex, [controlPoint], targetOnCircle, t);
-          explodePath.addWaypoint(pt);
-        }
+        explodePath.addWaypoint(targetOnCircle);
+        const bloomControlPoint = extrapolateAlongRay(shell.apex, targetOnCircle, Math.floor(explodeRadius / 2));
+        const bloomCoord = {
+          column: bloomControlPoint.column,
+          row: Math.max(1, bloomControlPoint.row - 7)
+        };
+        explodePath.addWaypoint(bloomCoord, bloomControlPoint);
         const fallPath = ch.motion.newPath(`fall_${this.pathCounter}`, 0.6, inOutQuart);
-        fallPath.addWaypoint(ch.inputCoord);
+        const inputControlPoint = { column: bloomCoord.column, row: 1 };
+        fallPath.addWaypoint(ch.inputCoord, inputControlPoint);
         const launchId = `launch_${this.pathCounter}`;
         const explodeId = `explode_${this.pathCounter}`;
         const fallId = `fall_${this.pathCounter}`;
@@ -4128,9 +4573,11 @@ class FireworksEffect {
     this.frameCount++;
     if (this.shellQueue.length > 0 && this.frameCount >= this.nextLaunchFrame) {
       const shell = this.shellQueue.shift();
-      this.launchShell(shell);
-      const jitter = 0.5 + Math.random();
-      this.nextLaunchFrame = this.frameCount + Math.round(this.config.launchDelay * jitter);
+      if (shell) {
+        this.launchShell(shell);
+        const jitter = 0.5 + Math.random();
+        this.nextLaunchFrame = this.frameCount + Math.round(this.config.launchDelay * jitter);
+      }
     }
     for (const ch of this.activeChars) {
       ch.tick();
@@ -4233,7 +4680,7 @@ class SpotlightsEffect {
     }
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
-      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id).rgbHex };
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id)?.rgbHex ?? null };
       if (!ch.isSpace) {
         this.activeChars.add(ch);
       }
@@ -4272,9 +4719,11 @@ class SpotlightsEffect {
   illuminateCharacters() {
     for (const ch of this.activeChars) {
       const baseColor = this.charBaseColors.get(ch.id);
+      if (!baseColor)
+        continue;
       let minDist = Infinity;
       for (const sl of this.spotlights) {
-        const dist = findLengthOfLine(ch.inputCoord, sl.coord);
+        const dist = findLengthOfLine(ch.inputCoord, sl.coord, true);
         if (dist < minDist)
           minDist = dist;
       }
@@ -4290,22 +4739,24 @@ class SpotlightsEffect {
         brightness = Math.max(0.2, brightness);
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: adjustBrightness(baseColor, brightness).rgbHex };
       } else {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id).rgbHex };
+        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id)?.rgbHex ?? null };
       }
     }
   }
   illuminateByExpansion() {
     for (const ch of this.activeChars) {
-      const dist = findLengthOfLine(ch.inputCoord, this.center);
+      const dist = findLengthOfLine(ch.inputCoord, this.center, true);
       const baseColor = this.charBaseColors.get(ch.id);
+      if (!baseColor)
+        continue;
       if (dist <= this.expandRadius) {
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: baseColor.rgbHex };
       } else if (dist <= this.expandRadius + this.beamWidth) {
         const edgeDist = dist - this.expandRadius;
-        const brightness = Math.max(0.08, 1 - edgeDist / this.beamWidth);
+        const brightness = Math.max(0.2, 1 - edgeDist / this.beamWidth);
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: adjustBrightness(baseColor, brightness).rgbHex };
       } else {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.dimColor.rgbHex };
+        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.charDarkColors.get(ch.id)?.rgbHex ?? null };
       }
     }
   }
@@ -4329,6 +4780,8 @@ class SpotlightsEffect {
     this.phaseFrames = 0;
     for (const ch of this.activeChars) {
       const baseColor = this.charBaseColors.get(ch.id);
+      if (!baseColor)
+        continue;
       const scene = ch.newScene("final_gradient");
       const charGradient = new Gradient([this.config.finalGradientStops[0], baseColor], 10);
       scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
@@ -4357,9 +4810,9 @@ class SpotlightsEffect {
         break;
       }
       case "expand":
-        this.expandRadius += 1.5;
+        this.expandRadius += 1;
         this.illuminateByExpansion();
-        if (this.expandRadius >= this.maxExpandRadius) {
+        if (this.expandRadius > this.maxExpandRadius) {
           this.transitionToFinal();
         }
         break;
@@ -4390,17 +4843,31 @@ var defaultVhstapeConfig = {
   glitchLineDuration: 10,
   glitchWaveHeight: 3,
   glitchLineColors: [
+    color("ffffff"),
     color("ff0000"),
     color("00ff00"),
     color("0000ff"),
-    color("ff00ff"),
-    color("ffff00"),
-    color("00ffff")
+    color("ffffff")
+  ],
+  glitchWaveColors: [
+    color("ffffff"),
+    color("ff0000"),
+    color("00ff00"),
+    color("0000ff"),
+    color("ffffff")
+  ],
+  noiseColors: [
+    color("1e1e1f"),
+    color("3c3b3d"),
+    color("6d6c70"),
+    color("a2a1a6"),
+    color("cbc9cf"),
+    color("ffffff")
   ],
   noiseDuration: 30,
-  noiseSymbols: ["░", "▒", "▓", "█", "·", "•", "▪", "▫"],
+  noiseSymbols: ["#", "*", ".", ":"],
   redrawLineDelay: 4,
-  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
 };
@@ -4446,10 +4913,7 @@ class VhstapeEffect {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
       const redrawScene = ch.newScene("redraw");
-      const blockChars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
-      for (const block of blockChars) {
-        redrawScene.addFrame(block, 1, finalColor.rgbHex);
-      }
+      redrawScene.addFrame("█", 6, "ffffff");
       redrawScene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
       ch.isVisible = true;
       ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor.rgbHex };
@@ -4606,9 +5070,8 @@ class VhstapeEffect {
   applyNoiseToAll() {
     for (const ch of this.allChars) {
       const sym = this.config.noiseSymbols[Math.floor(Math.random() * this.config.noiseSymbols.length)];
-      const gray = randInt9(40, 200);
-      const hex = gray.toString(16).padStart(2, "0");
-      ch.currentVisual = { symbol: sym, fgColor: `${hex}${hex}${hex}` };
+      const noiseColor = this.config.noiseColors[Math.floor(Math.random() * this.config.noiseColors.length)];
+      ch.currentVisual = { symbol: sym, fgColor: noiseColor.rgbHex };
     }
   }
 }
@@ -4626,12 +5089,12 @@ var defaultBlackholeConfig = {
   ],
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 9,
-  finalGradientFrames: 9,
+  finalGradientFrames: 10,
   finalGradientDirection: "diagonal"
 };
-var STAR_SYMBOLS = [".", "*", "+", "~", "o"];
-var UNSTABLE_SYMBOLS = [".", "o", "O", "*", "@", "#", "$", "%"];
-function shuffle6(arr) {
+var STAR_SYMBOLS = ["*", "'", "`", "¤", "•", "°", "·"];
+var UNSTABLE_SYMBOLS = ["◦", "◎", "◉", "●", "◉", "◎", "◦"];
+function shuffle5(arr) {
   for (let i = arr.length - 1;i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -4674,26 +5137,26 @@ class BlackholeEffect {
     const canvasWidth = dims.right - dims.left + 1;
     const canvasHeight = dims.top - dims.bottom + 1;
     this.blackholeRadius = Math.max(3, Math.min(Math.round(canvasWidth * 0.3), Math.round(canvasHeight * 0.2)));
-    this.ringCoords = findCoordsOnCircle(this.center, this.blackholeRadius);
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle6(nonSpaceChars);
+    shuffle5(nonSpaceChars);
     const ringCount = Math.min(Math.max(3, Math.round(this.blackholeRadius * 3)), nonSpaceChars.length);
     this.ringChars = nonSpaceChars.slice(0, ringCount);
     this.starfieldChars = nonSpaceChars.slice(ringCount);
+    this.ringCoords = findCoordsOnCircle(this.center, this.blackholeRadius, ringCount);
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
       if (!ch.isSpace) {
         ch.currentVisual = { symbol: " ", fgColor: null };
       }
     }
-    const staggerStep = Math.max(1, Math.round(60 / ringCount));
+    const staggerStep = Math.max(Math.floor(100 / ringCount), 6);
     for (let i = 0;i < this.ringChars.length; i++) {
       const ch = this.ringChars[i];
       this.ringActivationDelays.push(i * staggerStep);
       const ringScene = ch.newScene("ring_color", true);
-      ringScene.addFrame(ch.inputSymbol, 2, this.config.blackholeColor.rgbHex);
+      ringScene.addFrame("*", 1, this.config.blackholeColor.rgbHex);
       const ringTarget = this.ringCoords[i % this.ringCoords.length];
       const formId = `form_${i}`;
       const formPath = ch.motion.newPath(formId, { speed: 0.7, ease: inOutSine });
@@ -4760,24 +5223,31 @@ class BlackholeEffect {
   transitionToCollapsing() {
     this.phase = "collapsing";
     this.phaseFrames = 0;
-    if (this.ringChars.length > 0) {
-      const unstableChar = this.ringChars[0];
-      const unstableScene = unstableChar.newScene("unstable", true);
-      for (const sym of UNSTABLE_SYMBOLS) {
-        const col = this.config.starColors[Math.floor(Math.random() * this.config.starColors.length)];
-        unstableScene.addFrame(sym, 3, col.rgbHex);
-      }
-      unstableChar.activateScene("unstable");
-    }
-    for (const ch of this.ringChars) {
+    const expandRingCoords = findCoordsOnCircle(this.center, this.blackholeRadius + 3, this.ringChars.length);
+    let pointCharMade = false;
+    for (let i = 0;i < this.ringChars.length; i++) {
+      const ch = this.ringChars[i];
       ch.motion.activePath = null;
-      const currentPos = { ...ch.motion.currentCoord };
-      const expandedCoord = extrapolateAlongRay(this.center, currentPos, 3);
-      const collapseId = `collapse_${this.pathCounter++}`;
-      const collapsePath = ch.motion.newPath(collapseId, { speed: 0.5, ease: inOutSine });
-      collapsePath.addWaypoint(expandedCoord);
+      const expandId = `expand_${this.pathCounter}`;
+      const expandPath = ch.motion.newPath(expandId, { speed: 0.2, ease: inExpo });
+      expandPath.addWaypoint(expandRingCoords[i % expandRingCoords.length]);
+      const collapseId = `collapse_${this.pathCounter}`;
+      const collapsePath = ch.motion.newPath(collapseId, { speed: 0.3, ease: inExpo });
       collapsePath.addWaypoint(this.center);
-      ch.motion.activatePath(collapseId);
+      ch.eventHandler.register("PATH_COMPLETE", expandId, "ACTIVATE_PATH", collapseId);
+      if (!pointCharMade) {
+        const unstableScene = ch.newScene("unstable");
+        for (let rep = 0;rep < 3; rep++) {
+          for (const sym of UNSTABLE_SYMBOLS) {
+            const col = this.config.starColors[Math.floor(Math.random() * this.config.starColors.length)];
+            unstableScene.addFrame(sym, 3, col.rgbHex);
+          }
+        }
+        ch.eventHandler.register("PATH_COMPLETE", collapseId, "ACTIVATE_SCENE", "unstable");
+        pointCharMade = true;
+      }
+      ch.motion.activatePath(expandId);
+      this.pathCounter++;
     }
   }
   transitionToExploding() {
@@ -4794,7 +5264,7 @@ class BlackholeEffect {
       const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
       const explosionScene = ch.newScene("explosion");
       const explosionGrad = new Gradient([explosionColor, finalColor], this.config.finalGradientFrames);
-      explosionScene.applyGradientToSymbols(ch.inputSymbol, 2, explosionGrad);
+      explosionScene.applyGradientToSymbols(ch.inputSymbol, 20, explosionGrad);
       const scatterCoords = findCoordsInCircle(ch.inputCoord, 3);
       const scatterTarget = scatterCoords.length > 0 ? scatterCoords[Math.floor(Math.random() * scatterCoords.length)] : { ...ch.inputCoord };
       const scatterId = `scatter_${this.pathCounter}`;
@@ -4860,7 +5330,7 @@ class BlackholeEffect {
         for (const ch of this.activeRingChars) {
           ch.tick();
         }
-        const allCollapsed = [...this.activeRingChars].every((ch) => ch.motion.movementIsComplete());
+        const allCollapsed = [...this.activeRingChars].every((ch) => !ch.isActive);
         if (allCollapsed) {
           this.transitionToExploding();
         }
@@ -4881,6 +5351,1115 @@ class BlackholeEffect {
       }
     }
     return true;
+  }
+}
+
+// src/tte/effects/smoke.ts
+var defaultSmokeConfig = {
+  startingColor: color("7A7A7A"),
+  smokeSymbols: ["░", "▒", "▓", "▒", "░"],
+  smokeGradientStops: [color("242424"), color("FFFFFF")],
+  useWholeCanvas: false,
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
+  finalGradientSteps: 12,
+  finalGradientDirection: "vertical"
+};
+
+class SmokeEffect {
+  canvas;
+  pendingChars = [];
+  activeChars = new Set;
+  constructor(canvas, config) {
+    this.canvas = canvas;
+    this.build(config);
+  }
+  build(config) {
+    const { dims } = this.canvas;
+    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const smokeGradientStops = [
+      ...config.smokeGradientStops,
+      ...[...config.finalGradientStops].reverse()
+    ];
+    const smokeGradient = new Gradient(smokeGradientStops, [3, 4]);
+    const blackFallback = color("000000");
+    const chars = this.canvas.getCharacters();
+    for (const ch of chars) {
+      ch.isVisible = true;
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: config.startingColor.rgbHex };
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      const charFinalColor = colorMapping.get(key) ?? blackFallback;
+      const paintGradient = new Gradient([...config.finalGradientStops, charFinalColor], 5);
+      const smokeScene = ch.newScene("smoke");
+      smokeScene.applyGradientToSymbols(config.smokeSymbols, 3, smokeGradient);
+      const paintScene = ch.newScene("paint");
+      paintScene.applyGradientToSymbols([ch.inputSymbol], 5, paintGradient);
+      ch.eventHandler.register("SCENE_COMPLETE", "smoke", "ACTIVATE_SCENE", "paint");
+    }
+    this.pendingChars = buildSpanningTree(chars, { startStrategy: "random", traversal: "bfs" });
+  }
+  step() {
+    if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
+      return false;
+    }
+    if (this.pendingChars.length > 0) {
+      const ch = this.pendingChars.shift();
+      if (!ch)
+        return false;
+      ch.activateScene("smoke");
+      this.activeChars.add(ch);
+    }
+    for (const ch of this.activeChars) {
+      ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
+    }
+    return this.pendingChars.length > 0 || this.activeChars.size > 0;
+  }
+}
+
+// src/tte/effects/bubbles.ts
+var defaultBubblesConfig = {
+  bubbleColors: [color("d33aff"), color("7395c4"), color("43c2a7"), color("02ff7f")],
+  popColor: color("ffffff"),
+  bubbleSpeed: 0.5,
+  bubbleDelay: 20,
+  popCondition: "row",
+  finalGradientStops: [color("d33aff"), color("02ff7f")],
+  finalGradientSteps: 12,
+  finalGradientDirection: "diagonal"
+};
+function setCharCoordinates(bubble) {
+  const anchor = { column: Math.round(bubble.anchorCol), row: Math.round(bubble.anchorRow) };
+  const points = findCoordsOnCircle(anchor, bubble.radius, bubble.characters.length, false);
+  for (let i = 0;i < bubble.characters.length; i++) {
+    const point = points[i] ?? anchor;
+    bubble.characters[i].motion.setCoordinate(point);
+    if (point.row === bubble.lowestRow) {
+      bubble.landed = true;
+    }
+  }
+}
+function moveBubble(bubble, speed, popCondition) {
+  const dx = bubble.targetCol - bubble.anchorCol;
+  const dy = bubble.lowestRow - bubble.anchorRow;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= speed || dist === 0) {
+    bubble.anchorCol = bubble.targetCol;
+    bubble.anchorRow = bubble.lowestRow;
+  } else {
+    bubble.anchorCol += dx / dist * speed;
+    bubble.anchorRow += dy / dist * speed;
+  }
+  setCharCoordinates(bubble);
+  if (popCondition === "anywhere" && Math.random() < 0.002) {
+    bubble.landed = true;
+  }
+}
+
+class BubblesEffect {
+  canvas;
+  config;
+  pendingBubbles = [];
+  animatingBubbles = [];
+  activeChars = new Set;
+  stepsSinceLastBubble = 0;
+  constructor(canvas, config) {
+    this.canvas = canvas;
+    this.config = config;
+    this.build();
+  }
+  build() {
+    const { dims } = this.canvas;
+    const { config } = this;
+    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
+    const colorMap = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const popColorHex = config.popColor.rgbHex;
+    for (const ch of this.canvas.getNonSpaceCharacters()) {
+      ch.isVisible = false;
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      const finalColor = colorMap.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
+      const pop1 = ch.newScene("pop_1");
+      pop1.addFrame("*", 9, popColorHex);
+      const pop2 = ch.newScene("pop_2");
+      pop2.addFrame("'", 9, popColorHex);
+      const finalScene = ch.newScene("final_scene");
+      const charGrad = new Gradient([config.popColor, finalColor], 8);
+      finalScene.applyGradientToSymbols(ch.inputSymbol, 6, charGrad);
+      ch.eventHandler.register("SCENE_COMPLETE", "pop_1", "ACTIVATE_SCENE", "pop_2");
+      ch.eventHandler.register("SCENE_COMPLETE", "pop_2", "ACTIVATE_SCENE", "final_scene");
+      const finalPath = ch.motion.newPath("final", 0.3, inOutExpo);
+      finalPath.addWaypoint(ch.inputCoord);
+      ch.eventHandler.register("PATH_COMPLETE", "pop_out", "ACTIVATE_PATH", "final");
+    }
+    const allChars = [];
+    for (const row of this.canvas.getCharactersGrouped("rowBottomToTop", { includeSpaces: false })) {
+      allChars.push(...row);
+    }
+    while (allChars.length > 0) {
+      const maxSize = Math.min(allChars.length, 20);
+      const groupSize = allChars.length < 5 ? allChars.length : Math.floor(Math.random() * (maxSize - 5 + 1)) + 5;
+      const group = allChars.splice(0, groupSize);
+      const lowestRow = config.popCondition === "row" ? Math.min(...group.map((c) => c.inputCoord.row)) : dims.bottom;
+      const radius = Math.max(Math.floor(group.length / 5), 1);
+      const originCol = dims.left + Math.floor(Math.random() * (dims.right - dims.left + 1));
+      const targetCol = dims.left + Math.floor(Math.random() * (dims.right - dims.left + 1));
+      const bubbleColor = config.bubbleColors[Math.floor(Math.random() * config.bubbleColors.length)];
+      for (const ch of group) {
+        const sheenScene = ch.newScene("sheen");
+        sheenScene.addFrame(ch.inputSymbol, 1, bubbleColor.rgbHex);
+        ch.activateScene("sheen");
+      }
+      const bubble = {
+        characters: group,
+        radius,
+        anchorCol: originCol,
+        anchorRow: dims.top + 10,
+        targetCol,
+        lowestRow,
+        landed: false
+      };
+      setCharCoordinates(bubble);
+      this.pendingBubbles.push(bubble);
+    }
+  }
+  popBubble(bubble) {
+    const anchor = { column: Math.round(bubble.anchorCol), row: Math.round(bubble.anchorRow) };
+    const outPoints = findCoordsOnCircle(anchor, bubble.radius + 3, bubble.characters.length);
+    for (let i = 0;i < bubble.characters.length; i++) {
+      const ch = bubble.characters[i];
+      const point = outPoints[i] ?? anchor;
+      const popOutPath = ch.motion.newPath("pop_out", 0.3, outExpo);
+      popOutPath.addWaypoint(point);
+    }
+    for (const ch of bubble.characters) {
+      ch.activateScene("pop_1");
+      ch.motion.activatePath("pop_out");
+      this.activeChars.add(ch);
+    }
+  }
+  step() {
+    if (this.pendingBubbles.length > 0 && this.stepsSinceLastBubble >= this.config.bubbleDelay) {
+      const bubble = this.pendingBubbles.shift();
+      if (!bubble)
+        return true;
+      for (const ch of bubble.characters) {
+        ch.isVisible = true;
+      }
+      this.animatingBubbles.push(bubble);
+      this.stepsSinceLastBubble = 0;
+    }
+    this.stepsSinceLastBubble++;
+    for (const bubble of this.animatingBubbles) {
+      if (bubble.landed) {
+        this.popBubble(bubble);
+      }
+    }
+    this.animatingBubbles = this.animatingBubbles.filter((b) => !b.landed);
+    for (const bubble of this.animatingBubbles) {
+      moveBubble(bubble, this.config.bubbleSpeed, this.config.popCondition);
+      for (const ch of bubble.characters) {
+        ch.tick();
+      }
+    }
+    for (const ch of [...this.activeChars]) {
+      ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
+    }
+    return this.pendingBubbles.length > 0 || this.animatingBubbles.length > 0 || this.activeChars.size > 0;
+  }
+}
+
+// src/tte/effects/spray.ts
+var defaultSprayConfig = {
+  sprayColors: [color("8A008A"), color("00D1FF"), color("ffffff")],
+  spraySymbols: ["*", "·", ".", "+"],
+  sourcePosition: "e",
+  arcHeight: 4,
+  flightSpeed: 0.3,
+  flightEasing: outExpo,
+  charsPerTick: 3,
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
+  finalGradientSteps: 12,
+  finalGradientFrames: 8,
+  finalGradientDirection: "vertical"
+};
+function shuffle6(arr) {
+  for (let i = arr.length - 1;i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+class SprayEffect {
+  canvas;
+  config;
+  queue = [];
+  activeChars = new Set;
+  source;
+  pathCounter = 0;
+  releasedCount = 0;
+  constructor(canvas, config) {
+    this.canvas = canvas;
+    this.config = config;
+    this.build();
+  }
+  resolveSource() {
+    const { dims } = this.canvas;
+    const midCol = Math.floor(dims.right / 2);
+    const midRow = Math.floor(dims.top / 2);
+    switch (this.config.sourcePosition) {
+      case "n":
+        return { column: midCol, row: dims.top };
+      case "ne":
+        return { column: dims.right - 1, row: dims.top };
+      case "e":
+        return { column: dims.right - 1, row: midRow };
+      case "se":
+        return { column: dims.right - 1, row: dims.bottom };
+      case "s":
+        return { column: midCol, row: dims.bottom };
+      case "sw":
+        return { column: dims.left, row: dims.bottom };
+      case "w":
+        return { column: dims.left, row: midRow };
+      case "nw":
+        return { column: dims.left, row: dims.top };
+      case "center":
+        return { column: dims.centerColumn, row: dims.centerRow };
+    }
+  }
+  build() {
+    const { dims } = this.canvas;
+    this.source = this.resolveSource();
+    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    for (const ch of this.canvas.getCharacters()) {
+      ch.isVisible = false;
+      if (ch.isSpace) {
+        ch.isVisible = true;
+      }
+    }
+    const chars = [...this.canvas.getNonSpaceCharacters()];
+    shuffle6(chars);
+    for (const ch of chars) {
+      const target = ch.inputCoord;
+      const flightScene = ch.newScene("flight", true);
+      for (const sym of this.config.spraySymbols) {
+        for (const col of this.config.sprayColors) {
+          flightScene.addFrame(sym, 1, col.rgbHex);
+        }
+      }
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
+      const lastSprayColor = this.config.sprayColors[this.config.sprayColors.length - 1];
+      const resolveScene = ch.newScene("resolve");
+      const resolveGrad = new Gradient([lastSprayColor, finalColor], this.config.finalGradientFrames);
+      resolveScene.applyGradientToSymbols(ch.inputSymbol, 1, resolveGrad);
+      const S = this.source;
+      const T = target;
+      const midCol = Math.round((S.column + T.column) / 2);
+      const midRow = Math.round((S.row + T.row) / 2) + this.config.arcHeight;
+      const controlPoint = { column: midCol, row: midRow };
+      const pathId = `arc_${this.pathCounter}`;
+      const arcPath = ch.motion.newPath(pathId, this.config.flightSpeed, this.config.flightEasing);
+      for (let s = 1;s <= 5; s++) {
+        const t = s / 5;
+        const pt = findCoordOnBezierCurve(S, [controlPoint], T, t);
+        arcPath.addWaypoint(pt);
+      }
+      ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "resolve");
+      this.pathCounter++;
+    }
+    this.queue = chars;
+  }
+  step() {
+    const toRelease = Math.min(this.config.charsPerTick, this.queue.length);
+    for (let i = 0;i < toRelease; i++) {
+      const ch = this.queue.shift();
+      if (!ch)
+        break;
+      ch.motion.setCoordinate(this.source);
+      ch.isVisible = true;
+      ch.activateScene("flight");
+      ch.motion.activatePath(`arc_${this.releasedCount}`);
+      this.releasedCount++;
+      this.activeChars.add(ch);
+    }
+    for (const ch of this.activeChars) {
+      ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
+    }
+    return this.queue.length > 0 || this.activeChars.size > 0;
+  }
+}
+
+// src/tte/effects/beams.ts
+var defaultBeamsConfig = {
+  beamRowSymbols: ["▂", "▁", "_"],
+  beamColumnSymbols: ["▌", "▍", "▎", "▏"],
+  beamDelay: 6,
+  beamRowSpeed: [1.5, 6],
+  beamColumnSpeed: [0.9, 1.5],
+  beamGradientStops: [color("ffffff"), color("00D1FF"), color("8A008A")],
+  beamGradientSteps: [2, 6],
+  beamGradientFrames: 2,
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
+  finalGradientSteps: 12,
+  finalGradientFrames: 4,
+  finalGradientDirection: "vertical",
+  finalWipeSpeed: 3
+};
+function shuffle7(arr) {
+  for (let i = arr.length - 1;i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+function randInt11(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function randRange4(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+class BeamsEffect {
+  canvas;
+  config;
+  phase = "beams";
+  beamDelay = 0;
+  pendingGroups = [];
+  activeGroups = [];
+  activeChars = new Set;
+  wipeGroups = [];
+  wipeIdx = 0;
+  constructor(canvas, config) {
+    this.canvas = canvas;
+    this.config = config;
+    this.build();
+  }
+  build() {
+    const { dims } = this.canvas;
+    const { config } = this;
+    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
+    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    for (const ch of this.canvas.getNonSpaceCharacters()) {
+      const { column, row } = ch.inputCoord;
+      const finalColor = colorMapping.get(coordKey(column, row)) ?? config.finalGradientStops[0];
+      const dimColor = adjustBrightness(finalColor, 0.3);
+      const fadeGradient = new Gradient([finalColor, dimColor], 10);
+      const brightenGradient = new Gradient([dimColor, finalColor], 10);
+      const rowScene = ch.newScene("beam_row");
+      rowScene.applyGradientToSymbols(config.beamRowSymbols, config.beamGradientFrames, beamGradient);
+      rowScene.applyGradientToSymbols(ch.inputSymbol, 2, fadeGradient);
+      const colScene = ch.newScene("beam_column");
+      colScene.applyGradientToSymbols(config.beamColumnSymbols, config.beamGradientFrames, beamGradient);
+      colScene.applyGradientToSymbols(ch.inputSymbol, 2, fadeGradient);
+      const brightenScene = ch.newScene("brighten");
+      brightenScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, brightenGradient);
+    }
+    const allBeamGroups = [];
+    for (const chars of this.canvas.getCharactersGrouped("row", { includeSpaces: false })) {
+      const sorted = [...chars].sort((a, b) => a.inputCoord.column - b.inputCoord.column);
+      if (Math.random() < 0.5)
+        sorted.reverse();
+      allBeamGroups.push({
+        chars: sorted,
+        sceneId: "beam_row",
+        speed: randRange4(config.beamRowSpeed[0], config.beamRowSpeed[1]),
+        counter: 0,
+        nextIdx: 0
+      });
+    }
+    for (const chars of this.canvas.getCharactersGrouped("column", { includeSpaces: false })) {
+      const sorted = [...chars].sort((a, b) => a.inputCoord.row - b.inputCoord.row);
+      if (Math.random() < 0.5)
+        sorted.reverse();
+      allBeamGroups.push({
+        chars: sorted,
+        sceneId: "beam_column",
+        speed: randRange4(config.beamColumnSpeed[0], config.beamColumnSpeed[1]),
+        counter: 0,
+        nextIdx: 0
+      });
+    }
+    shuffle7(allBeamGroups);
+    this.pendingGroups = allBeamGroups;
+    const diagMap = new Map;
+    for (const ch of this.canvas.getNonSpaceCharacters()) {
+      const key = ch.inputCoord.column - ch.inputCoord.row;
+      if (!diagMap.has(key))
+        diagMap.set(key, []);
+      diagMap.get(key)?.push(ch);
+    }
+    const sortedKeys = [...diagMap.keys()].sort((a, b) => a - b);
+    this.wipeGroups = sortedKeys.map((k) => diagMap.get(k) ?? []);
+  }
+  step() {
+    if (this.phase === "beams") {
+      if (this.beamDelay === 0) {
+        if (this.pendingGroups.length > 0) {
+          const batchSize = randInt11(1, 5);
+          for (let i = 0;i < batchSize && this.pendingGroups.length > 0; i++) {
+            const group = this.pendingGroups.shift();
+            if (group)
+              this.activeGroups.push(group);
+          }
+          this.beamDelay = this.config.beamDelay;
+        }
+      } else {
+        this.beamDelay--;
+      }
+      for (const group of this.activeGroups) {
+        group.counter += group.speed;
+        const steps = Math.floor(group.counter);
+        if (steps > 1) {
+          for (let s = 0;s < steps && group.nextIdx < group.chars.length; s++) {
+            const ch = group.chars[group.nextIdx++];
+            ch.isVisible = true;
+            ch.activateScene(group.sceneId);
+            this.activeChars.add(ch);
+            group.counter -= 1;
+          }
+        }
+      }
+      this.activeGroups = this.activeGroups.filter((g) => g.nextIdx < g.chars.length);
+      if (this.pendingGroups.length === 0 && this.activeGroups.length === 0 && this.activeChars.size === 0) {
+        this.phase = "wipe";
+      }
+    }
+    if (this.phase === "wipe") {
+      const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
+      for (let i = this.wipeIdx;i < end; i++) {
+        for (const ch of this.wipeGroups[i]) {
+          ch.isVisible = true;
+          ch.activateScene("brighten");
+          this.activeChars.add(ch);
+        }
+      }
+      this.wipeIdx = end;
+    }
+    for (const ch of this.activeChars) {
+      ch.tick();
+      if (!ch.isActive)
+        this.activeChars.delete(ch);
+    }
+    return this.pendingGroups.length > 0 || this.activeGroups.length > 0 || this.activeChars.size > 0 || this.wipeIdx < this.wipeGroups.length;
+  }
+}
+
+// src/tte/effects/slice.ts
+var defaultSliceConfig = {
+  sliceDirection: "vertical",
+  movementSpeed: 0.25,
+  movementEasing: inOutExpo,
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
+  finalGradientSteps: 12,
+  finalGradientFrames: 6,
+  finalGradientDirection: "diagonal"
+};
+
+class SliceEffect {
+  canvas;
+  config;
+  activeChars = new Set;
+  constructor(canvas, config) {
+    this.canvas = canvas;
+    this.config = config;
+    this.build();
+  }
+  build() {
+    const { dims } = this.canvas;
+    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    for (const ch of this.canvas.getCharacters()) {
+      if (ch.isSpace) {
+        ch.isVisible = true;
+      }
+    }
+    const { sliceDirection } = this.config;
+    if (sliceDirection === "vertical") {
+      const centerCol = dims.textCenterColumn;
+      for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
+        const speed = this.config.movementSpeed;
+        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
+        path.addWaypoint(ch.inputCoord);
+        const startRow = ch.inputCoord.column <= centerCol ? dims.top + 1 : dims.bottom - 1;
+        ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
+        this.addGradientScene(ch, colorMapping);
+      }
+    } else if (sliceDirection === "horizontal") {
+      const speed = this.config.movementSpeed * 2;
+      const centerRow = dims.textCenterRow;
+      for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
+        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
+        path.addWaypoint(ch.inputCoord);
+        const startCol = ch.inputCoord.row <= centerRow ? dims.left - 1 : dims.right + 1;
+        ch.motion.setCoordinate({ column: startCol, row: ch.inputCoord.row });
+        this.addGradientScene(ch, colorMapping);
+      }
+    } else {
+      const groups = this.canvas.getCharactersGrouped("diagonal", { includeSpaces: false });
+      const splitIdx = Math.floor(groups.length / 2);
+      const leftHalf = groups.slice(0, splitIdx);
+      const rightHalf = groups.slice(splitIdx);
+      for (const group of leftHalf) {
+        for (const ch of group) {
+          const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
+          path.addWaypoint(ch.inputCoord);
+          ch.motion.setCoordinate({ column: group[0].inputCoord.column, row: dims.bottom - 1 });
+          this.addGradientScene(ch, colorMapping);
+        }
+      }
+      for (const group of rightHalf) {
+        for (const ch of group) {
+          const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
+          path.addWaypoint(ch.inputCoord);
+          ch.motion.setCoordinate({ column: group[group.length - 1].inputCoord.column, row: dims.top + 1 });
+          this.addGradientScene(ch, colorMapping);
+        }
+      }
+    }
+    for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
+      ch.isVisible = true;
+      ch.motion.activatePath("input_path");
+      ch.activateScene("gradient_scene");
+      this.activeChars.add(ch);
+    }
+  }
+  addGradientScene(ch, colorMapping) {
+    const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+    const charFinalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
+    const scene = ch.newScene("gradient_scene");
+    const charGradient = new Gradient([this.config.finalGradientStops[0], charFinalColor], this.config.finalGradientSteps);
+    scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
+  }
+  step() {
+    if (this.activeChars.size === 0)
+      return false;
+    for (const ch of this.activeChars) {
+      ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
+    }
+    return this.activeChars.size > 0;
+  }
+}
+
+// src/tte/effects/synthgrid.ts
+var defaultSynthGridConfig = {
+  gridRowSymbol: "─",
+  gridColumnSymbol: "│",
+  gridGradientStops: [color("CC00CC"), color("ffffff")],
+  gridGradientSteps: 12,
+  gridGradientDirection: "diagonal",
+  textGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
+  textGradientSteps: 12,
+  textGradientDirection: "vertical",
+  textGenerationSymbols: ["░", "▒", "▓"],
+  maxActiveBlocks: 0.1
+};
+function randInt12(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function shuffle8(arr) {
+  for (let i = arr.length - 1;i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+function findEvenGap(dimension) {
+  const d = dimension - 2;
+  if (d <= 0)
+    return 0;
+  const potential = [];
+  for (let i = d;i > 4; i--) {
+    if (d % i <= 1)
+      potential.push(i);
+  }
+  if (potential.length === 0)
+    return 4;
+  const target = Math.floor(d / 5);
+  return potential.reduce((best, g) => Math.abs(g - target) < Math.abs(best - target) ? g : best);
+}
+var LINE_HEIGHT = 1.2;
+
+class GridLine {
+  spans = [];
+  visibleCount = 0;
+  constructor(container, positions, symbol, colorMapping, cellWidth, cellHeight, totalRows) {
+    for (const { col, row } of positions) {
+      const span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.visibility = "hidden";
+      span.style.lineHeight = `${LINE_HEIGHT}em`;
+      span.textContent = symbol;
+      const c = colorMapping.get(coordKey(col, row));
+      if (c)
+        span.style.color = `#${c.rgbHex}`;
+      span.style.left = `${(col - 1) * cellWidth}px`;
+      span.style.top = `${(totalRows - row) * cellHeight}px`;
+      container.appendChild(span);
+      this.spans.push(span);
+    }
+  }
+  extend(n) {
+    const target = Math.min(this.visibleCount + n, this.spans.length);
+    for (let i = this.visibleCount;i < target; i++) {
+      this.spans[i].style.visibility = "visible";
+    }
+    this.visibleCount = target;
+  }
+  collapse(n) {
+    const target = Math.max(this.visibleCount - n, 0);
+    for (let i = target;i < this.visibleCount; i++) {
+      this.spans[i].style.visibility = "hidden";
+    }
+    this.visibleCount = target;
+  }
+  get fullyExtended() {
+    return this.visibleCount === this.spans.length;
+  }
+  get fullyCollapsed() {
+    return this.visibleCount === 0;
+  }
+  dispose() {
+    for (const span of this.spans) {
+      span.remove();
+    }
+    this.spans = [];
+  }
+}
+
+class SynthGridEffect {
+  canvas;
+  config;
+  container;
+  phase = "grid_expand";
+  hLines = [];
+  vLines = [];
+  pendingBlocks = [];
+  activeChars = new Set;
+  activeBlockCount = 0;
+  totalBlocks = 0;
+  textColorMapping = new Map;
+  textGradientSpectrum = [];
+  cellWidth = 0;
+  cellHeight = 0;
+  constructor(canvas, config, container) {
+    this.canvas = canvas;
+    this.config = config;
+    this.container = container;
+    this._measureCell();
+    this.build();
+  }
+  _measureCell() {
+    const probe = document.createElement("span");
+    probe.textContent = "0";
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    probe.style.lineHeight = `${LINE_HEIGHT}em`;
+    this.container.appendChild(probe);
+    const rect = probe.getBoundingClientRect();
+    this.cellWidth = rect.width;
+    this.cellHeight = rect.height;
+    this.container.removeChild(probe);
+  }
+  _computeGaps(dims) {
+    let rowGap;
+    let colGap;
+    if (dims.top > 2 * dims.right) {
+      rowGap = findEvenGap(dims.top) + 1;
+      colGap = rowGap * 2;
+    } else {
+      colGap = findEvenGap(dims.right) + 1;
+      rowGap = Math.floor(colGap / 2);
+    }
+    return { rowGap: Math.max(1, rowGap), colGap: Math.max(1, colGap) };
+  }
+  build() {
+    const { dims } = this.canvas;
+    const { config } = this;
+    const gridGradient = new Gradient(config.gridGradientStops, config.gridGradientSteps);
+    const gridColorMapping = gridGradient.buildCoordinateColorMapping(dims.bottom, dims.top, dims.left, dims.right, config.gridGradientDirection);
+    const textGradient = new Gradient(config.textGradientStops, config.textGradientSteps);
+    this.textColorMapping = textGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.textGradientDirection);
+    this.textGradientSpectrum = textGradient.spectrum;
+    const { rowGap, colGap } = this._computeGaps(dims);
+    const internalRowLines = [];
+    for (let r = dims.bottom + rowGap;r < dims.top; r += rowGap) {
+      if (dims.top - r < 2)
+        continue;
+      internalRowLines.push(r);
+    }
+    const internalColLines = [];
+    for (let c = dims.left + colGap;c < dims.right; c += colGap) {
+      if (dims.right - c < 2)
+        continue;
+      internalColLines.push(c);
+    }
+    for (const row of [dims.bottom, dims.top, ...internalRowLines]) {
+      const positions = [];
+      for (let col = dims.left;col <= dims.right; col++) {
+        positions.push({ col, row });
+      }
+      this.hLines.push(new GridLine(this.container, positions, config.gridRowSymbol, gridColorMapping, this.cellWidth, this.cellHeight, dims.top));
+    }
+    for (const col of [dims.left, dims.right, ...internalColLines]) {
+      const positions = [];
+      for (let row = dims.bottom;row < dims.top; row++) {
+        positions.push({ col, row });
+      }
+      this.vLines.push(new GridLine(this.container, positions, config.gridColumnSymbol, gridColorMapping, this.cellWidth, this.cellHeight, dims.top));
+    }
+    const rowBounds = [dims.bottom, ...internalRowLines, dims.top + 1];
+    const colBounds = [dims.left, ...internalColLines, dims.right + 1];
+    const nonSpaceChars = this.canvas.getNonSpaceCharacters();
+    const blocks = [];
+    for (let ri = 0;ri < rowBounds.length - 1; ri++) {
+      const r1 = rowBounds[ri];
+      const r2 = rowBounds[ri + 1];
+      for (let ci = 0;ci < colBounds.length - 1; ci++) {
+        const c1 = colBounds[ci];
+        const c2 = colBounds[ci + 1];
+        const block = nonSpaceChars.filter((ch) => ch.inputCoord.row >= r1 && ch.inputCoord.row < r2 && ch.inputCoord.column >= c1 && ch.inputCoord.column < c2);
+        if (block.length > 0)
+          blocks.push(block);
+      }
+    }
+    shuffle8(blocks);
+    this.pendingBlocks = blocks;
+    this.totalBlocks = blocks.length;
+    for (const ch of nonSpaceChars) {
+      const dissolveScene = ch.newScene("dissolve");
+      const frameCount = randInt12(15, 30);
+      for (let i = 0;i < frameCount; i++) {
+        const sym = config.textGenerationSymbols[Math.floor(Math.random() * config.textGenerationSymbols.length)];
+        const paletteColor = this.textGradientSpectrum[Math.floor(Math.random() * this.textGradientSpectrum.length)];
+        dissolveScene.addFrame(sym, 2, paletteColor.rgbHex);
+      }
+      const finalColor = this.textColorMapping.get(coordKey(ch.inputCoord.column, ch.inputCoord.row));
+      dissolveScene.addFrame(ch.inputSymbol, 1, finalColor?.rgbHex ?? null);
+    }
+  }
+  activateBlock(block) {
+    this.activeBlockCount++;
+    let remaining = block.length;
+    for (const ch of block) {
+      ch.isVisible = true;
+      ch.eventHandler.register("SCENE_COMPLETE", "dissolve", "CALLBACK", {
+        callback: (_char) => {
+          remaining--;
+          if (remaining === 0)
+            this.activeBlockCount--;
+        },
+        args: []
+      });
+      ch.activateScene("dissolve");
+      this.activeChars.add(ch);
+    }
+  }
+  step() {
+    switch (this.phase) {
+      case "grid_expand": {
+        for (const line of this.hLines)
+          line.extend(3);
+        for (const line of this.vLines)
+          line.extend(1);
+        if (this.hLines.every((l) => l.fullyExtended) && this.vLines.every((l) => l.fullyExtended)) {
+          this.phase = "add_chars";
+        }
+        break;
+      }
+      case "add_chars": {
+        for (const ch of [...this.activeChars]) {
+          ch.tick();
+          if (!ch.isActive) {
+            this.activeChars.delete(ch);
+          }
+        }
+        const threshold = this.totalBlocks * this.config.maxActiveBlocks;
+        if (this.activeBlockCount < threshold && this.pendingBlocks.length > 0) {
+          const block = this.pendingBlocks.shift();
+          if (block)
+            this.activateBlock(block);
+        }
+        if (this.pendingBlocks.length === 0 && this.activeChars.size === 0 && this.activeBlockCount === 0) {
+          this._revealGridLineChars();
+          this.phase = "collapse";
+        }
+        break;
+      }
+      case "collapse": {
+        for (const line of this.hLines)
+          line.collapse(3);
+        for (const line of this.vLines)
+          line.collapse(1);
+        if (this.hLines.every((l) => l.fullyCollapsed) && this.vLines.every((l) => l.fullyCollapsed)) {
+          for (const line of [...this.hLines, ...this.vLines])
+            line.dispose();
+          this.hLines = [];
+          this.vLines = [];
+          this.phase = "complete";
+        }
+        break;
+      }
+      case "complete":
+        return false;
+    }
+    return true;
+  }
+  _revealGridLineChars() {
+    for (const ch of this.canvas.getNonSpaceCharacters()) {
+      if (!ch.isVisible) {
+        ch.isVisible = true;
+        const finalColor = this.textColorMapping.get(coordKey(ch.inputCoord.column, ch.inputCoord.row));
+        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor?.rgbHex ?? null };
+      }
+    }
+  }
+}
+
+// src/tte/effects/binarypath.ts
+function randInt13(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+var defaultBinaryPathConfig = {
+  binaryColors: [color("044E29"), color("157e38"), color("45bf55"), color("95ed87")],
+  movementSpeed: 1,
+  activeBinaryGroups: 0.08,
+  finalGradientStops: [color("00d500"), color("007500")],
+  finalGradientSteps: 12,
+  finalGradientFrames: 2,
+  finalGradientDirection: "radial",
+  finalWipeSpeed: 2
+};
+var nextDigitId = 3000000;
+
+class BinaryPathEffect {
+  canvas;
+  config;
+  container;
+  cellWidthPx = 0;
+  cellHeightPx = 0;
+  totalRows;
+  pendingGroups = [];
+  activeGroups = new Set;
+  collapsingChars = new Set;
+  collapsedCount = 0;
+  totalNonSpaceChars = 0;
+  activeChars = new Set;
+  wipeGroups = [];
+  wipeIdx = 0;
+  phase = "traveling";
+  colorMapping = new Map;
+  constructor(canvas, config, container) {
+    this.canvas = canvas;
+    this.config = config;
+    this.container = container;
+    this.totalRows = canvas.dims.top;
+    this._measureCell();
+    this.build();
+  }
+  _measureCell() {
+    const probe = document.createElement("span");
+    probe.textContent = "0";
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    this.container.appendChild(probe);
+    const rect = probe.getBoundingClientRect();
+    this.cellWidthPx = rect.width;
+    this.cellHeightPx = rect.height;
+    this.container.removeChild(probe);
+  }
+  _positionSpan(span, coord) {
+    span.style.left = `${(coord.column - 1) * this.cellWidthPx}px`;
+    span.style.top = `${(this.totalRows - coord.row) * this.cellHeightPx}px`;
+  }
+  build() {
+    const { dims } = this.canvas;
+    const { config } = this;
+    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
+    this.totalNonSpaceChars = nonSpaceChars.length;
+    for (const ch of this.canvas.getCharacters()) {
+      ch.isVisible = false;
+    }
+    for (const ch of nonSpaceChars) {
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      const finalColor = this.colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
+      const dimColor = adjustBrightness(finalColor, 0.5);
+      const collapseGrad = new Gradient([color("ffffff"), dimColor], 7);
+      const collapseScene = ch.newScene("collapse");
+      collapseScene.applyGradientToSymbols(ch.inputSymbol, 3, collapseGrad);
+      ch.eventHandler.register("SCENE_COMPLETE", "collapse", "CALLBACK", {
+        callback: (char) => {
+          this.collapsingChars.delete(char);
+          this.collapsedCount++;
+        },
+        args: []
+      });
+      const brightenGrad = new Gradient([dimColor, finalColor], 10);
+      const brightenScene = ch.newScene("brighten");
+      brightenScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, brightenGrad);
+      const startCoord = this._randomExteriorCoord();
+      const pathCoords = this._buildZigzagPath(startCoord, ch.inputCoord, dims.right);
+      const binaryStr = ((ch.inputSymbol.codePointAt(0) ?? 0) & 255).toString(2).padStart(8, "0");
+      const pendingDigits = [];
+      for (let i = 0;i < 8; i++) {
+        const digit = binaryStr[i];
+        const digitColor = config.binaryColors[Math.floor(Math.random() * config.binaryColors.length)].rgbHex;
+        const id = nextDigitId++;
+        const digitCh = new EffectCharacter(id, digit, pathCoords[0].column, pathCoords[0].row);
+        const pathId = `bp_${id}`;
+        const path = digitCh.motion.newPath(pathId, { speed: config.movementSpeed });
+        for (const c of pathCoords) {
+          path.addWaypoint(c);
+        }
+        digitCh.motion.activatePath(pathId);
+        const span = document.createElement("span");
+        span.style.position = "absolute";
+        span.style.display = "none";
+        span.textContent = digit;
+        span.style.color = `#${digitColor}`;
+        this._positionSpan(span, pathCoords[0]);
+        this.container.appendChild(span);
+        pendingDigits.push({ ch: digitCh, span });
+      }
+      this.pendingGroups.push({
+        sourceChar: ch,
+        pendingDigits,
+        activeDigits: [],
+        isComplete: false
+      });
+    }
+    for (let i = this.pendingGroups.length - 1;i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.pendingGroups[i], this.pendingGroups[j]] = [this.pendingGroups[j], this.pendingGroups[i]];
+    }
+    const diagMap = new Map;
+    for (const ch of nonSpaceChars) {
+      const key = ch.inputCoord.row + ch.inputCoord.column;
+      if (!diagMap.has(key))
+        diagMap.set(key, []);
+      diagMap.get(key)?.push(ch);
+    }
+    const sortedKeys = [...diagMap.keys()].sort((a, b) => b - a);
+    this.wipeGroups = sortedKeys.map((k) => diagMap.get(k) ?? []);
+  }
+  _buildZigzagPath(startCoord, targetCoord, canvasRight) {
+    const path = [startCoord];
+    let lastOrientation = Math.random() < 0.5 ? "col" : "row";
+    while (path[path.length - 1].column !== targetCoord.column || path[path.length - 1].row !== targetCoord.row) {
+      const last = path[path.length - 1];
+      const colDir = Math.sign(targetCoord.column - last.column);
+      const rowDir = Math.sign(targetCoord.row - last.row);
+      const maxColDist = Math.abs(targetCoord.column - last.column);
+      const maxRowDist = Math.abs(targetCoord.row - last.row);
+      let next;
+      if (lastOrientation === "col" && maxRowDist > 0) {
+        const maxStep = Math.min(maxRowDist, Math.max(10, Math.floor(canvasRight * 0.2)));
+        const step = randInt13(1, maxStep);
+        next = { column: last.column, row: last.row + step * rowDir };
+        lastOrientation = "row";
+      } else if (lastOrientation === "row" && maxColDist > 0) {
+        const step = randInt13(1, Math.min(maxColDist, 4));
+        next = { column: last.column + step * colDir, row: last.row };
+        lastOrientation = "col";
+      } else {
+        next = { column: targetCoord.column, row: targetCoord.row };
+      }
+      path.push(next);
+    }
+    path.push({ column: targetCoord.column, row: targetCoord.row });
+    path.push({ column: targetCoord.column, row: targetCoord.row });
+    return path;
+  }
+  _randomExteriorCoord() {
+    const { dims } = this.canvas;
+    const edge = Math.floor(Math.random() * 4);
+    switch (edge) {
+      case 0:
+        return { column: Math.floor(Math.random() * (dims.right + 2)), row: dims.top + 1 };
+      case 1:
+        return { column: dims.right + 1, row: Math.floor(Math.random() * (dims.top + 2)) };
+      case 2:
+        return { column: Math.floor(Math.random() * (dims.right + 2)), row: 0 };
+      default:
+        return { column: 0, row: Math.floor(Math.random() * (dims.top + 2)) };
+    }
+  }
+  step() {
+    if (this.phase === "traveling") {
+      const maxActive = Math.max(1, Math.floor(this.totalNonSpaceChars * this.config.activeBinaryGroups));
+      while (this.pendingGroups.length > 0 && this.activeGroups.size < maxActive) {
+        const group = this.pendingGroups.shift();
+        if (group)
+          this.activeGroups.add(group);
+      }
+      for (const group of this.activeGroups) {
+        if (group.pendingDigits.length > 0) {
+          const digit = group.pendingDigits.shift();
+          if (!digit)
+            continue;
+          digit.span.style.display = "";
+          group.activeDigits.push(digit);
+        }
+      }
+      for (const group of this.activeGroups) {
+        for (const digit of [...group.activeDigits]) {
+          digit.ch.tick();
+          const coord = digit.ch.motion.currentCoord;
+          this._positionSpan(digit.span, coord);
+          if (!digit.ch.isActive) {
+            digit.span.remove();
+            const idx = group.activeDigits.indexOf(digit);
+            if (idx !== -1)
+              group.activeDigits.splice(idx, 1);
+          }
+        }
+        if (group.pendingDigits.length === 0 && group.activeDigits.length === 0 && !group.isComplete) {
+          group.isComplete = true;
+          const ch = group.sourceChar;
+          ch.isVisible = true;
+          ch.activateScene("collapse");
+          this.collapsingChars.add(ch);
+        }
+        if (group.isComplete)
+          this.activeGroups.delete(group);
+      }
+      for (const ch of this.collapsingChars) {
+        ch.tick();
+      }
+      if (this.pendingGroups.length === 0 && this.activeGroups.size === 0 && this.collapsingChars.size === 0 && this.collapsedCount === this.totalNonSpaceChars) {
+        this.phase = "wipe";
+      }
+    }
+    if (this.phase === "wipe") {
+      const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
+      for (let i = this.wipeIdx;i < end; i++) {
+        for (const ch of this.wipeGroups[i]) {
+          ch.isVisible = true;
+          ch.activateScene("brighten");
+          this.activeChars.add(ch);
+        }
+      }
+      this.wipeIdx = end;
+    }
+    for (const ch of this.activeChars) {
+      ch.tick();
+      if (!ch.isActive)
+        this.activeChars.delete(ch);
+    }
+    return !(this.phase === "wipe" && this.wipeIdx >= this.wipeGroups.length && this.activeChars.size === 0);
   }
 }
 
@@ -4966,677 +6545,50 @@ class ParticleSystem {
   }
 }
 
-// src/tte/effects/smoke.ts
-var defaultSmokeConfig = {
-  smokeColors: [color("8c8c8c"), color("aaaaaa"), color("c8c8c8"), color("e6e6e6")],
-  particlesPerChar: 4,
-  smokeTTL: 28,
-  smokeRiseSpeed: 0.14,
-  smokeDriftRange: 1,
-  dissolveDelay: 2,
-  finalGradientStops: [color("ffffff"), color("8c8c8c")],
-  finalGradientSteps: 12,
-  finalGradientFrames: 8,
-  finalGradientDirection: "vertical"
-};
-function shuffle7(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-class SmokeEffect {
-  canvas;
-  config;
-  ps;
-  queue = [];
-  dissolving = new Set;
-  dissolved = new Set;
-  restoring = new Set;
-  restoreStarted = false;
-  frameCount = 0;
-  nextReleaseFrame = 0;
-  colorMapping = new Map;
-  constructor(canvas, config, container) {
-    this.canvas = canvas;
-    this.config = config;
-    this.ps = new ParticleSystem(container, canvas.dims);
-    this.build();
-  }
-  build() {
-    const { dims } = this.canvas;
-    const { config } = this;
-    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
-    const chars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle7(chars);
-    this.queue = chars;
-    const smokeHexes = config.smokeColors.map((c) => c.rgbHex);
-    for (const ch of chars) {
-      ch.isVisible = true;
-      const dissolveScene = ch.newScene("dissolve");
-      dissolveScene.addFrame(ch.inputSymbol, 4, smokeHexes[0]);
-      dissolveScene.addFrame("▓", 3, smokeHexes[0]);
-      dissolveScene.addFrame("▒", 3, smokeHexes[1] ?? smokeHexes[0]);
-      dissolveScene.addFrame("░", 3, smokeHexes[2] ?? smokeHexes[0]);
-      dissolveScene.addFrame("·", 3, smokeHexes[smokeHexes.length - 1]);
-      dissolveScene.addFrame(".", 3, smokeHexes[smokeHexes.length - 1]);
-      dissolveScene.addFrame(" ", 1, null);
-      ch.eventHandler.register("SCENE_COMPLETE", "dissolve", "CALLBACK", {
-        callback: (char) => {
-          this.dissolved.add(char);
-          this.dissolving.delete(char);
-        },
-        args: []
-      });
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const restoreGrad = new Gradient([config.smokeColors[config.smokeColors.length - 1], finalColor], config.finalGradientFrames);
-      const restoreScene = ch.newScene("restore");
-      restoreScene.applyGradientToSymbols(ch.inputSymbol, 1, restoreGrad);
-    }
-  }
-  spawnParticles(ch) {
-    const { config } = this;
-    const smokeSymbols = ["▓", "▒", "░", "·", "."];
-    for (let i = 0;i < config.particlesPerChar; i++) {
-      const smokeColor = config.smokeColors[Math.floor(Math.random() * config.smokeColors.length)];
-      const symbol = smokeSymbols[i % smokeSymbols.length];
-      const riseHeight = 3 + Math.floor(Math.random() * 3);
-      const driftOffset = Math.round((Math.random() * 2 - 1) * config.smokeDriftRange);
-      const pChar = this.ps.emit({
-        symbol,
-        coord: { ...ch.inputCoord },
-        fgColor: smokeColor.rgbHex,
-        ttl: config.smokeTTL
-      });
-      const risePath = pChar.motion.newPath("rise", config.smokeRiseSpeed);
-      risePath.addWaypoint({
-        column: Math.max(1, ch.inputCoord.column + driftOffset),
-        row: ch.inputCoord.row + riseHeight
-      });
-      pChar.motion.activatePath("rise");
-    }
-  }
-  step() {
-    this.frameCount++;
-    if (this.queue.length > 0 && this.frameCount >= this.nextReleaseFrame) {
-      const ch = this.queue.shift();
-      ch.activateScene("dissolve");
-      this.dissolving.add(ch);
-      this.nextReleaseFrame = this.frameCount + this.config.dissolveDelay;
-    }
-    for (const ch of this.dissolving) {
-      ch.tick();
-    }
-    for (const ch of [...this.dissolved]) {
-      this.dissolved.delete(ch);
-      ch.currentVisual = { symbol: " ", fgColor: null };
-      this.spawnParticles(ch);
-    }
-    this.ps.tick();
-    if (!this.restoreStarted && this.queue.length === 0 && this.dissolving.size === 0 && this.dissolved.size === 0 && this.ps.count === 0) {
-      this.restoreStarted = true;
-      for (const ch of this.canvas.getNonSpaceCharacters()) {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: null };
-        ch.activateScene("restore");
-        this.restoring.add(ch);
-      }
-    }
-    for (const ch of [...this.restoring]) {
-      ch.tick();
-      if (!ch.isActive) {
-        this.restoring.delete(ch);
-      }
-    }
-    if (this.restoreStarted && this.restoring.size === 0) {
-      return false;
-    }
-    return true;
-  }
-}
-
-// src/tte/effects/bubbles.ts
-var defaultBubblesConfig = {
-  bubbleColors: [color("00d4ff"), color("87e8ff"), color("ffffff"), color("b0f0ff")],
-  bubbleSymbols: ["○", "◯", "°"],
-  riseHeight: 5,
-  riseSpeed: 0.2,
-  wobbleAmount: 1,
-  bubblesPerTick: 3,
-  finalGradientStops: [color("00d4ff"), color("ffffff")],
-  finalGradientSteps: 12,
-  finalGradientFrames: 8,
-  finalGradientDirection: "diagonal"
-};
-function shuffle8(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-class BubblesEffect {
-  canvas;
-  config;
-  queue = [];
-  activeChars = new Set;
-  risePathIds = new Map;
-  colorMapping = new Map;
-  constructor(canvas, config) {
-    this.canvas = canvas;
-    this.config = config;
-    this.build();
-  }
-  build() {
-    const { dims } = this.canvas;
-    const { config } = this;
-    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
-    const chars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle8(chars);
-    this.queue = chars;
-    for (let i = 0;i < chars.length; i++) {
-      const ch = chars[i];
-      ch.isVisible = true;
-      const bubbleColor = config.bubbleColors[Math.floor(Math.random() * config.bubbleColors.length)];
-      const bubbleScene = ch.newScene("bubble", true);
-      for (const sym of config.bubbleSymbols) {
-        bubbleScene.addFrame(sym, 5, bubbleColor.rgbHex);
-      }
-      const popScene = ch.newScene("pop");
-      popScene.addFrame("*", 2, "ffffff");
-      popScene.addFrame("✦", 2, "ffffff");
-      popScene.addFrame("·", 2, bubbleColor.rgbHex);
-      popScene.addFrame(" ", 1, null);
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const restoreGrad = new Gradient([bubbleColor, finalColor], config.finalGradientFrames);
-      const restoreScene = ch.newScene("restore");
-      restoreScene.applyGradientToSymbols(ch.inputSymbol, 1, restoreGrad);
-      const riseId = `rise_${i}`;
-      this.risePathIds.set(ch, riseId);
-      const risePath = ch.motion.newPath(riseId, config.riseSpeed, outExpo);
-      const midCol = ch.inputCoord.column + Math.round((Math.random() * 2 - 1) * config.wobbleAmount);
-      risePath.addWaypoint({ column: midCol, row: ch.inputCoord.row + Math.floor(config.riseHeight / 2) });
-      risePath.addWaypoint({ column: ch.inputCoord.column, row: ch.inputCoord.row + config.riseHeight });
-      ch.eventHandler.register("PATH_COMPLETE", riseId, "ACTIVATE_SCENE", "pop");
-      ch.eventHandler.register("SCENE_COMPLETE", "pop", "SET_COORDINATE", ch.inputCoord);
-      ch.eventHandler.register("SCENE_COMPLETE", "pop", "ACTIVATE_SCENE", "restore");
-    }
-  }
-  step() {
-    const toRelease = Math.min(this.config.bubblesPerTick, this.queue.length);
-    for (let i = 0;i < toRelease; i++) {
-      const ch = this.queue.shift();
-      ch.motion.setCoordinate(ch.inputCoord);
-      ch.activateScene("bubble");
-      ch.motion.activatePath(this.risePathIds.get(ch));
-      this.activeChars.add(ch);
-    }
-    for (const ch of [...this.activeChars]) {
-      ch.tick();
-      if (!ch.isActive) {
-        this.activeChars.delete(ch);
-      }
-    }
-    return this.queue.length > 0 || this.activeChars.size > 0;
-  }
-}
-
-// src/tte/effects/spray.ts
-var defaultSprayConfig = {
-  sprayColors: [color("ff9900"), color("ffcc00"), color("ffffff")],
-  spraySymbols: ["*", "·", ".", "+"],
-  sourcePosition: "bottom-left",
-  arcHeight: 4,
-  flightSpeed: 0.3,
-  flightEasing: outExpo,
-  charsPerTick: 3,
-  finalGradientStops: [color("ff9900"), color("ffcc00"), color("ffffff")],
-  finalGradientSteps: 12,
-  finalGradientFrames: 8,
-  finalGradientDirection: "diagonal"
-};
-function shuffle9(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-class SprayEffect {
-  canvas;
-  config;
-  queue = [];
-  activeChars = new Set;
-  source;
-  pathCounter = 0;
-  releasedCount = 0;
-  constructor(canvas, config) {
-    this.canvas = canvas;
-    this.config = config;
-    this.build();
-  }
-  resolveSource() {
-    const { dims } = this.canvas;
-    switch (this.config.sourcePosition) {
-      case "bottom-left":
-        return { column: dims.left, row: dims.bottom };
-      case "bottom-right":
-        return { column: dims.right, row: dims.bottom };
-      case "top-left":
-        return { column: dims.left, row: dims.top };
-      case "top-right":
-        return { column: dims.right, row: dims.top };
-      case "center":
-        return {
-          column: Math.round((dims.left + dims.right) / 2),
-          row: Math.round((dims.bottom + dims.top) / 2)
-        };
-    }
-  }
-  build() {
-    const { dims } = this.canvas;
-    this.source = this.resolveSource();
-    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = false;
-      if (ch.isSpace) {
-        ch.isVisible = true;
-      }
-    }
-    const chars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle9(chars);
-    for (const ch of chars) {
-      const target = ch.inputCoord;
-      const flightScene = ch.newScene("flight", true);
-      for (const sym of this.config.spraySymbols) {
-        for (const col of this.config.sprayColors) {
-          flightScene.addFrame(sym, 1, col.rgbHex);
-        }
-      }
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-      const lastSprayColor = this.config.sprayColors[this.config.sprayColors.length - 1];
-      const resolveScene = ch.newScene("resolve");
-      const resolveGrad = new Gradient([lastSprayColor, finalColor], this.config.finalGradientFrames);
-      resolveScene.applyGradientToSymbols(ch.inputSymbol, 1, resolveGrad);
-      const S = this.source;
-      const T = target;
-      const midCol = Math.round((S.column + T.column) / 2);
-      const midRow = Math.round((S.row + T.row) / 2) + this.config.arcHeight;
-      const controlPoint = { column: midCol, row: midRow };
-      const pathId = `arc_${this.pathCounter}`;
-      const arcPath = ch.motion.newPath(pathId, this.config.flightSpeed, this.config.flightEasing);
-      for (let s = 1;s <= 5; s++) {
-        const t = s / 5;
-        const pt = findCoordOnBezierCurve(S, [controlPoint], T, t);
-        arcPath.addWaypoint(pt);
-      }
-      ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "resolve");
-      this.pathCounter++;
-    }
-    this.queue = chars;
-  }
-  step() {
-    const toRelease = Math.min(this.config.charsPerTick, this.queue.length);
-    for (let i = 0;i < toRelease; i++) {
-      const ch = this.queue.shift();
-      ch.motion.setCoordinate(this.source);
-      ch.isVisible = true;
-      ch.activateScene("flight");
-      ch.motion.activatePath(`arc_${this.releasedCount}`);
-      this.releasedCount++;
-      this.activeChars.add(ch);
-    }
-    for (const ch of this.activeChars) {
-      ch.tick();
-      if (!ch.isActive) {
-        this.activeChars.delete(ch);
-      }
-    }
-    return this.queue.length > 0 || this.activeChars.size > 0;
-  }
-}
-
-// src/tte/effects/beams.ts
-var defaultBeamsConfig = {
-  beamRowSymbols: ["▂", "▁", "_"],
-  beamColumnSymbols: ["▌", "▍", "▎", "▏"],
-  beamDelay: 6,
-  beamRowSpeed: [1.5, 6],
-  beamColumnSpeed: [0.9, 1.5],
-  beamGradientStops: [color("ffffff"), color("00D1FF"), color("8A008A")],
-  beamGradientSteps: 6,
-  beamGradientFrames: 2,
+// src/tte/effects/thunderstorm.ts
+var defaultThunderstormConfig = {
+  lightningColor: color("68A3E8"),
+  glowingTextColor: color("EF5411"),
+  textGlowTime: 6,
+  raindropSymbols: ["\\", ".", ","],
+  sparkSymbols: ["*", ".", "'"],
+  sparkGlowColor: color("ff4d00"),
+  sparkGlowTime: 18,
+  stormDuration: 360,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
-  finalGradientFrames: 4,
-  finalGradientDirection: "vertical",
-  finalWipeSpeed: 3
+  finalGradientFrames: 3,
+  finalGradientDirection: "vertical"
 };
-function shuffle10(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-function randInt11(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-function randRange4(min, max) {
-  return min + Math.random() * (max - min);
-}
+var nextOverlayId = 4000000;
 
-class BeamsEffect {
-  canvas;
-  config;
-  phase = "beams";
-  frameCount = 0;
-  pendingGroups = [];
-  activeGroups = [];
-  activeChars = new Set;
-  wipeGroups = [];
-  wipeIdx = 0;
-  constructor(canvas, config) {
-    this.canvas = canvas;
-    this.config = config;
-    this.build();
-  }
-  build() {
-    const { dims } = this.canvas;
-    const { config } = this;
-    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
-    const dimColor = adjustBrightness(config.beamGradientStops[config.beamGradientStops.length - 1], 0.3);
-    const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
-    for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = true;
-      if (!ch.isSpace) {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: dimColor.rgbHex };
-      }
-    }
-    for (const ch of this.canvas.getNonSpaceCharacters()) {
-      const { column, row } = ch.inputCoord;
-      const finalColor = colorMapping.get(coordKey(column, row)) ?? config.finalGradientStops[0];
-      const rowScene = ch.newScene("beam_row");
-      rowScene.applyGradientToSymbols(config.beamRowSymbols, config.beamGradientFrames, beamGradient);
-      rowScene.addFrame(ch.inputSymbol, 4, dimColor.rgbHex);
-      const colScene = ch.newScene("beam_column");
-      colScene.applyGradientToSymbols(config.beamColumnSymbols, config.beamGradientFrames, beamGradient);
-      colScene.addFrame(ch.inputSymbol, 4, dimColor.rgbHex);
-      const brightenGrad = new Gradient([dimColor, finalColor], config.finalGradientSteps);
-      const brightenScene = ch.newScene("brighten");
-      brightenScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, brightenGrad);
-    }
-    const allBeamGroups = [];
-    for (const chars of this.canvas.getCharactersGrouped("row", { includeSpaces: false })) {
-      const sorted = [...chars].sort((a, b) => a.inputCoord.column - b.inputCoord.column);
-      if (Math.random() < 0.5)
-        sorted.reverse();
-      allBeamGroups.push({
-        chars: sorted,
-        sceneId: "beam_row",
-        speed: randRange4(config.beamRowSpeed[0], config.beamRowSpeed[1]),
-        counter: 0,
-        nextIdx: 0
-      });
-    }
-    for (const chars of this.canvas.getCharactersGrouped("column", { includeSpaces: false })) {
-      const sorted = [...chars].sort((a, b) => a.inputCoord.row - b.inputCoord.row);
-      if (Math.random() < 0.5)
-        sorted.reverse();
-      allBeamGroups.push({
-        chars: sorted,
-        sceneId: "beam_column",
-        speed: randRange4(config.beamColumnSpeed[0], config.beamColumnSpeed[1]),
-        counter: 0,
-        nextIdx: 0
-      });
-    }
-    shuffle10(allBeamGroups);
-    this.pendingGroups = allBeamGroups;
-    const diagMap = new Map;
-    for (const ch of this.canvas.getNonSpaceCharacters()) {
-      const key = ch.inputCoord.column - ch.inputCoord.row;
-      if (!diagMap.has(key))
-        diagMap.set(key, []);
-      diagMap.get(key)?.push(ch);
-    }
-    const sortedKeys = [...diagMap.keys()].sort((a, b) => a - b);
-    this.wipeGroups = sortedKeys.map((k) => diagMap.get(k));
-  }
-  step() {
-    this.frameCount++;
-    if (this.phase === "beams") {
-      if (this.frameCount % this.config.beamDelay === 0 && this.pendingGroups.length > 0) {
-        const batchSize = randInt11(1, 5);
-        for (let i = 0;i < batchSize && this.pendingGroups.length > 0; i++) {
-          this.activeGroups.push(this.pendingGroups.shift());
-        }
-      }
-      for (const group of this.activeGroups) {
-        group.counter += group.speed;
-        while (group.counter >= 1 && group.nextIdx < group.chars.length) {
-          const ch = group.chars[group.nextIdx++];
-          ch.activateScene(group.sceneId);
-          this.activeChars.add(ch);
-          group.counter -= 1;
-        }
-      }
-      this.activeGroups = this.activeGroups.filter((g) => g.nextIdx < g.chars.length);
-      if (this.pendingGroups.length === 0 && this.activeGroups.length === 0 && this.activeChars.size === 0) {
-        this.phase = "wipe";
-      }
-    }
-    if (this.phase === "wipe") {
-      const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
-      for (let i = this.wipeIdx;i < end; i++) {
-        for (const ch of this.wipeGroups[i]) {
-          ch.activateScene("brighten");
-          this.activeChars.add(ch);
-        }
-      }
-      this.wipeIdx = end;
-    }
-    for (const ch of this.activeChars) {
-      ch.tick();
-      if (!ch.isActive)
-        this.activeChars.delete(ch);
-    }
-    return this.pendingGroups.length > 0 || this.activeGroups.length > 0 || this.activeChars.size > 0 || this.wipeIdx < this.wipeGroups.length;
-  }
-}
-
-// src/tte/effects/slice.ts
-var defaultSliceConfig = {
-  sliceDirection: "vertical",
-  movementSpeed: 0.25,
-  movementEasing: inOutExpo,
-  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
-  finalGradientSteps: 12,
-  finalGradientFrames: 6,
-  finalGradientDirection: "diagonal"
-};
-
-class SliceEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  constructor(canvas, config) {
-    this.canvas = canvas;
-    this.config = config;
-    this.build();
-  }
-  build() {
-    const { dims } = this.canvas;
-    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace) {
-        ch.isVisible = true;
-      }
-    }
-    const { sliceDirection } = this.config;
-    if (sliceDirection === "vertical") {
-      const centerCol = Math.floor((dims.textLeft + dims.textRight) / 2);
-      for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
-        const speed = this.config.movementSpeed;
-        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
-        path.addWaypoint(ch.inputCoord);
-        const startRow = ch.inputCoord.column <= centerCol ? dims.top + 1 : dims.bottom - 1;
-        ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
-        this.addGradientScene(ch, colorMapping);
-      }
-    } else if (sliceDirection === "horizontal") {
-      const speed = this.config.movementSpeed * 2;
-      const centerRow = Math.floor((dims.textTop + dims.textBottom) / 2);
-      for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
-        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
-        path.addWaypoint(ch.inputCoord);
-        const startCol = ch.inputCoord.row <= centerRow ? dims.left - 1 : dims.right + 1;
-        ch.motion.setCoordinate({ column: startCol, row: ch.inputCoord.row });
-        this.addGradientScene(ch, colorMapping);
-      }
-    } else {
-      const groups = this.canvas.getCharactersGrouped("diagonal", { includeSpaces: false });
-      const splitIdx = Math.floor(groups.length / 2);
-      const leftHalf = groups.slice(0, splitIdx);
-      const rightHalf = groups.slice(splitIdx);
-      for (const group of leftHalf) {
-        for (const ch of group) {
-          const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
-          path.addWaypoint(ch.inputCoord);
-          ch.motion.setCoordinate({ column: group[0].inputCoord.column, row: dims.bottom - 1 });
-          this.addGradientScene(ch, colorMapping);
-        }
-      }
-      for (const group of rightHalf) {
-        for (const ch of group) {
-          const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
-          path.addWaypoint(ch.inputCoord);
-          ch.motion.setCoordinate({ column: group[group.length - 1].inputCoord.column, row: dims.top + 1 });
-          this.addGradientScene(ch, colorMapping);
-        }
-      }
-    }
-    for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
-      ch.isVisible = true;
-      ch.motion.activatePath("input_path");
-      ch.activateScene("gradient_scene");
-      this.activeChars.add(ch);
-    }
-  }
-  addGradientScene(ch, colorMapping) {
-    const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-    const charFinalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-    const scene = ch.newScene("gradient_scene");
-    const charGradient = new Gradient([this.config.finalGradientStops[0], charFinalColor], this.config.finalGradientSteps);
-    scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
-  }
-  step() {
-    if (this.activeChars.size === 0)
-      return false;
-    for (const ch of this.activeChars) {
-      ch.tick();
-      if (!ch.isActive) {
-        this.activeChars.delete(ch);
-      }
-    }
-    return this.activeChars.size > 0;
-  }
-}
-
-// src/tte/effects/synthgrid.ts
-var defaultSynthGridConfig = {
-  gridRowSymbol: "─",
-  gridColumnSymbol: "│",
-  gridGradientStops: [color("ff00ff"), color("ffffff")],
-  gridGradientSteps: 12,
-  gridGradientDirection: "diagonal",
-  textGradientStops: [color("8f00ff"), color("00ffff"), color("ffffff")],
-  textGradientSteps: 12,
-  textGradientDirection: "vertical",
-  textGenerationSymbols: ["░", "▒", "▓"],
-  maxActiveBlocks: 0.1
-};
-function shuffle11(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-var LINE_HEIGHT = 1.2;
-
-class GridLine {
-  spans = [];
-  visibleCount = 0;
-  constructor(container, positions, symbol, colorMapping, cellWidth, cellHeight, totalRows) {
-    for (const { col, row } of positions) {
-      const span = document.createElement("span");
-      span.style.position = "absolute";
-      span.style.visibility = "hidden";
-      span.style.lineHeight = `${LINE_HEIGHT}em`;
-      span.textContent = symbol;
-      const c = colorMapping.get(coordKey(col, row));
-      if (c)
-        span.style.color = `#${c.rgbHex}`;
-      span.style.left = `${(col - 1) * cellWidth}px`;
-      span.style.top = `${(totalRows - row) * cellHeight}px`;
-      container.appendChild(span);
-      this.spans.push(span);
-    }
-  }
-  extend(n) {
-    const target = Math.min(this.visibleCount + n, this.spans.length);
-    for (let i = this.visibleCount;i < target; i++) {
-      this.spans[i].style.visibility = "visible";
-    }
-    this.visibleCount = target;
-  }
-  collapse(n) {
-    const target = Math.max(this.visibleCount - n, 0);
-    for (let i = target;i < this.visibleCount; i++) {
-      this.spans[i].style.visibility = "hidden";
-    }
-    this.visibleCount = target;
-  }
-  get fullyExtended() {
-    return this.visibleCount === this.spans.length;
-  }
-  get fullyCollapsed() {
-    return this.visibleCount === 0;
-  }
-  dispose() {
-    for (const span of this.spans) {
-      span.remove();
-    }
-    this.spans = [];
-  }
-}
-
-class SynthGridEffect {
+class ThunderstormEffect {
   canvas;
   config;
   container;
-  phase = "grid_expand";
-  hLines = [];
-  vLines = [];
-  pendingBlocks = [];
-  activeChars = new Set;
-  activeBlockCount = 0;
-  totalBlocks = 0;
-  textColorMapping = new Map;
-  textGradientSpectrum = [];
-  cellWidth = 0;
-  cellHeight = 0;
+  cellWidthPx = 0;
+  cellHeightPx = 0;
+  totalRows;
+  allNonSpaceChars = [];
+  activeTextChars = new Set;
+  coordToChar = new Map;
+  rainDrops = [];
+  particles;
+  availableStrikeChars = [];
+  pendingStrikeChars = [];
+  activeStrikeChars = [];
+  strikeInProgress = false;
+  strikeProgressionDelay = 0;
+  pendingGlowChars = [];
+  pendingSparkSetups = [];
+  phase = "pre-storm";
+  stormTick = 0;
   constructor(canvas, config, container) {
     this.canvas = canvas;
     this.config = config;
     this.container = container;
+    this.totalRows = canvas.dims.top;
+    this.particles = new ParticleSystem(container, canvas.dims);
     this._measureCell();
     this.build();
   }
@@ -5645,516 +6597,374 @@ class SynthGridEffect {
     probe.textContent = "0";
     probe.style.position = "absolute";
     probe.style.visibility = "hidden";
-    probe.style.lineHeight = `${LINE_HEIGHT}em`;
     this.container.appendChild(probe);
     const rect = probe.getBoundingClientRect();
-    this.cellWidth = rect.width;
-    this.cellHeight = rect.height;
+    this.cellWidthPx = rect.width;
+    this.cellHeightPx = rect.height;
     this.container.removeChild(probe);
   }
-  build() {
-    const { dims } = this.canvas;
-    const { config } = this;
-    const textGradient = new Gradient(config.textGradientStops, config.textGradientSteps);
-    this.textColorMapping = textGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.textGradientDirection);
-    this.textGradientSpectrum = textGradient.spectrum;
-    const gridGradient = new Gradient(config.gridGradientStops, config.gridGradientSteps);
-    const gridColorMapping = gridGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.gridGradientDirection);
-    const longestDim = Math.max(dims.textRight, dims.textTop);
-    const gap = Math.max(2, Math.round(longestDim * 0.2));
-    const rowLines = [];
-    for (let r = gap;r <= dims.textTop; r += gap)
-      rowLines.push(r);
-    const colLines = [];
-    for (let c = gap;c <= dims.textRight; c += gap)
-      colLines.push(c);
-    for (const row of rowLines) {
-      const positions = [];
-      for (let col = dims.textLeft;col <= dims.textRight; col++) {
-        positions.push({ col, row });
-      }
-      this.hLines.push(new GridLine(this.container, positions, config.gridRowSymbol, gridColorMapping, this.cellWidth, this.cellHeight, dims.top));
-    }
-    for (const col of colLines) {
-      const positions = [];
-      for (let row = dims.textTop;row >= dims.textBottom; row--) {
-        positions.push({ col, row });
-      }
-      this.vLines.push(new GridLine(this.container, positions, config.gridColumnSymbol, gridColorMapping, this.cellWidth, this.cellHeight, dims.top));
-    }
-    const rowBounds = [0, ...rowLines, dims.textTop + 1];
-    const colBounds = [0, ...colLines, dims.textRight + 1];
-    const nonSpaceChars = this.canvas.getNonSpaceCharacters();
-    const blocks = [];
-    for (let ri = 0;ri < rowBounds.length - 1; ri++) {
-      const r1 = rowBounds[ri];
-      const r2 = rowBounds[ri + 1];
-      for (let ci = 0;ci < colBounds.length - 1; ci++) {
-        const c1 = colBounds[ci];
-        const c2 = colBounds[ci + 1];
-        const block = nonSpaceChars.filter((ch) => ch.inputCoord.row > r1 && ch.inputCoord.row < r2 && ch.inputCoord.column > c1 && ch.inputCoord.column < c2);
-        if (block.length > 0)
-          blocks.push(block);
-      }
-    }
-    shuffle11(blocks);
-    this.pendingBlocks = blocks;
-    this.totalBlocks = blocks.length;
-    for (const ch of nonSpaceChars) {
-      const dissolveScene = ch.newScene("dissolve");
-      for (let i = 0;i < 20; i++) {
-        const sym = config.textGenerationSymbols[Math.floor(Math.random() * config.textGenerationSymbols.length)];
-        const paletteColor = this.textGradientSpectrum[Math.floor(Math.random() * this.textGradientSpectrum.length)];
-        dissolveScene.addFrame(sym, 2, paletteColor.rgbHex);
-      }
-      const finalColor = this.textColorMapping.get(coordKey(ch.inputCoord.column, ch.inputCoord.row));
-      dissolveScene.addFrame(ch.inputSymbol, 1, finalColor?.rgbHex ?? null);
-    }
-  }
-  activateBlock(block) {
-    this.activeBlockCount++;
-    let remaining = block.length;
-    for (const ch of block) {
-      ch.isVisible = true;
-      ch.eventHandler.register("SCENE_COMPLETE", "dissolve", "CALLBACK", {
-        callback: (_char) => {
-          remaining--;
-          if (remaining === 0)
-            this.activeBlockCount--;
-        },
-        args: []
-      });
-      ch.activateScene("dissolve");
-      this.activeChars.add(ch);
-    }
-  }
-  step() {
-    switch (this.phase) {
-      case "grid_expand": {
-        for (const line of this.hLines)
-          line.extend(3);
-        for (const line of this.vLines)
-          line.extend(1);
-        if (this.hLines.every((l) => l.fullyExtended) && this.vLines.every((l) => l.fullyExtended)) {
-          this.phase = "add_chars";
-        }
-        break;
-      }
-      case "add_chars": {
-        const maxConcurrent = Math.max(1, Math.ceil(this.config.maxActiveBlocks * this.totalBlocks));
-        for (const ch of [...this.activeChars]) {
-          ch.tick();
-          if (!ch.isActive) {
-            this.activeChars.delete(ch);
-          }
-        }
-        while (this.activeBlockCount < maxConcurrent && this.pendingBlocks.length > 0) {
-          this.activateBlock(this.pendingBlocks.shift());
-        }
-        if (this.pendingBlocks.length === 0 && this.activeChars.size === 0) {
-          this._revealGridLineChars();
-          this.phase = "collapse";
-        }
-        break;
-      }
-      case "collapse": {
-        for (const line of this.hLines)
-          line.collapse(3);
-        for (const line of this.vLines)
-          line.collapse(1);
-        if (this.hLines.every((l) => l.fullyCollapsed) && this.vLines.every((l) => l.fullyCollapsed)) {
-          for (const line of [...this.hLines, ...this.vLines])
-            line.dispose();
-          this.hLines = [];
-          this.vLines = [];
-          this.phase = "complete";
-        }
-        break;
-      }
-      case "complete":
-        return false;
-    }
-    return true;
-  }
-  _revealGridLineChars() {
-    for (const ch of this.canvas.getNonSpaceCharacters()) {
-      if (!ch.isVisible) {
-        ch.isVisible = true;
-        const finalColor = this.textColorMapping.get(coordKey(ch.inputCoord.column, ch.inputCoord.row));
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor?.rgbHex ?? null };
-      }
-    }
-  }
-}
-
-// src/tte/effects/binarypath.ts
-var defaultBinaryPathConfig = {
-  binaryColors: [color("00ff41"), color("00cc33"), color("008f25")],
-  movementSpeed: 0.5,
-  activeBinaryGroups: 0.08,
-  finalGradientStops: [color("ffffff"), color("00ff41")],
-  finalGradientSteps: 12,
-  finalGradientFrames: 2,
-  finalGradientDirection: "radial",
-  finalWipeSpeed: 2
-};
-function shuffle12(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-class BinaryPathEffect {
-  canvas;
-  config;
-  ps;
-  dimColor;
-  pendingGroups = [];
-  activeGroups = new Set;
-  collapsingChars = new Set;
-  collapsedCount = 0;
-  totalNonSpaceChars = 0;
-  activeChars = new Set;
-  wipeGroups = [];
-  wipeIdx = 0;
-  phase = "traveling";
-  colorMapping = new Map;
-  constructor(canvas, config, container) {
-    this.canvas = canvas;
-    this.config = config;
-    this.dimColor = adjustBrightness(config.binaryColors[config.binaryColors.length - 1], 0.35);
-    this.ps = new ParticleSystem(container, canvas.dims);
-    this.build();
+  _positionSpan(span, col, row) {
+    span.style.left = `${(col - 1) * this.cellWidthPx}px`;
+    span.style.top = `${(this.totalRows - row) * this.cellHeightPx}px`;
   }
   build() {
     const { dims } = this.canvas;
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
-    const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
-    this.totalNonSpaceChars = nonSpaceChars.length;
-    for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = true;
-      if (!ch.isSpace) {
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.dimColor.rgbHex };
-      }
-    }
-    for (const ch of nonSpaceChars) {
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const collapseGrad = new Gradient([color("ffffff"), this.dimColor], 7);
-      const collapseScene = ch.newScene("collapse");
-      collapseScene.applyGradientToSymbols(ch.inputSymbol, 3, collapseGrad);
-      ch.eventHandler.register("SCENE_COMPLETE", "collapse", "CALLBACK", {
-        callback: (char) => {
-          this.collapsingChars.delete(char);
-          this.collapsedCount++;
-        },
-        args: []
-      });
-      const brightenGrad = new Gradient([this.dimColor, finalColor], config.finalGradientSteps);
-      const brightenScene = ch.newScene("brighten");
-      brightenScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, brightenGrad);
-      this.pendingGroups.push({ sourceChar: ch, arrivedCount: 0, isComplete: false });
-    }
-    shuffle12(this.pendingGroups);
-    const diagMap = new Map;
-    for (const ch of nonSpaceChars) {
-      const key = ch.inputCoord.row + ch.inputCoord.column;
-      if (!diagMap.has(key))
-        diagMap.set(key, []);
-      diagMap.get(key)?.push(ch);
-    }
-    const sortedKeys = [...diagMap.keys()].sort((a, b) => b - a);
-    this.wipeGroups = sortedKeys.map((k) => diagMap.get(k));
-  }
-  randomExteriorCoord() {
-    const { dims } = this.canvas;
-    const edge = Math.floor(Math.random() * 4);
-    switch (edge) {
-      case 0:
-        return { column: Math.floor(Math.random() * (dims.right + 2)), row: dims.top + 1 };
-      case 1:
-        return { column: dims.right + 1, row: Math.floor(Math.random() * (dims.top + 2)) };
-      case 2:
-        return { column: Math.floor(Math.random() * (dims.right + 2)), row: 0 };
-      default:
-        return { column: 0, row: Math.floor(Math.random() * (dims.top + 2)) };
-    }
-  }
-  activateGroup(group) {
-    const { sourceChar } = group;
-    const { config } = this;
-    const target = sourceChar.inputCoord;
-    const binaryStr = (sourceChar.inputSymbol.codePointAt(0) & 255).toString(2).padStart(8, "0");
-    for (let i = 0;i < 8; i++) {
-      const digit = binaryStr[i];
-      const digitColor = config.binaryColors[Math.floor(Math.random() * config.binaryColors.length)].rgbHex;
-      const startCoord = this.randomExteriorCoord();
-      const pChar = this.ps.emit({
-        symbol: digit,
-        coord: startCoord,
-        fgColor: digitColor,
-        ttl: 9999
-      });
-      const pathId = `bp_${pChar.id}`;
-      const path = pChar.motion.newPath(pathId, { speed: config.movementSpeed });
-      const horizontalFirst = Math.random() < 0.5;
-      const corner = horizontalFirst ? { column: target.column, row: startCoord.row } : { column: startCoord.column, row: target.row };
-      path.addWaypoint(corner);
-      path.addWaypoint({ column: target.column, row: target.row });
-      pChar.motion.activatePath(pathId);
-      pChar.eventHandler.register("PATH_COMPLETE", pathId, "CALLBACK", {
-        callback: (_digitChar) => {
-          group.arrivedCount++;
-          if (group.arrivedCount === 8) {
-            group.isComplete = true;
-            sourceChar.activateScene("collapse");
-            this.collapsingChars.add(sourceChar);
-          }
-        },
-        args: []
-      });
-    }
-    this.activeGroups.add(group);
-  }
-  step() {
-    if (this.phase === "traveling") {
-      const maxActive = Math.max(1, Math.round(this.totalNonSpaceChars * this.config.activeBinaryGroups));
-      while (this.pendingGroups.length > 0 && this.activeGroups.size < maxActive) {
-        this.activateGroup(this.pendingGroups.shift());
-      }
-      this.ps.tick();
-      for (const group of this.activeGroups) {
-        if (group.isComplete)
-          this.activeGroups.delete(group);
-      }
-      for (const ch of [...this.collapsingChars]) {
-        ch.tick();
-      }
-      if (this.pendingGroups.length === 0 && this.activeGroups.size === 0 && this.ps.count === 0 && this.collapsedCount === this.totalNonSpaceChars) {
-        this.phase = "wipe";
-      }
-    }
-    if (this.phase === "wipe") {
-      const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
-      for (let i = this.wipeIdx;i < end; i++) {
-        for (const ch of this.wipeGroups[i]) {
-          ch.activateScene("brighten");
-          this.activeChars.add(ch);
-        }
-      }
-      this.wipeIdx = end;
-    }
-    for (const ch of this.activeChars) {
-      ch.tick();
-      if (!ch.isActive)
-        this.activeChars.delete(ch);
-    }
-    return !(this.phase === "wipe" && this.wipeIdx >= this.wipeGroups.length && this.activeChars.size === 0);
-  }
-}
-
-// src/tte/effects/thunderstorm.ts
-var defaultThunderstormConfig = {
-  rainSymbols: ["|", ".", ",", "~"],
-  rainColor: color("4488bb"),
-  lightningColor: color("ffffaa"),
-  lightningBolts: 3,
-  boltColumnSpread: 3,
-  boltDelay: 80,
-  charsPerTick: 3,
-  fallSpeed: 0.4,
-  fallEasing: inQuad,
-  finalGradientStops: [color("5588ff"), color("aaddff"), color("ffffff")],
-  finalGradientSteps: 12,
-  finalGradientFrames: 10,
-  finalGradientDirection: "diagonal"
-};
-
-class ThunderstormEffect {
-  canvas;
-  config;
-  particles;
-  pendingChars = [];
-  activeChars = new Set;
-  fallingChars = new Set;
-  landedChars = new Set;
-  flashingChars = new Set;
-  boltQueue = [];
-  activeBolts = [];
-  frameCount = 0;
-  nextBoltFrame = 0;
-  settleStarted = false;
-  boltCounter = 0;
-  constructor(canvas, config, container) {
-    this.canvas = canvas;
-    this.config = config;
-    this.particles = new ParticleSystem(container, canvas.dims);
-    this.build();
-  }
-  build() {
-    const { dims } = this.canvas;
-    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
         continue;
       }
-      const rainScene = ch.newScene("rain", true);
-      for (const sym of this.config.rainSymbols) {
-        rainScene.addFrame(sym, 4, this.config.rainColor.rgbHex);
-      }
-      const flashScene = ch.newScene("flash");
-      flashScene.addFrame("*", 2, "ffffff");
-      flashScene.addFrame(ch.inputSymbol, 2, "ffffcc");
-      flashScene.addFrame(ch.inputSymbol, 2, this.config.lightningColor.rgbHex);
-      flashScene.addFrame(ch.inputSymbol, 2, this.config.rainColor.rgbHex);
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const stops = this.config.finalGradientStops;
+      const stops = config.finalGradientStops;
       const finalColor = colorMapping.get(key) ?? stops[stops.length - 1];
+      const fadedColor = adjustBrightness(finalColor, 0.5);
+      const lightningFlashColor = adjustBrightness(finalColor, 1.7);
+      const fadeGrad = new Gradient([finalColor, fadedColor], 7);
       const fadeScene = ch.newScene("fade");
-      const fadeGrad = new Gradient([this.config.rainColor, finalColor], this.config.finalGradientFrames);
-      fadeScene.applyGradientToSymbols(ch.inputSymbol, 1, fadeGrad);
-      ch.motion.setCoordinate({ column: ch.inputCoord.column, row: dims.top + 1 });
-      const path = ch.motion.newPath(`fall_${ch.id}`, this.config.fallSpeed, this.config.fallEasing);
-      path.addWaypoint(ch.inputCoord);
-      ch.eventHandler.register("SCENE_COMPLETE", "flash", "CALLBACK", {
+      for (const c of fadeGrad.spectrum) {
+        fadeScene.addFrame(ch.inputSymbol, 12, c.rgbHex);
+      }
+      const unfadeGrad = new Gradient([fadedColor, finalColor], 7);
+      const unfadeScene = ch.newScene("unfade");
+      for (const c of unfadeGrad.spectrum) {
+        unfadeScene.addFrame(ch.inputSymbol, 12, c.rgbHex);
+      }
+      const flashGrad = new Gradient([fadedColor, lightningFlashColor], 7, true);
+      const flashScene = ch.newScene("flash");
+      for (const c of flashGrad.spectrum) {
+        flashScene.addFrame(ch.inputSymbol, 6, c.rgbHex);
+      }
+      const glowGrad = new Gradient([config.glowingTextColor, fadedColor], 7);
+      const glowScene = ch.newScene("glow");
+      for (const c of glowGrad.spectrum) {
+        glowScene.addFrame(ch.inputSymbol, config.textGlowTime, c.rgbHex);
+      }
+      ch.isVisible = true;
+      this.coordToChar.set(key, ch);
+      this.allNonSpaceChars.push(ch);
+    }
+    if (this.allNonSpaceChars.length > 0) {
+      const refChar = this.allNonSpaceChars[0];
+      refChar.eventHandler.register("SCENE_COMPLETE", "fade", "CALLBACK", {
         callback: () => {
-          this.flashingChars.delete(ch);
-          if (this.settleStarted) {
-            ch.activateScene("fade");
-          } else {
-            ch.activateScene("rain");
-          }
+          this.phase = "storm";
         },
         args: []
       });
     }
-    const nonSpace = this.canvas.getNonSpaceCharacters();
-    this.pendingChars = shuffle13(nonSpace);
-    const { left, right } = dims;
-    for (let i = 0;i < this.config.lightningBolts; i++) {
-      this.boltQueue.push(randInt12(left + 1, right - 1));
-    }
-    this.nextBoltFrame = this.config.boltDelay;
+    this._buildRainDrops(50);
+    this._buildStrikePool(200);
   }
-  spawnBolt(column) {
+  _buildRainDrops(count) {
     const { dims } = this.canvas;
-    const id = this.boltCounter++;
-    const boltCh = this.particles.emit({
-      symbol: "|",
-      coord: { column, row: dims.top + 1 },
-      fgColor: this.config.lightningColor.rgbHex,
-      ttl: 40
-    });
-    const pathId = `bolt_${id}`;
-    const boltPath = boltCh.motion.newPath(pathId, 2);
-    const rowSpan = dims.top - dims.bottom;
-    for (let z = 1;z <= 4; z++) {
-      const row = dims.top - Math.round(z / 4 * rowSpan);
-      const jitter = (z % 2 === 0 ? 1 : -1) * randInt12(1, 2);
-      boltPath.addWaypoint({ column: column + jitter, row });
+    for (let i = 0;i < count; i++) {
+      const spawnCol = randInt14(1 - dims.top, dims.right);
+      const sym = randChoice3(this.config.raindropSymbols);
+      const span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.lineHeight = "1.2em";
+      span.textContent = sym;
+      span.style.color = "#aaaaff";
+      span.style.display = "none";
+      this.container.appendChild(span);
+      this.rainDrops.push({ col: spawnCol, row: dims.top + 1, speed: randFloat(0.5, 1.5), sym, span });
     }
-    boltCh.motion.activatePath(pathId);
-    this.activeBolts.push({ ch: boltCh, remaining: 40 });
+  }
+  _buildStrikePool(count) {
+    for (let i = 0;i < count; i++) {
+      const id = nextOverlayId++;
+      const ch = new EffectCharacter(id, "|", 1, 1);
+      const span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.lineHeight = "1.2em";
+      span.style.display = "none";
+      this.container.appendChild(span);
+      this.availableStrikeChars.push({ ch, span, col: 1, row: 1, sym: "|" });
+    }
+  }
+  _getStrikeChar() {
+    if (this.availableStrikeChars.length === 0) {
+      this._buildStrikePool(20);
+    }
+    const oc = this.availableStrikeChars.pop();
+    oc.ch.scenes.clear();
+    oc.ch.activeScene = null;
+    oc.ch.eventHandler = new EventHandler;
+    return oc;
+  }
+  _setupLightningStrike(branchNeighbor = null, branchChance = 0.05) {
+    const { dims } = this.canvas;
+    const { config } = this;
+    let col = branchNeighbor ? branchNeighbor.col : randInt14(1, dims.right);
+    let row = branchNeighbor ? branchNeighbor.row : dims.top;
+    const strikeFlashColor = adjustBrightness(config.lightningColor, 1.7);
+    const flashGrad = new Gradient([config.lightningColor, strikeFlashColor], 7, true);
+    const fadeGrad = new Gradient([config.lightningColor, color("000000")], 6);
+    let currentBranchChance = branchChance;
+    let neighbor = branchNeighbor;
+    while (row >= dims.bottom) {
+      let sym;
+      if (neighbor !== null) {
+        if (neighbor.sym === "/") {
+          col += 1;
+          sym = Math.random() < 0.5 ? "|" : "\\";
+        } else if (neighbor.sym === "\\") {
+          col -= 1;
+          sym = Math.random() < 0.5 ? "|" : "/";
+        } else {
+          const delta = Math.random() < 0.5 ? -1 : 1;
+          col += delta;
+          sym = delta === 1 ? "\\" : "/";
+        }
+        neighbor = null;
+      } else {
+        sym = randChoice3(["\\", "/", "|"]);
+      }
+      const oc = this._getStrikeChar();
+      oc.col = col;
+      oc.row = row;
+      oc.sym = sym;
+      const flashScn = oc.ch.newScene("flash");
+      for (const c of flashGrad.spectrum) {
+        flashScn.addFrame(sym, 6, c.rgbHex);
+      }
+      const fadeScn = oc.ch.newScene("fade");
+      for (const c of fadeGrad.spectrum) {
+        fadeScn.addFrame(sym, 2, c.rgbHex);
+      }
+      oc.ch.eventHandler.register("SCENE_COMPLETE", "flash", "ACTIVATE_SCENE", "fade");
+      oc.ch.eventHandler.register("SCENE_COMPLETE", "fade", "CALLBACK", {
+        callback: () => {
+          oc.span.style.display = "none";
+          const key = coordKey(Math.round(oc.col), Math.round(oc.row));
+          const textCh = this.coordToChar.get(key);
+          if (textCh?.isVisible) {
+            textCh.activateScene("glow");
+            this.pendingGlowChars.push(textCh);
+          }
+          oc.ch.scenes.clear();
+          oc.ch.activeScene = null;
+          oc.ch.eventHandler = new EventHandler;
+          this.availableStrikeChars.push(oc);
+          const idx = this.activeStrikeChars.indexOf(oc);
+          if (idx !== -1)
+            this.activeStrikeChars.splice(idx, 1);
+          if (this.activeStrikeChars.length === 0 && this.pendingStrikeChars.length === 0) {
+            this.strikeInProgress = false;
+          }
+        },
+        args: []
+      });
+      row -= 1;
+      if (sym === "\\")
+        col += 1;
+      else if (sym === "/")
+        col -= 1;
+      this.pendingStrikeChars.push(oc);
+      if (branchNeighbor === null && Math.random() < currentBranchChance) {
+        currentBranchChance -= 0.01;
+        this._setupLightningStrike(oc, 0);
+      }
+    }
+    if (this.pendingStrikeChars.length > 0) {
+      const lastOc = this.pendingStrikeChars[this.pendingStrikeChars.length - 1];
+      const sparkCount = randInt14(6, 10);
+      for (let i = 0;i < sparkCount; i++) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        this.pendingSparkSetups.push({
+          spawnCol: Math.round(lastOc.col),
+          spawnRow: Math.round(lastOc.row),
+          targetCol: lastOc.col + randInt14(4, 20) * dir
+        });
+      }
+    }
+  }
+  _emitSparks() {
+    const { dims } = this.canvas;
+    const { config } = this;
+    const sparkGrad = new Gradient([config.sparkGlowColor, color("000000")], 7);
+    const ttl = config.sparkGlowTime * sparkGrad.spectrum.length + 40;
+    for (const setup of this.pendingSparkSetups) {
+      const targetCol = Math.max(1, Math.min(dims.right, Math.round(setup.targetCol)));
+      const sparkCh = this.particles.emit({
+        symbol: randChoice3(config.sparkSymbols),
+        coord: { column: setup.spawnCol, row: setup.spawnRow },
+        fgColor: config.sparkGlowColor.rgbHex,
+        ttl
+      });
+      const sparkScn = sparkCh.newScene("glow");
+      for (const c of sparkGrad.spectrum) {
+        sparkScn.addFrame(sparkCh.inputSymbol, config.sparkGlowTime, c.rgbHex);
+      }
+      const pathId = `spark_${sparkCh.id}`;
+      const sparkPath = sparkCh.motion.newPath(pathId, randFloat(0.1, 0.25));
+      sparkPath.addWaypoint({ column: targetCol, row: dims.bottom });
+      sparkCh.motion.activatePath(pathId);
+      sparkCh.activateScene("glow");
+    }
+    this.pendingSparkSetups = [];
+  }
+  _stepLightningStrike() {
+    if (this.strikeProgressionDelay > 0) {
+      this.strikeProgressionDelay--;
+      return;
+    }
+    if (this.pendingStrikeChars.length === 0)
+      return;
+    const count = randInt14(1, 3);
+    for (let i = 0;i < count; i++) {
+      if (this.pendingStrikeChars.length === 0)
+        break;
+      const oc = this.pendingStrikeChars.shift();
+      if (!oc)
+        break;
+      this._positionSpan(oc.span, oc.col, oc.row);
+      oc.span.textContent = oc.sym;
+      oc.span.style.color = `#${this.config.lightningColor.rgbHex}`;
+      oc.span.style.display = "";
+      oc.ch.currentVisual = { symbol: oc.sym, fgColor: this.config.lightningColor.rgbHex };
+      this.activeStrikeChars.push(oc);
+      this.strikeProgressionDelay = 1;
+      if (this.pendingStrikeChars.length === 0) {
+        this._emitSparks();
+        for (const s of this.activeStrikeChars) {
+          s.ch.activateScene("flash");
+        }
+        for (const textCh of this.allNonSpaceChars) {
+          textCh.activateScene("flash");
+          this.activeTextChars.add(textCh);
+        }
+      }
+    }
+  }
+  _rainTick() {
+    const { dims } = this.canvas;
+    for (const drop of this.rainDrops) {
+      drop.col += drop.speed;
+      drop.row -= drop.speed;
+      if (drop.row < dims.bottom - 1) {
+        drop.col = randInt14(1 - dims.top, dims.right);
+        drop.row = dims.top + 1;
+        drop.speed = randFloat(0.5, 1.5);
+        drop.sym = randChoice3(this.config.raindropSymbols);
+        drop.span.textContent = drop.sym;
+      }
+      const displayCol = Math.round(drop.col);
+      const displayRow = Math.round(drop.row);
+      if (displayCol >= 1 && displayCol <= dims.right && displayRow >= dims.bottom && displayRow <= dims.top) {
+        this._positionSpan(drop.span, displayCol, displayRow);
+        drop.span.style.display = "";
+      } else {
+        drop.span.style.display = "none";
+      }
+    }
   }
   step() {
-    this.frameCount++;
-    let released = 0;
-    while (this.pendingChars.length > 0 && released < this.config.charsPerTick) {
-      const ch = this.pendingChars.pop();
-      ch.isVisible = true;
-      ch.motion.setCoordinate({ column: ch.inputCoord.column, row: this.canvas.dims.top + 1 });
-      ch.activateScene("rain");
-      ch.motion.activatePath(`fall_${ch.id}`);
-      this.activeChars.add(ch);
-      this.fallingChars.add(ch);
-      released++;
-    }
-    if (this.boltQueue.length > 0 && this.frameCount >= this.nextBoltFrame) {
-      this.spawnBolt(this.boltQueue.pop());
-      this.nextBoltFrame = this.frameCount + this.config.boltDelay + randInt12(-20, 20);
-    }
-    for (const ch of [...this.activeChars]) {
-      ch.tick();
-      if (this.fallingChars.has(ch) && ch.motion.movementIsComplete()) {
-        this.fallingChars.delete(ch);
-        this.landedChars.add(ch);
-      }
-      if (!ch.isActive)
-        this.activeChars.delete(ch);
-    }
-    this.particles.tick();
-    for (const bolt of this.activeBolts) {
-      bolt.remaining--;
-      if (bolt.remaining <= 0)
-        continue;
-      const boltCol = bolt.ch.motion.currentCoord.column;
-      for (const landedCh of this.landedChars) {
-        if (this.flashingChars.has(landedCh))
-          continue;
-        if (Math.abs(landedCh.inputCoord.column - boltCol) <= this.config.boltColumnSpread) {
-          landedCh.activateScene("flash");
-          this.flashingChars.add(landedCh);
-          this.activeChars.add(landedCh);
-        }
-      }
-    }
-    this.activeBolts = this.activeBolts.filter((b) => b.remaining > 0);
-    const allLanded = this.pendingChars.length === 0 && this.fallingChars.size === 0;
-    const allBoltsDone = this.boltQueue.length === 0 && this.activeBolts.length === 0;
-    if (allLanded && allBoltsDone && !this.settleStarted) {
-      this.settleStarted = true;
-      for (const ch of this.landedChars) {
-        if (!this.flashingChars.has(ch)) {
+    switch (this.phase) {
+      case "pre-storm":
+        for (const ch of this.allNonSpaceChars) {
           ch.activateScene("fade");
-          this.activeChars.add(ch);
+          this.activeTextChars.add(ch);
         }
-      }
-      this.landedChars.clear();
+        this.phase = "waiting";
+        break;
+      case "waiting":
+        for (const ch of [...this.activeTextChars]) {
+          ch.tick();
+          if (!ch.isActive)
+            this.activeTextChars.delete(ch);
+        }
+        break;
+      case "storm":
+        this.stormTick++;
+        this._rainTick();
+        if (!this.strikeInProgress && Math.random() < 0.008) {
+          this.strikeInProgress = true;
+          this._setupLightningStrike();
+        }
+        if (this.strikeInProgress) {
+          this._stepLightningStrike();
+        }
+        for (const ch of this.pendingGlowChars) {
+          this.activeTextChars.add(ch);
+        }
+        this.pendingGlowChars = [];
+        for (const ch of [...this.activeTextChars]) {
+          ch.tick();
+          if (!ch.isActive)
+            this.activeTextChars.delete(ch);
+        }
+        for (const oc of [...this.activeStrikeChars]) {
+          oc.ch.tick();
+          const vis = oc.ch.currentVisual;
+          oc.span.textContent = vis.symbol;
+          if (vis.fgColor)
+            oc.span.style.color = `#${vis.fgColor}`;
+        }
+        this.particles.tick();
+        if (this.stormTick >= this.config.stormDuration && !this.strikeInProgress) {
+          for (const drop of this.rainDrops)
+            drop.span.style.display = "none";
+          for (const ch of this.allNonSpaceChars) {
+            ch.activateScene("unfade");
+            this.activeTextChars.add(ch);
+          }
+          this.phase = "complete";
+        }
+        break;
+      case "complete":
+        for (const ch of [...this.activeTextChars]) {
+          ch.tick();
+          if (!ch.isActive)
+            this.activeTextChars.delete(ch);
+        }
+        break;
     }
-    return this.pendingChars.length > 0 || this.activeChars.size > 0;
+    return this.phase !== "complete" || this.activeTextChars.size > 0;
   }
 }
-function shuffle13(arr) {
-  const result = [...arr];
-  for (let i = result.length - 1;i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-function randInt12(min, max) {
+function randInt14(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function randFloat(min, max) {
+  return Math.random() * (max - min) + min;
+}
+function randChoice3(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // src/tte/effects/crumble.ts
 var defaultCrumbleConfig = {
-  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
+  finalGradientStops: [color("5CE1FF"), color("FF8C00")],
   finalGradientSteps: 12,
   finalGradientDirection: "diagonal"
 };
-function shuffle14(arr) {
+function shuffle9(arr) {
   for (let i = arr.length - 1;i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
-var DUST_SYMBOLS = ["*", ".", ",", "·"];
-var DUST_COLOR = color("333333");
+function randInt15(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+var DUST_SYMBOLS = ["*", ".", ","];
 
 class CrumbleEffect {
   canvas;
   config;
   nonSpaceChars = [];
   phase = "falling";
-  fallQueue = [];
-  activeChars = [];
-  fallTick = 0;
-  releaseRate = 1;
+  pendingChars = [];
+  activeChars = new Set;
+  unvacuumedChars = [];
+  fallDelay = 12;
+  maxFallDelay = 12;
+  minFallDelay = 9;
+  fallGroupMaxsize = 1;
   vacuumingStarted = false;
   resettingStarted = false;
   constructor(canvas, config) {
@@ -6166,37 +6976,47 @@ class CrumbleEffect {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    const midCol = Math.round((dims.left + dims.right) / 2);
-    const midRow = Math.round((dims.top + 1) / 2);
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
         continue;
       }
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-      const dustGradient = new Gradient([finalColor, DUST_COLOR], DUST_SYMBOLS.length);
-      const fallScene = ch.newScene("fall", true);
-      for (let i = 0;i < DUST_SYMBOLS.length; i++) {
-        const frameColor = dustGradient.spectrum[i] || DUST_COLOR;
-        fallScene.addFrame(DUST_SYMBOLS[i], 3, frameColor.rgbHex);
+      const finalColor = colorMapping.get(key) ?? this.config.finalGradientStops[0];
+      const weakColor = adjustBrightness(finalColor, 0.65);
+      const dustColor = adjustBrightness(finalColor, 0.55);
+      ch.isVisible = true;
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: weakColor.rgbHex };
+      const weakenGradient = new Gradient([weakColor, dustColor], 9);
+      const weakenScn = ch.newScene("weaken");
+      weakenScn.applyGradientToSymbols(ch.inputSymbol, 4, weakenGradient);
+      const dustScn = ch.newScene("dust", true);
+      for (let i = 0;i < 5; i++) {
+        dustScn.addFrame(DUST_SYMBOLS[i % DUST_SYMBOLS.length], 1, dustColor.rgbHex);
       }
-      const finalScene = ch.newScene("final");
-      finalScene.addFrame(ch.inputSymbol, 2, "FFFFFF");
-      const finalSceneGradient = new Gradient([color("FFFFFF"), finalColor], 10);
-      finalScene.applyGradientToSymbols(ch.inputSymbol, 3, finalSceneGradient);
-      const fallPath = ch.motion.newPath("fall", 0.3, outBounce);
-      fallPath.addWaypoint({ column: ch.inputCoord.column, row: 1 });
-      const vacuumPath = ch.motion.newPath("vacuum", 0.5, outExpo);
-      vacuumPath.addWaypoint({ column: midCol, row: midRow });
-      vacuumPath.addWaypoint({ column: ch.inputCoord.column, row: dims.top });
-      const returnPath = ch.motion.newPath("return", 0.7, outExpo);
-      returnPath.addWaypoint(ch.inputCoord);
-      ch.isVisible = false;
-      this.fallQueue.push(ch);
+      const fallPath = ch.motion.newPath("fall", 0.65, outBounce);
+      fallPath.addWaypoint({ column: ch.inputCoord.column, row: dims.bottom });
+      const viaCol = Math.round(ch.inputCoord.column + (dims.centerColumn - ch.inputCoord.column) * 0.5);
+      const topPath = ch.motion.newPath("top", 1, outQuint);
+      topPath.addWaypoint({ column: viaCol, row: dims.centerRow });
+      topPath.addWaypoint({ column: ch.inputCoord.column, row: dims.top });
+      const inputPath = ch.motion.newPath("input", 1);
+      inputPath.addWaypoint(ch.inputCoord);
+      const flashGradient = new Gradient([finalColor, color("ffffff")], 6);
+      const flashScn = ch.newScene("flash");
+      flashScn.applyGradientToSymbols(ch.inputSymbol, 4, flashGradient);
+      const strengthenGradient = new Gradient([color("ffffff"), finalColor], 9);
+      const strengthenScn = ch.newScene("strengthen");
+      strengthenScn.applyGradientToSymbols(ch.inputSymbol, 4, strengthenGradient);
+      ch.eventHandler.register("SCENE_COMPLETE", "weaken", "ACTIVATE_PATH", "fall");
+      ch.eventHandler.register("SCENE_COMPLETE", "weaken", "SET_LAYER", 1);
+      ch.eventHandler.register("SCENE_COMPLETE", "weaken", "ACTIVATE_SCENE", "dust");
+      ch.eventHandler.register("PATH_COMPLETE", "input", "ACTIVATE_SCENE", "flash");
+      ch.eventHandler.register("SCENE_COMPLETE", "flash", "ACTIVATE_SCENE", "strengthen");
+      this.pendingChars.push(ch);
       this.nonSpaceChars.push(ch);
     }
-    shuffle14(this.fallQueue);
+    shuffle9(this.pendingChars);
   }
   step() {
     if (this.phase === "falling") {
@@ -6208,52 +7028,77 @@ class CrumbleEffect {
     }
   }
   stepFalling() {
-    this.fallTick++;
-    if (this.fallTick % 15 === 0 && this.releaseRate < 5) {
-      this.releaseRate++;
-    }
-    for (let i = 0;i < this.releaseRate && this.fallQueue.length > 0; i++) {
-      const ch = this.fallQueue.shift();
-      ch.isVisible = true;
-      ch.activateScene("fall");
-      ch.motion.activatePath("fall");
-      this.activeChars.push(ch);
+    if (this.pendingChars.length > 0) {
+      if (this.fallDelay === 0) {
+        const groupSize = randInt15(1, this.fallGroupMaxsize);
+        for (let i = 0;i < groupSize && this.pendingChars.length > 0; i++) {
+          const ch = this.pendingChars.shift();
+          if (!ch)
+            break;
+          ch.activateScene("weaken");
+          this.activeChars.add(ch);
+        }
+        this.fallDelay = randInt15(this.minFallDelay, this.maxFallDelay);
+        if (Math.random() < 0.6) {
+          this.fallGroupMaxsize++;
+          this.minFallDelay = Math.max(0, this.minFallDelay - 1);
+          this.maxFallDelay = Math.max(0, this.maxFallDelay - 1);
+        }
+      } else {
+        this.fallDelay--;
+      }
     }
     for (const ch of this.activeChars) {
       ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
     }
-    if (this.fallQueue.length === 0 && this.activeChars.every((ch) => ch.motion.movementIsComplete())) {
+    if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
       this.phase = "vacuuming";
     }
     return true;
   }
   stepVacuuming() {
     if (!this.vacuumingStarted) {
-      for (const ch of this.activeChars) {
-        ch.motion.activatePath("vacuum");
-      }
+      this.unvacuumedChars = [...this.nonSpaceChars];
+      shuffle9(this.unvacuumedChars);
       this.vacuumingStarted = true;
+    }
+    const batchSize = randInt15(3, 10);
+    for (let i = 0;i < batchSize && this.unvacuumedChars.length > 0; i++) {
+      const ch = this.unvacuumedChars.shift();
+      if (!ch)
+        break;
+      ch.motion.activatePath("top");
+      this.activeChars.add(ch);
     }
     for (const ch of this.activeChars) {
       ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
     }
-    if (this.activeChars.every((ch) => ch.motion.movementIsComplete())) {
+    if (this.unvacuumedChars.length === 0 && this.activeChars.size === 0) {
       this.phase = "resetting";
     }
     return true;
   }
   stepResetting() {
     if (!this.resettingStarted) {
-      for (const ch of this.activeChars) {
-        ch.activateScene("final");
-        ch.motion.activatePath("return");
+      for (const ch of this.nonSpaceChars) {
+        ch.motion.activatePath("input");
+        this.activeChars.add(ch);
       }
       this.resettingStarted = true;
     }
     for (const ch of this.activeChars) {
       ch.tick();
+      if (!ch.isActive) {
+        this.activeChars.delete(ch);
+      }
     }
-    return this.activeChars.some((ch) => ch.isActive);
+    return this.activeChars.size > 0;
   }
 }
 
@@ -6269,11 +7114,16 @@ var defaultSwarmConfig = {
   finalGradientFrames: 9,
   finalGradientDirection: "horizontal"
 };
-function randInt13(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
 function randItem(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+function shuffle10(arr) {
+  const out = [...arr];
+  for (let i = out.length - 1;i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 class SwarmEffect {
@@ -6281,10 +7131,10 @@ class SwarmEffect {
   config;
   activeChars = new Set;
   pendingSwarms = [];
-  charPathId = new Map;
-  frameCount = 0;
+  currentSwarm = null;
+  callNext = true;
+  currentGroupAreaIndex = 0;
   colorMapping = new Map;
-  pathCounter = 0;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
@@ -6292,107 +7142,157 @@ class SwarmEffect {
   }
   build() {
     const { dims } = this.canvas;
-    const center = {
-      column: Math.round((dims.left + dims.right) / 2),
-      row: Math.round((dims.top + dims.bottom) / 2)
-    };
-    const canvasWidth = dims.right - dims.left + 1;
-    const canvasHeight = dims.top - dims.bottom + 1;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    const areaCircleRadius = Math.round(Math.max(canvasWidth / 4, canvasHeight / 2));
-    const numAreas = randInt13(this.config.swarmAreaCountRange[0], this.config.swarmAreaCountRange[1]);
-    const areaCenters = findCoordsOnCircle(center, areaCircleRadius, numAreas);
-    if (areaCenters.length === 0)
-      areaCenters.push(center);
-    const localRadius = Math.max(3, Math.round(Math.min(canvasWidth, canvasHeight) * 0.12));
-    const areaLocalCoords = new Map;
-    for (const ac of areaCenters) {
-      const key = `${ac.column},${ac.row}`;
-      const pts = findCoordsInCircle(ac, localRadius * 2);
-      areaLocalCoords.set(key, pts.length > 0 ? pts : [ac]);
-    }
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()].sort((a, b) => {
       if (a.inputCoord.row !== b.inputCoord.row)
         return a.inputCoord.row - b.inputCoord.row;
       return b.inputCoord.column - a.inputCoord.column;
     });
     const swarmSize = Math.max(1, Math.round(nonSpaceChars.length * this.config.swarmSize));
-    let swarmIdx = 0;
-    for (let i = 0;i < nonSpaceChars.length; i += swarmSize) {
-      const groupChars = nonSpaceChars.slice(i, i + swarmSize);
-      const baseColor = this.config.baseColors[swarmIdx % this.config.baseColors.length];
-      const numVisits = randInt13(this.config.swarmAreaCountRange[0], this.config.swarmAreaCountRange[1]);
-      const sharedAreaSequence = [];
-      for (let v = 0;v < numVisits; v++) {
-        sharedAreaSequence.push(areaCenters[v % areaCenters.length]);
+    const swarms = this.makeSwarms(nonSpaceChars, swarmSize);
+    const canvasRadius = Math.max(Math.floor(Math.min(dims.right, dims.top) / 2), 1);
+    const localRadius = Math.max(Math.floor(Math.min(dims.right, dims.top) / 6), 1) * 2;
+    for (let swarmIdx = 0;swarmIdx < swarms.length; swarmIdx++) {
+      const groupChars = swarms[swarmIdx];
+      const baseColor = randItem(this.config.baseColors);
+      const swarmSpawn = this.canvas.randomCoord({ outsideScope: true });
+      const areaCoordMap = [];
+      const areaPathIds = [];
+      let lastFocus = swarmSpawn;
+      const areaCount = Math.floor(Math.random() * (this.config.swarmAreaCountRange[1] - this.config.swarmAreaCountRange[0] + 1)) + this.config.swarmAreaCountRange[0];
+      while (areaCoordMap.length < areaCount) {
+        const candidates = shuffle10(findCoordsOnCircle(lastFocus, canvasRadius));
+        let nextFocus = this.canvas.randomCoord();
+        for (const c of candidates) {
+          if (this.canvas.coordIsInCanvas(c)) {
+            nextFocus = c;
+            break;
+          }
+        }
+        const localCoords = findCoordsInCircle(lastFocus, localRadius);
+        areaCoordMap.push(localCoords.length > 0 ? localCoords : [lastFocus]);
+        areaPathIds.push(`${areaCoordMap.length - 1}_swarm_area`);
+        lastFocus = nextFocus;
       }
-      const spawnCoord = sharedAreaSequence[0];
-      const swarm = {
-        chars: groupChars,
-        spawnCoord,
-        activationDelay: swarmIdx * 12,
-        activated: false
-      };
+      const swarmGrad = new Gradient([baseColor, this.config.flashColor], 7);
+      const flashMirror = [
+        ...swarmGrad.spectrum,
+        ...Array(10).fill(this.config.flashColor),
+        ...swarmGrad.spectrum.slice().reverse()
+      ];
       for (const ch of groupChars) {
-        const flashScene = ch.newScene("flash", true);
-        flashScene.addFrame(ch.inputSymbol, 3, baseColor.rgbHex);
-        flashScene.addFrame(ch.inputSymbol, 2, this.config.flashColor.rgbHex);
+        const flashScene = ch.newScene("flash", false);
+        for (const c of flashMirror) {
+          flashScene.addFrame(ch.inputSymbol, 1, c.rgbHex);
+        }
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const lastStop = this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
         const finalColor = this.colorMapping.get(key) ?? lastStop;
+        const landGrad = new Gradient([this.config.flashColor, finalColor], 10);
         const landScene = ch.newScene("land");
-        const landGrad = new Gradient([this.config.flashColor, finalColor], this.config.finalGradientSteps);
-        landScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, landGrad);
-        const pathId = `sw_${this.pathCounter++}`;
-        const path = ch.motion.newPath(pathId, { speed: 0.35, ease: outCubic });
-        for (const areaCenter of sharedAreaSequence) {
-          const useShared = Math.random() < this.config.swarmCoordination;
-          const effectiveCenter = useShared ? areaCenter : randItem(areaCenters);
-          const akey = `${effectiveCenter.column},${effectiveCenter.row}`;
-          const pts = areaLocalCoords.get(akey) ?? [effectiveCenter];
-          path.addWaypoint(randItem(pts));
-          path.addWaypoint(randItem(pts));
-          path.addWaypoint(randItem(pts));
+        for (const c of landGrad.spectrum) {
+          landScene.addFrame(ch.inputSymbol, 3, c.rgbHex);
         }
-        path.addWaypoint(ch.inputCoord);
-        ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "land");
-        this.charPathId.set(ch.id, pathId);
+        for (let areaIdx = 0;areaIdx < areaCoordMap.length; areaIdx++) {
+          const localCoords = areaCoordMap[areaIdx];
+          const areaPathId = areaPathIds[areaIdx];
+          const outerPath = ch.motion.newPath(areaPathId, { speed: 0.4, ease: outSine });
+          outerPath.addWaypoint(randItem(localCoords));
+          ch.eventHandler.register("PATH_ACTIVATED", areaPathId, "ACTIVATE_SCENE", "flash");
+          ch.eventHandler.register("PATH_ACTIVATED", areaPathId, "SET_LAYER", 1);
+          ch.eventHandler.register("PATH_COMPLETE", areaPathId, "DEACTIVATE_SCENE");
+          ch.eventHandler.register("PATH_COMPLETE", areaPathId, "ACTIVATE_PATH", `inner_${areaIdx}_0`);
+          const inner0Id = `inner_${areaIdx}_0`;
+          const inner0 = ch.motion.newPath(inner0Id, { speed: 0.18, ease: inOutSine });
+          inner0.addWaypoint(randItem(localCoords));
+          ch.eventHandler.register("PATH_COMPLETE", inner0Id, "ACTIVATE_PATH", `inner_${areaIdx}_1`);
+          const inner1Id = `inner_${areaIdx}_1`;
+          const inner1 = ch.motion.newPath(inner1Id, { speed: 0.18, ease: inOutSine });
+          inner1.addWaypoint(randItem(localCoords));
+          const nextPathId = areaIdx + 1 < areaCoordMap.length ? areaPathIds[areaIdx + 1] : "input_path";
+          ch.eventHandler.register("PATH_COMPLETE", inner1Id, "ACTIVATE_PATH", nextPathId);
+        }
+        const inputPath = ch.motion.newPath("input_path", { speed: 0.45, ease: inOutQuad });
+        inputPath.addWaypoint(ch.inputCoord);
+        ch.eventHandler.register("PATH_ACTIVATED", "input_path", "ACTIVATE_SCENE", "flash");
+        ch.eventHandler.register("PATH_COMPLETE", "input_path", "ACTIVATE_SCENE", "land");
+        ch.eventHandler.register("PATH_COMPLETE", "input_path", "SET_LAYER", 0);
       }
-      this.pendingSwarms.push(swarm);
-      swarmIdx++;
+      this.pendingSwarms.push({ chars: groupChars, spawnCoord: swarmSpawn, areaPathIds });
     }
     for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = true;
-      if (ch.isSpace)
-        continue;
-      ch.currentVisual = { symbol: " ", fgColor: null };
+      ch.isVisible = false;
     }
   }
+  makeSwarms(chars, swarmSize) {
+    const remaining = [...chars];
+    const swarms = [];
+    while (remaining.length > 0) {
+      const newSwarm = [];
+      for (let i = 0;i < swarmSize && remaining.length > 0; i++) {
+        const ch = remaining.pop();
+        if (ch)
+          newSwarm.push(ch);
+      }
+      swarms.push(newSwarm);
+    }
+    if (swarms.length >= 2) {
+      const finalSwarm = swarms[swarms.length - 1];
+      if (finalSwarm.length < Math.floor(swarmSize / 2)) {
+        swarms.pop();
+        swarms[swarms.length - 1].push(...finalSwarm);
+      }
+    }
+    return swarms;
+  }
   launchSwarm(swarm) {
-    swarm.activated = true;
     for (const ch of swarm.chars) {
+      ch.isVisible = true;
       ch.motion.setCoordinate(swarm.spawnCoord);
-      ch.activateScene("flash");
-      ch.motion.activatePath(this.charPathId.get(ch.id));
+      ch.motion.activatePath(swarm.areaPathIds[0]);
       this.activeChars.add(ch);
     }
   }
   step() {
-    this.frameCount++;
-    for (const swarm of this.pendingSwarms) {
-      if (!swarm.activated && this.frameCount >= swarm.activationDelay) {
-        this.launchSwarm(swarm);
+    if (this.pendingSwarms.length > 0 && this.callNext) {
+      this.callNext = false;
+      const swarm = this.pendingSwarms.pop();
+      if (swarm) {
+        this.currentSwarm = swarm;
+        this.currentGroupAreaIndex = 0;
+        this.launchSwarm(this.currentSwarm);
       }
     }
-    for (const ch of this.activeChars) {
+    if (this.currentSwarm !== null) {
+      if (this.activeChars.size < this.currentSwarm.chars.length) {
+        this.callNext = true;
+      }
+      for (const ch of this.currentSwarm.chars) {
+        const pathId = ch.motion.activePath?.id;
+        if (pathId?.includes("_swarm_area")) {
+          const areaIdx = parseInt(pathId.split("_swarm_area")[0], 10);
+          if (areaIdx > this.currentGroupAreaIndex) {
+            this.currentGroupAreaIndex = areaIdx;
+            for (const other of this.currentSwarm.chars) {
+              if (other !== ch && Math.random() < this.config.swarmCoordination) {
+                const path = other.motion.paths.get(pathId);
+                if (path)
+                  other.motion.activatePath(path);
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+    for (const ch of [...this.activeChars]) {
       ch.tick();
       if (!ch.isActive) {
         this.activeChars.delete(ch);
       }
     }
-    const allLaunched = this.pendingSwarms.every((s) => s.activated);
-    return !(allLaunched && this.activeChars.size === 0);
+    return this.pendingSwarms.length > 0 || this.activeChars.size > 0;
   }
 }
 
@@ -6402,32 +7302,114 @@ var defaultLaserEtchConfig = {
   etchDelay: 1,
   beamSymbols: ["/", "//", "▓"],
   beamGradientStops: [color("ffffff"), color("376cff")],
-  beamGradientSteps: 4,
+  beamGradientSteps: 6,
   beamFrameDuration: 2,
   searSymbols: ["▓", "▒", "░", "█"],
   searColors: [color("ffe680"), color("ff7b00"), color("8A003C"), color("510100")],
   searFrameDuration: 3,
   sparkSymbols: ["*", "·", "."],
-  sparkCoolingFrames: 8,
+  sparkGradientStops: [color("ffffff"), color("ffe680"), color("ff7b00"), color("1a0900")],
+  sparkCoolingFrames: 7,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 8,
   finalGradientFrames: 4,
   finalGradientDirection: "vertical"
 };
-var sparkColors = [color("ffffff"), color("ffe680")];
+var nextLaserId = 900000;
+var SPARK_POOL_SIZE = 2000;
+
+class Laser {
+  beamChars = [];
+  isHidden = false;
+  constructor(canvas, config) {
+    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
+    const beamLength = canvas.dims.top;
+    for (let i = 0;i < beamLength; i++) {
+      const id = nextLaserId++;
+      const sym = i === 0 ? "*" : "/";
+      const ch = new EffectCharacter(id, sym, 0, 0);
+      ch.isVisible = false;
+      ch.layer = 2;
+      const scene = ch.newScene("laser", true);
+      const spectrum = beamGradient.spectrum;
+      for (let f = 0;f < spectrum.length; f++) {
+        const colorIdx = (f + i) % spectrum.length;
+        scene.addFrame(sym, config.beamFrameDuration, spectrum[colorIdx].rgbHex);
+      }
+      canvas.characters.push(ch);
+      this.beamChars.push(ch);
+    }
+  }
+  reposition(target) {
+    for (let i = 0;i < this.beamChars.length; i++) {
+      const ch = this.beamChars[i];
+      ch.motion.setCoordinate({
+        column: target.column + i,
+        row: target.row + i
+      });
+      if (!ch.isVisible) {
+        ch.isVisible = true;
+        ch.activateScene("laser");
+      }
+    }
+  }
+  hide() {
+    this.isHidden = true;
+    for (const ch of this.beamChars) {
+      ch.isVisible = false;
+      ch.activeScene = null;
+    }
+  }
+  tick() {
+    if (this.isHidden)
+      return;
+    for (const ch of this.beamChars) {
+      if (ch.isVisible) {
+        ch.tick();
+      }
+    }
+  }
+}
 
 class LaserEtchEffect {
   canvas;
   config;
   pendingChars = [];
   activeChars = new Set;
-  particles;
-  frameCount = 0;
-  constructor(canvas, config, container) {
+  frameCount;
+  laser;
+  sparkPool = [];
+  sparkIndex = 0;
+  activeSparks = new Set;
+  constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
-    this.particles = new ParticleSystem(container, canvas.dims);
+    this.frameCount = config.etchDelay;
+    this.laser = new Laser(canvas, config);
+    this.buildSparkPool();
     this.build();
+  }
+  buildSparkPool() {
+    const { config, canvas } = this;
+    const sparkGradient = new Gradient(config.sparkGradientStops, config.sparkGradientStops.length);
+    for (let i = 0;i < SPARK_POOL_SIZE; i++) {
+      const id = nextLaserId++;
+      const sym = config.sparkSymbols[Math.floor(Math.random() * config.sparkSymbols.length)];
+      const ch = new EffectCharacter(id, sym, 0, 0);
+      ch.isVisible = false;
+      ch.layer = 1;
+      const scene = ch.newScene("spark");
+      scene.applyGradientToSymbols(config.sparkSymbols, config.sparkCoolingFrames, sparkGradient);
+      ch.eventHandler.register("SCENE_COMPLETE", "spark", "CALLBACK", {
+        callback: (c) => {
+          c.isVisible = false;
+          this.activeSparks.delete(c);
+        },
+        args: []
+      });
+      canvas.characters.push(ch);
+      this.sparkPool.push(ch);
+    }
   }
   build() {
     const { dims } = this.canvas;
@@ -6437,6 +7419,8 @@ class LaserEtchEffect {
     const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
     const searGradient = new Gradient(config.searColors, config.searColors.length);
     for (const ch of this.canvas.getCharacters()) {
+      if (ch.layer === 2 || ch.layer === 1)
+        continue;
       ch.isVisible = false;
     }
     const nonSpace = this.canvas.getNonSpaceCharacters();
@@ -6454,37 +7438,54 @@ class LaserEtchEffect {
       ch.eventHandler.register("SCENE_COMPLETE", "beam", "ACTIVATE_SCENE", "sear");
       ch.eventHandler.register("SCENE_COMPLETE", "sear", "ACTIVATE_SCENE", "final");
     }
-    this.pendingChars = buildSpanningTree(nonSpace);
+    this.pendingChars = buildSpanningTree(nonSpace, { startStrategy: "random" });
   }
-  emitSpark(ch) {
-    const { config } = this;
-    const sym = config.sparkSymbols[Math.floor(Math.random() * config.sparkSymbols.length)];
-    const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
-    const pChar = this.particles.emit({
-      symbol: sym,
-      coord: { column: ch.inputCoord.column, row: ch.inputCoord.row },
-      fgColor: sparkColor.rgbHex,
-      ttl: config.sparkCoolingFrames
-    });
-    const fallPath = pChar.motion.newPath("fall", { speed: 0.4, ease: outSine });
-    fallPath.addWaypoint({ column: ch.inputCoord.column + 2, row: ch.inputCoord.row - 1 });
-    pChar.motion.activatePath("fall");
+  emitSparks(coord) {
+    const { canvas } = this;
+    const sparkCount = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0;i < sparkCount; i++) {
+      const spark = this.sparkPool[this.sparkIndex % SPARK_POOL_SIZE];
+      this.sparkIndex++;
+      if (spark.isVisible) {
+        spark.isVisible = false;
+        this.activeSparks.delete(spark);
+      }
+      spark.motion.setCoordinate({ column: coord.column, row: coord.row });
+      spark.motion.activePath = null;
+      const fallColumn = coord.column + Math.floor(Math.random() * 20) - 10;
+      const fallPath = spark.motion.newPath("fall", { speed: 0.3, ease: outSine });
+      const bezierControl = {
+        column: fallColumn,
+        row: coord.row + Math.floor(Math.random() * 30) - 10
+      };
+      fallPath.addWaypoint({ column: fallColumn, row: canvas.dims.bottom }, bezierControl);
+      spark.isVisible = true;
+      spark.activateScene("spark");
+      spark.motion.activatePath("fall");
+      this.activeSparks.add(spark);
+    }
   }
   step() {
-    if (this.pendingChars.length === 0 && this.activeChars.size === 0 && this.particles.count === 0) {
+    if (this.pendingChars.length === 0 && this.activeChars.size === 0 && this.activeSparks.size === 0) {
       return false;
     }
     this.frameCount++;
-    if (this.frameCount >= this.config.etchDelay) {
+    if (this.frameCount > this.config.etchDelay) {
       this.frameCount = 0;
       for (let i = 0;i < this.config.etchSpeed; i++) {
         if (this.pendingChars.length > 0) {
           const ch = this.pendingChars.shift();
+          if (!ch)
+            break;
           ch.isVisible = true;
           ch.activateScene("beam");
           this.activeChars.add(ch);
-          this.emitSpark(ch);
+          this.laser.reposition(ch.inputCoord);
+          this.emitSparks(ch.inputCoord);
         }
+      }
+      if (this.pendingChars.length === 0) {
+        this.laser.hide();
       }
     }
     for (const ch of this.activeChars) {
@@ -6493,7 +7494,10 @@ class LaserEtchEffect {
         this.activeChars.delete(ch);
       }
     }
-    this.particles.tick();
+    this.laser.tick();
+    for (const spark of this.activeSparks) {
+      spark.tick();
+    }
     return true;
   }
 }
@@ -6544,7 +7548,7 @@ class OrbittingVolleyEffect {
     this.canvas = canvas;
     this.config = config;
     this.totalChars = 0;
-    this.delayCounter = config.launchDelay;
+    this.delayCounter = 0;
     this.build();
   }
   build() {
@@ -6603,6 +7607,8 @@ class OrbittingVolleyEffect {
       const launchCoord = { ...this.perimeter[Math.round(launcher.perimIdx) % perimLen] };
       for (let i = 0;i < count; i++) {
         const ch = launcher.magazine.shift();
+        if (!ch)
+          break;
         const pathId = `fly_${this.pathCounter++}`;
         ch.motion.setCoordinate(launchCoord);
         const path = ch.motion.newPath(pathId, { speed: characterMovementSpeed, ease: characterEasing });
@@ -6661,10 +7667,14 @@ function createEffect(container, text, effectName, config) {
     const cfg = { ...defaultOrbittingVolleyConfig, ...config };
     effect = new OrbittingVolleyEffect(canvas, cfg);
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
+  } else if (effectName === "laseretch") {
+    const cfg = { ...defaultLaserEtchConfig, ...config };
+    effect = new LaserEtchEffect(canvas, cfg);
+    renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   } else {
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   }
-  if (effectName === "overflow" || effectName === "orbittingvolley") {} else if (effectName === "decrypt") {
+  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch") {} else if (effectName === "decrypt") {
     const cfg = { ...defaultDecryptConfig, ...config };
     effect = new DecryptEffect(canvas, cfg);
   } else if (effectName === "slide") {
@@ -6735,7 +7745,7 @@ function createEffect(container, text, effectName, config) {
     effect = new BlackholeEffect(canvas, cfg);
   } else if (effectName === "smoke") {
     const cfg = { ...defaultSmokeConfig, ...config };
-    effect = new SmokeEffect(canvas, cfg, container);
+    effect = new SmokeEffect(canvas, cfg);
   } else if (effectName === "bubbles") {
     const cfg = { ...defaultBubblesConfig, ...config };
     effect = new BubblesEffect(canvas, cfg);
@@ -6763,9 +7773,6 @@ function createEffect(container, text, effectName, config) {
   } else if (effectName === "swarm") {
     const cfg = { ...defaultSwarmConfig, ...config };
     effect = new SwarmEffect(canvas, cfg);
-  } else if (effectName === "laseretch") {
-    const cfg = { ...defaultLaserEtchConfig, ...config };
-    effect = new LaserEtchEffect(canvas, cfg, container);
   } else {
     const cfg = { ...defaultExpandConfig, ...config };
     effect = new ExpandEffect(canvas, cfg);
@@ -6810,6 +7817,8 @@ function createEffectOnScroll(container, text, effectName, config) {
   return handle;
 }
 export {
+  xtermToHex,
+  rgbInts,
   makeEasing,
   exports_graph as graph,
   exports_geometry as geometry,
@@ -6853,8 +7862,11 @@ export {
   defaultBeamsConfig,
   createEffectOnScroll,
   createEffect,
+  colorPair,
   color,
+  adjustBrightness,
   SequenceEaser,
   ParticleSystem,
+  EventHandler,
   EasingTracker
 };

@@ -2,7 +2,7 @@ import { type Color, type Coord, type GradientDirection, color } from "../types"
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { findCoordsInCircle, findCoordOnBezierCurve, extrapolateAlongRay } from "../geometry";
+import { findCoordsInCircle, extrapolateAlongRay } from "../geometry";
 import { outExpo, outCirc, inOutQuart } from "../easing";
 
 export interface FireworksConfig {
@@ -40,13 +40,6 @@ interface Shell {
   pathCounterBase: number;
 }
 
-function shuffle<T>(arr: T[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
 function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -78,9 +71,9 @@ export class FireworksEffect {
       this.config.finalGradientDirection,
     );
 
-    // Shuffle non-space characters and split into shells
+    // Sort by ascending row so bottom-row characters come first (row 1 = bottom)
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
-    shuffle(nonSpaceChars);
+    nonSpaceChars.sort((a, b) => a.inputCoord.row - b.inputCoord.row);
 
     const charsPerShell = Math.max(1, Math.round(nonSpaceChars.length * this.config.fireworkVolume));
     const explodeRadius = Math.min(15, Math.max(1, Math.round(dims.right * this.config.explodeDistance)));
@@ -153,23 +146,23 @@ export class FireworksEffect {
         launchPath.addWaypoint(launchStart);
         launchPath.addWaypoint(shell.apex);
 
-        // Explode path: apex → circle target via Bezier-sampled waypoints
-        const controlPoint = extrapolateAlongRay(shell.apex, targetOnCircle, 2);
+        // Explode path: apex → circle target → bloom waypoint (with bezier)
         const explodePath = ch.motion.newPath(
           `explode_${this.pathCounter}`,
           { speed: 0.2 + Math.random() * 0.2, ease: outCirc },
         );
-        // Sample Bezier curve to create smooth waypoints
-        const bezierSteps = 5;
-        for (let s = 1; s <= bezierSteps; s++) {
-          const t = s / bezierSteps;
-          const pt = findCoordOnBezierCurve(shell.apex, [controlPoint], targetOnCircle, t);
-          explodePath.addWaypoint(pt);
-        }
+        explodePath.addWaypoint(targetOnCircle);
+        const bloomControlPoint = extrapolateAlongRay(shell.apex, targetOnCircle, Math.floor(explodeRadius / 2));
+        const bloomCoord: Coord = {
+          column: bloomControlPoint.column,
+          row: Math.max(1, bloomControlPoint.row - 7),
+        };
+        explodePath.addWaypoint(bloomCoord, bloomControlPoint);
 
-        // Fall path: circle target → home
+        // Fall path: bloom position → input coord via bezier through row 1
         const fallPath = ch.motion.newPath(`fall_${this.pathCounter}`, 0.6, inOutQuart);
-        fallPath.addWaypoint(ch.inputCoord);
+        const inputControlPoint: Coord = { column: bloomCoord.column, row: 1 };
+        fallPath.addWaypoint(ch.inputCoord, inputControlPoint);
 
         // --- Event chaining ---
         const launchId = `launch_${this.pathCounter}`;

@@ -189,11 +189,15 @@ export function createEffect(
     const cfg = { ...defaultOrbittingVolleyConfig, ...config } as OrbittingVolleyConfig;
     effect = new OrbittingVolleyEffect(canvas, cfg);
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
+  } else if (effectName === "laseretch") {
+    const cfg = { ...defaultLaserEtchConfig, ...config } as LaserEtchConfig;
+    effect = new LaserEtchEffect(canvas, cfg);
+    renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   } else {
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   }
 
-  if (effectName === "overflow" || effectName === "orbittingvolley") {
+  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch") {
     // already constructed above
   } else if (effectName === "decrypt") {
     const cfg = { ...defaultDecryptConfig, ...config } as DecryptConfig;
@@ -294,9 +298,6 @@ export function createEffect(
   } else if (effectName === "swarm") {
     const cfg = { ...defaultSwarmConfig, ...config } as SwarmConfig;
     effect = new SwarmEffect(canvas, cfg);
-  } else if (effectName === "laseretch") {
-    const cfg = { ...defaultLaserEtchConfig, ...config } as LaserEtchConfig;
-    effect = new LaserEtchEffect(canvas, cfg, container);
   } else {
     const cfg = { ...defaultExpandConfig, ...config } as ExpandConfig;
     effect = new ExpandEffect(canvas, cfg);
