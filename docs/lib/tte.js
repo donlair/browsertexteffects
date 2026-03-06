@@ -5867,14 +5867,20 @@ var defaultSprayConfig = {
   spraySymbols: ["*", "·", ".", "+"],
   sourcePosition: "e",
   arcHeight: 4,
-  flightSpeed: 0.3,
+  flightSpeedRange: [0.6, 1.4],
   flightEasing: outExpo,
-  charsPerTick: 3,
+  sprayVolume: 0.005,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
   finalGradientFrames: 8,
   finalGradientDirection: "vertical"
 };
+function randInt11(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function randRange4(min, max) {
+  return Math.random() * (max - min) + min;
+}
 function shuffle6(arr) {
   for (let i = arr.length - 1;i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -5890,6 +5896,7 @@ class SprayEffect {
   source;
   pathCounter = 0;
   releasedCount = 0;
+  _volume = 1;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
@@ -5933,6 +5940,7 @@ class SprayEffect {
     }
     const chars = [...this.canvas.getNonSpaceCharacters()];
     shuffle6(chars);
+    this._volume = Math.max(1, Math.floor(chars.length * this.config.sprayVolume));
     for (const ch of chars) {
       const target = ch.inputCoord;
       const flightScene = ch.newScene("flight", true);
@@ -5943,9 +5951,9 @@ class SprayEffect {
       }
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-      const lastSprayColor = this.config.sprayColors[this.config.sprayColors.length - 1];
+      const randomSpectrumColor = finalGradient.spectrum[randInt11(0, finalGradient.spectrum.length - 1)];
       const resolveScene = ch.newScene("resolve");
-      const resolveGrad = new Gradient([lastSprayColor, finalColor], this.config.finalGradientFrames);
+      const resolveGrad = new Gradient([randomSpectrumColor, finalColor], this.config.finalGradientFrames);
       resolveScene.applyGradientToSymbols(ch.inputSymbol, 1, resolveGrad);
       const S = this.source;
       const T = target;
@@ -5953,23 +5961,23 @@ class SprayEffect {
       const midRow = Math.round((S.row + T.row) / 2) + this.config.arcHeight;
       const controlPoint = { column: midCol, row: midRow };
       const pathId = `arc_${this.pathCounter}`;
-      const arcPath = ch.motion.newPath(pathId, this.config.flightSpeed, this.config.flightEasing);
-      for (let s = 1;s <= 5; s++) {
+      const speed = randRange4(this.config.flightSpeedRange[0], this.config.flightSpeedRange[1]);
+      const arcPath = ch.motion.newPath(pathId, speed, this.config.flightEasing);
+      for (let s = 1;s <= 4; s++) {
         const t = s / 5;
         const pt = findCoordOnBezierCurve(S, [controlPoint], T, t);
         arcPath.addWaypoint(pt);
       }
+      arcPath.addWaypoint(ch.inputCoord);
       ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "resolve");
       this.pathCounter++;
     }
     this.queue = chars;
   }
   step() {
-    const toRelease = Math.min(this.config.charsPerTick, this.queue.length);
-    for (let i = 0;i < toRelease; i++) {
+    const toRelease = randInt11(1, this._volume);
+    for (let i = 0;i < toRelease && this.queue.length > 0; i++) {
       const ch = this.queue.shift();
-      if (!ch)
-        break;
       ch.motion.setCoordinate(this.source);
       ch.isVisible = true;
       ch.activateScene("flight");
@@ -5980,6 +5988,7 @@ class SprayEffect {
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
+        ch.motion.setCoordinate(ch.inputCoord);
         this.activeChars.delete(ch);
       }
     }
@@ -6009,10 +6018,10 @@ function shuffle7(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
-function randInt11(min, max) {
+function randInt12(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-function randRange4(min, max) {
+function randRange5(min, max) {
   return min + Math.random() * (max - min);
 }
 
@@ -6060,7 +6069,7 @@ class BeamsEffect {
       allBeamGroups.push({
         chars: sorted,
         sceneId: "beam_row",
-        speed: randRange4(config.beamRowSpeed[0], config.beamRowSpeed[1]),
+        speed: randRange5(config.beamRowSpeed[0], config.beamRowSpeed[1]),
         counter: 0,
         nextIdx: 0
       });
@@ -6072,7 +6081,7 @@ class BeamsEffect {
       allBeamGroups.push({
         chars: sorted,
         sceneId: "beam_column",
-        speed: randRange4(config.beamColumnSpeed[0], config.beamColumnSpeed[1]),
+        speed: randRange5(config.beamColumnSpeed[0], config.beamColumnSpeed[1]),
         counter: 0,
         nextIdx: 0
       });
@@ -6093,7 +6102,7 @@ class BeamsEffect {
     if (this.phase === "beams") {
       if (this.beamDelay === 0) {
         if (this.pendingGroups.length > 0) {
-          const batchSize = randInt11(1, 5);
+          const batchSize = randInt12(1, 5);
           for (let i = 0;i < batchSize && this.pendingGroups.length > 0; i++) {
             const group = this.pendingGroups.shift();
             if (group)
@@ -6251,7 +6260,7 @@ var defaultSynthGridConfig = {
   textGenerationSymbols: ["░", "▒", "▓"],
   maxActiveBlocks: 0.1
 };
-function randInt12(min, max) {
+function randInt13(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 function shuffle8(arr) {
@@ -6424,7 +6433,7 @@ class SynthGridEffect {
     this.totalBlocks = blocks.length;
     for (const ch of nonSpaceChars) {
       const dissolveScene = ch.newScene("dissolve");
-      const frameCount = randInt12(15, 30);
+      const frameCount = randInt13(15, 30);
       for (let i = 0;i < frameCount; i++) {
         const sym = config.textGenerationSymbols[Math.floor(Math.random() * config.textGenerationSymbols.length)];
         const paletteColor = this.textGradientSpectrum[Math.floor(Math.random() * this.textGradientSpectrum.length)];
@@ -6513,7 +6522,7 @@ class SynthGridEffect {
 }
 
 // src/tte/effects/binarypath.ts
-function randInt13(min, max) {
+function randInt14(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 var defaultBinaryPathConfig = {
@@ -6652,11 +6661,11 @@ class BinaryPathEffect {
       let next;
       if (lastOrientation === "col" && maxRowDist > 0) {
         const maxStep = Math.min(maxRowDist, Math.max(10, Math.floor(canvasRight * 0.2)));
-        const step = randInt13(1, maxStep);
+        const step = randInt14(1, maxStep);
         next = { column: last.column, row: last.row + step * rowDir };
         lastOrientation = "row";
       } else if (lastOrientation === "row" && maxColDist > 0) {
-        const step = randInt13(1, Math.min(maxColDist, 4));
+        const step = randInt14(1, Math.min(maxColDist, 4));
         next = { column: last.column + step * colDir, row: last.row };
         lastOrientation = "col";
       } else {
@@ -6946,7 +6955,7 @@ class ThunderstormEffect {
   _buildRainDrops(count) {
     const { dims } = this.canvas;
     for (let i = 0;i < count; i++) {
-      const spawnCol = randInt14(1 - dims.top, dims.right);
+      const spawnCol = randInt15(1 - dims.top, dims.right);
       const sym = randChoice3(this.config.raindropSymbols);
       const span = document.createElement("span");
       span.style.position = "absolute";
@@ -6983,7 +6992,7 @@ class ThunderstormEffect {
   _setupLightningStrike(branchNeighbor = null, branchChance = 0.05) {
     const { dims } = this.canvas;
     const { config } = this;
-    let col = branchNeighbor ? branchNeighbor.col : randInt14(1, dims.right);
+    let col = branchNeighbor ? branchNeighbor.col : randInt15(1, dims.right);
     let row = branchNeighbor ? branchNeighbor.row : dims.top;
     const strikeFlashColor = adjustBrightness(config.lightningColor, 1.7);
     const flashGrad = new Gradient([config.lightningColor, strikeFlashColor], 7, true);
@@ -7056,13 +7065,13 @@ class ThunderstormEffect {
     }
     if (this.pendingStrikeChars.length > 0) {
       const lastOc = this.pendingStrikeChars[this.pendingStrikeChars.length - 1];
-      const sparkCount = randInt14(6, 10);
+      const sparkCount = randInt15(6, 10);
       for (let i = 0;i < sparkCount; i++) {
         const dir = Math.random() < 0.5 ? 1 : -1;
         this.pendingSparkSetups.push({
           spawnCol: Math.round(lastOc.col),
           spawnRow: Math.round(lastOc.row),
-          targetCol: lastOc.col + randInt14(4, 20) * dir
+          targetCol: lastOc.col + randInt15(4, 20) * dir
         });
       }
     }
@@ -7099,7 +7108,7 @@ class ThunderstormEffect {
     }
     if (this.pendingStrikeChars.length === 0)
       return;
-    const count = randInt14(1, 3);
+    const count = randInt15(1, 3);
     for (let i = 0;i < count; i++) {
       if (this.pendingStrikeChars.length === 0)
         break;
@@ -7131,7 +7140,7 @@ class ThunderstormEffect {
       drop.col += drop.speed;
       drop.row -= drop.speed;
       if (drop.row < dims.bottom - 1) {
-        drop.col = randInt14(1 - dims.top, dims.right);
+        drop.col = randInt15(1 - dims.top, dims.right);
         drop.row = dims.top + 1;
         drop.speed = randFloat(0.5, 1.5);
         drop.sym = randChoice3(this.config.raindropSymbols);
@@ -7211,7 +7220,7 @@ class ThunderstormEffect {
     return this.phase !== "complete" || this.activeTextChars.size > 0;
   }
 }
-function randInt14(min, max) {
+function randInt15(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 function randFloat(min, max) {
@@ -7233,7 +7242,7 @@ function shuffle9(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
-function randInt15(min, max) {
+function randInt16(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 var DUST_SYMBOLS = ["*", ".", ","];
@@ -7315,7 +7324,7 @@ class CrumbleEffect {
   stepFalling() {
     if (this.pendingChars.length > 0) {
       if (this.fallDelay === 0) {
-        const groupSize = randInt15(1, this.fallGroupMaxsize);
+        const groupSize = randInt16(1, this.fallGroupMaxsize);
         for (let i = 0;i < groupSize && this.pendingChars.length > 0; i++) {
           const ch = this.pendingChars.shift();
           if (!ch)
@@ -7323,7 +7332,7 @@ class CrumbleEffect {
           ch.activateScene("weaken");
           this.activeChars.add(ch);
         }
-        this.fallDelay = randInt15(this.minFallDelay, this.maxFallDelay);
+        this.fallDelay = randInt16(this.minFallDelay, this.maxFallDelay);
         if (Math.random() < 0.6) {
           this.fallGroupMaxsize++;
           this.minFallDelay = Math.max(0, this.minFallDelay - 1);
@@ -7350,7 +7359,7 @@ class CrumbleEffect {
       shuffle9(this.unvacuumedChars);
       this.vacuumingStarted = true;
     }
-    const batchSize = randInt15(3, 10);
+    const batchSize = randInt16(3, 10);
     for (let i = 0;i < batchSize && this.unvacuumedChars.length > 0; i++) {
       const ch = this.unvacuumedChars.shift();
       if (!ch)

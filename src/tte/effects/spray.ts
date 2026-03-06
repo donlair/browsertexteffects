@@ -10,9 +10,9 @@ export interface SprayConfig {
   spraySymbols: string[];
   sourcePosition: "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw" | "center";
   arcHeight: number;
-  flightSpeed: number;
+  flightSpeedRange: [number, number];
   flightEasing: EasingFunction;
-  charsPerTick: number;
+  sprayVolume: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
   finalGradientFrames: number;
@@ -24,14 +24,22 @@ export const defaultSprayConfig: SprayConfig = {
   spraySymbols: ["*", "·", ".", "+"],
   sourcePosition: "e",
   arcHeight: 4,
-  flightSpeed: 0.3,
+  flightSpeedRange: [0.6, 1.4],
   flightEasing: outExpo,
-  charsPerTick: 3,
+  sprayVolume: 0.005,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
   finalGradientFrames: 8,
   finalGradientDirection: "vertical",
 };
+
+function randInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randRange(min: number, max: number): number {
+  return Math.random() * (max - min) + min;
+}
 
 function shuffle<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -48,6 +56,7 @@ export class SprayEffect {
   private source!: Coord;
   private pathCounter = 0;
   private releasedCount = 0;
+  private _volume = 1;
 
   constructor(canvas: Canvas, config: SprayConfig) {
     this.canvas = canvas;
@@ -94,6 +103,8 @@ export class SprayEffect {
     const chars = [...this.canvas.getNonSpaceCharacters()];
     shuffle(chars);
 
+    this._volume = Math.max(1, Math.floor(chars.length * this.config.sprayVolume));
+
     for (const ch of chars) {
       const target = ch.inputCoord;
 
@@ -105,12 +116,12 @@ export class SprayEffect {
         }
       }
 
-      // "resolve" scene — gradient from last spray color → final position color
+      // "resolve" scene — gradient from random spectrum color → final position color
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-      const lastSprayColor = this.config.sprayColors[this.config.sprayColors.length - 1];
+      const randomSpectrumColor = finalGradient.spectrum[randInt(0, finalGradient.spectrum.length - 1)];
       const resolveScene = ch.newScene("resolve");
-      const resolveGrad = new Gradient([lastSprayColor, finalColor], this.config.finalGradientFrames);
+      const resolveGrad = new Gradient([randomSpectrumColor, finalColor], this.config.finalGradientFrames);
       resolveScene.applyGradientToSymbols(ch.inputSymbol, 1, resolveGrad);
 
       // Arc path: source → target via Bezier curve
@@ -121,13 +132,15 @@ export class SprayEffect {
       const controlPoint: Coord = { column: midCol, row: midRow };
 
       const pathId = `arc_${this.pathCounter}`;
-      const arcPath = ch.motion.newPath(pathId, this.config.flightSpeed, this.config.flightEasing);
+      const speed = randRange(this.config.flightSpeedRange[0], this.config.flightSpeedRange[1]);
+      const arcPath = ch.motion.newPath(pathId, speed, this.config.flightEasing);
 
-      for (let s = 1; s <= 5; s++) {
+      for (let s = 1; s <= 4; s++) {
         const t = s / 5;
         const pt = findCoordOnBezierCurve(S, [controlPoint], T, t);
         arcPath.addWaypoint(pt);
       }
+      arcPath.addWaypoint(ch.inputCoord);
 
       // On arc complete → activate resolve scene
       ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "resolve");
@@ -139,11 +152,10 @@ export class SprayEffect {
   }
 
   step(): boolean {
-    // Release charsPerTick chars from the queue
-    const toRelease = Math.min(this.config.charsPerTick, this.queue.length);
-    for (let i = 0; i < toRelease; i++) {
-      const ch = this.queue.shift();
-      if (!ch) break;
+    // Release random number of chars from the queue
+    const toRelease = randInt(1, this._volume);
+    for (let i = 0; i < toRelease && this.queue.length > 0; i++) {
+      const ch = this.queue.shift()!;
       ch.motion.setCoordinate(this.source);
       ch.isVisible = true;
       ch.activateScene("flight");
@@ -156,6 +168,7 @@ export class SprayEffect {
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
+        ch.motion.setCoordinate(ch.inputCoord);
         this.activeChars.delete(ch);
       }
     }
