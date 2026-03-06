@@ -5123,6 +5123,9 @@ class BlackholeEffect {
   ringActivationDelays = [];
   colorMapping = new Map;
   pathCounter = 0;
+  starfieldColors = [];
+  consumedGradientMap = new Map;
+  charStarColor = new Map;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
@@ -5137,6 +5140,14 @@ class BlackholeEffect {
     const canvasWidth = dims.right - dims.left + 1;
     const canvasHeight = dims.top - dims.bottom + 1;
     this.blackholeRadius = Math.max(3, Math.min(Math.round(canvasWidth * 0.3), Math.round(canvasHeight * 0.2)));
+    const starfieldGradient = new Gradient([color("4a4a4d"), color("ffffff")], 6);
+    this.starfieldColors = starfieldGradient.spectrum;
+    for (const sc of this.starfieldColors) {
+      const key = sc.rgbHex;
+      if (!this.consumedGradientMap.has(key)) {
+        this.consumedGradientMap.set(key, new Gradient([sc, color("000000")], 10));
+      }
+    }
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
@@ -5148,8 +5159,21 @@ class BlackholeEffect {
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
       if (!ch.isSpace) {
-        ch.currentVisual = { symbol: " ", fgColor: null };
+        const starSymbol = STAR_SYMBOLS[Math.floor(Math.random() * STAR_SYMBOLS.length)];
+        const starColor = this.starfieldColors[Math.floor(Math.random() * this.starfieldColors.length)];
+        this.charStarColor.set(ch, starColor);
+        const starScene = ch.newScene("initial_star", true);
+        starScene.addFrame(starSymbol, 1, starColor.rgbHex);
+        ch.currentVisual = { symbol: starSymbol, fgColor: starColor.rgbHex };
+        ch.activateScene("initial_star");
       }
+    }
+    for (const ch of this.starfieldChars) {
+      const randomCoord2 = {
+        column: randInt10(dims.left, dims.right),
+        row: randInt10(dims.bottom, dims.top)
+      };
+      ch.motion.setCoordinate(randomCoord2);
     }
     const staggerStep = Math.max(Math.floor(100 / ringCount), 6);
     for (let i = 0;i < this.ringChars.length; i++) {
@@ -5172,53 +5196,33 @@ class BlackholeEffect {
         const idx = (startIdx + j) % this.ringCoords.length;
         orbitPath.addWaypoint(this.ringCoords[idx]);
       }
-      orbitPath.addWaypoint(this.ringCoords[startIdx]);
-      ch.eventHandler.register("PATH_COMPLETE", formId, "ACTIVATE_PATH", orbitId);
     }
   }
   transitionToConsuming() {
     this.phase = "consuming";
     this.phaseFrames = 0;
-    const { dims } = this.canvas;
+    for (let i = 0;i < this.ringChars.length; i++) {
+      const ch = this.ringChars[i];
+      ch.motion.activatePath(`orbit_${i}`);
+    }
     for (const ch of this.starfieldChars) {
-      const starColor = this.config.starColors[Math.floor(Math.random() * this.config.starColors.length)];
-      const starSymbol = STAR_SYMBOLS[Math.floor(Math.random() * STAR_SYMBOLS.length)];
-      const starScene = ch.newScene("star", true);
-      const fadeGrad = new Gradient([starColor, color("000000")], 6);
-      starScene.applyGradientToSymbols(starSymbol, 2, fadeGrad);
-      const randomCoord2 = {
-        column: randInt10(dims.left, dims.right),
-        row: randInt10(dims.bottom, dims.top)
-      };
-      ch.motion.setCoordinate(randomCoord2);
+      const starColor = this.charStarColor.get(ch) || this.starfieldColors[0];
+      const starSymbol = ch.currentVisual.symbol;
+      const consumedScene = ch.newScene("consumed", false, { sync: "DISTANCE" });
+      const consumedGrad = this.consumedGradientMap.get(starColor.rgbHex) || new Gradient([starColor, color("000000")], 10);
+      consumedScene.applyGradientToSymbols(starSymbol, 1, consumedGrad);
+      consumedScene.addFrame(" ", 1, null);
       const singId = `sing_${this.pathCounter++}`;
       const singPath = ch.motion.newPath(singId, {
         speed: randRange3(0.17, 0.3),
         ease: inExpo
       });
-      this.buildSpiralWaypoints(singPath, randomCoord2);
-      ch.currentVisual = { symbol: starSymbol, fgColor: starColor.rgbHex };
-      ch.activateScene("star");
+      singPath.addWaypoint(this.center);
+      ch.eventHandler.register("PATH_ACTIVATED", singId, "ACTIVATE_SCENE", "consumed");
+      ch.eventHandler.register("PATH_ACTIVATED", singId, "SET_LAYER", 2);
       ch.motion.activatePath(singId);
       this.activeStarChars.add(ch);
     }
-  }
-  buildSpiralWaypoints(path, start) {
-    const steps = 4;
-    const startAngle = Math.atan2(start.row - this.center.row, start.column - this.center.column);
-    for (let s = 1;s <= steps; s++) {
-      const fraction = s / (steps + 1);
-      const radius = this.blackholeRadius * (1 - fraction);
-      if (radius < 1)
-        break;
-      const angle = startAngle + Math.PI / 2 * s;
-      const wp = {
-        column: Math.round(this.center.column + radius * 2 * Math.cos(angle)),
-        row: Math.round(this.center.row + radius * Math.sin(angle))
-      };
-      path.addWaypoint(wp);
-    }
-    path.addWaypoint(this.center);
   }
   transitionToCollapsing() {
     this.phase = "collapsing";
@@ -5296,7 +5300,6 @@ class BlackholeEffect {
         for (let i = 0;i < this.ringChars.length; i++) {
           const ch = this.ringChars[i];
           if (this.phaseFrames >= this.ringActivationDelays[i] && !this.activeRingChars.has(ch)) {
-            ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.config.blackholeColor.rgbHex };
             ch.activateScene("ring_color");
             ch.motion.activatePath(`form_${i}`);
             this.activeRingChars.add(ch);
@@ -5305,7 +5308,10 @@ class BlackholeEffect {
         for (const ch of this.activeRingChars) {
           ch.tick();
         }
-        if (this.activeRingChars.size === this.ringChars.length && [...this.activeRingChars].every((ch) => ch.motion.activePath?.id.startsWith("orbit_"))) {
+        for (const ch of this.starfieldChars) {
+          ch.tick();
+        }
+        if (this.activeRingChars.size === this.ringChars.length && [...this.activeRingChars].every((ch) => ch.motion.movementIsComplete())) {
           this.transitionToConsuming();
         }
         break;
