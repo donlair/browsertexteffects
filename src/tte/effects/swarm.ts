@@ -14,7 +14,6 @@ export interface SwarmConfig {
   swarmAreaCountRange: [number, number];
   finalGradientStops: Color[];
   finalGradientSteps: number;
-  finalGradientFrames: number;
   finalGradientDirection: GradientDirection;
 }
 
@@ -26,7 +25,6 @@ export const defaultSwarmConfig: SwarmConfig = {
   swarmAreaCountRange: [2, 4],
   finalGradientStops: [color("31b900"), color("f0ff65")],
   finalGradientSteps: 12,
-  finalGradientFrames: 9,
   finalGradientDirection: "horizontal",
 };
 
@@ -138,7 +136,7 @@ export class SwarmEffect {
 
       for (const ch of groupChars) {
         // Flash scene: gradient mirror, 1 tick per frame, NOT looping (matches Python)
-        const flashScene = ch.newScene("flash", false);
+        const flashScene = ch.newScene("flash", false, { sync: "DISTANCE" });
         for (const c of flashMirror) {
           flashScene.addFrame(ch.inputSymbol, 1, c.rgbHex);
         }

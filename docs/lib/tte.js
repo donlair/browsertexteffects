@@ -7405,7 +7405,6 @@ var defaultSwarmConfig = {
   swarmAreaCountRange: [2, 4],
   finalGradientStops: [color("31b900"), color("f0ff65")],
   finalGradientSteps: 12,
-  finalGradientFrames: 9,
   finalGradientDirection: "horizontal"
 };
 function randItem(arr) {
@@ -7476,7 +7475,7 @@ class SwarmEffect {
         ...swarmGrad.spectrum.slice().reverse()
       ];
       for (const ch of groupChars) {
-        const flashScene = ch.newScene("flash", false);
+        const flashScene = ch.newScene("flash", false, { sync: "DISTANCE" });
         for (const c of flashMirror) {
           flashScene.addFrame(ch.inputSymbol, 1, c.rgbHex);
         }
