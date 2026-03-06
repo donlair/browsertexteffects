@@ -122,7 +122,7 @@ export class BouncyBallsEffect {
     }
 
     // Launch characters based on ballDelay
-    if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop >= this.config.ballDelay) {
+    if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop > this.config.ballDelay) {
       this.ticksSinceLastDrop = 0;
       const dropCount = randInt(2, 6);
       for (let i = 0; i < dropCount && this.currentRowGroup.length > 0; i++) {

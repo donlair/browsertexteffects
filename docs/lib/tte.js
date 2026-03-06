@@ -4428,7 +4428,7 @@ class BouncyBallsEffect {
       if (next)
         this.currentRowGroup = next;
     }
-    if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop >= this.config.ballDelay) {
+    if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop > this.config.ballDelay) {
       this.ticksSinceLastDrop = 0;
       const dropCount = randInt6(2, 6);
       for (let i = 0;i < dropCount && this.currentRowGroup.length > 0; i++) {
