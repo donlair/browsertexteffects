@@ -1,13 +1,16 @@
-import { type Color, type GradientDirection, color } from "../types";
+import { type Color, type GradientDirection, type EasingFunction, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
-import type { EffectCharacter } from "../character";
+import { EffectCharacter } from "../character";
+import { inOutQuad } from "../easing";
 
 export interface PrintConfig {
   typingSpeed: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
   finalGradientDirection: GradientDirection;
+  printHeadReturnSpeed: number;
+  printHeadEasing: EasingFunction;
 }
 
 export const defaultPrintConfig: PrintConfig = {
@@ -15,6 +18,8 @@ export const defaultPrintConfig: PrintConfig = {
   finalGradientStops: [color("02b8bd"), color("c1f0e3"), color("00ffa0")],
   finalGradientSteps: 12,
   finalGradientDirection: "diagonal",
+  printHeadReturnSpeed: 1.5,
+  printHeadEasing: inOutQuad,
 };
 
 export class PrintEffect {
@@ -24,6 +29,9 @@ export class PrintEffect {
   private currentRow: EffectCharacter[] = [];
   private allTypedChars: EffectCharacter[] = [];
   private activeChars: Set<EffectCharacter> = new Set();
+  private typingHead!: EffectCharacter;
+  private lastColumn = 0;
+  private currentRowNum = 0;
 
   constructor(canvas: Canvas, config: PrintConfig) {
     this.canvas = canvas;
@@ -71,42 +79,67 @@ export class PrintEffect {
     }
 
     this.pendingRows = rows;
+
+    // Create synthetic typing head character
+    const headId = this.canvas.characters.length > 0
+      ? Math.max(...this.canvas.characters.map((c) => c.id)) + 1
+      : 0;
+    const typingHead = new EffectCharacter(headId, "█", 1, 1);
+    typingHead.isVisible = false;
+    this.canvas.characters.push(typingHead);
+    this.typingHead = typingHead;
+
+    // Pre-load first row so typing starts immediately (no carriage return before row 0)
+    this.currentRow = this.pendingRows.shift() ?? [];
+    this.currentRowNum = this.currentRow[0]?.inputCoord.row ?? 1;
   }
 
   step(): boolean {
-    if (this.pendingRows.length === 0 && this.currentRow.length === 0 && this.activeChars.size === 0) {
-      return false;
-    }
+    const headIsMoving = this.activeChars.has(this.typingHead);
 
-    // Load next row if current is empty
-    if (this.currentRow.length === 0 && this.pendingRows.length > 0) {
-      // Shift all previously typed chars up by 1
-      for (const ch of this.allTypedChars) {
-        const cur = ch.motion.currentCoord;
-        ch.motion.setCoordinate({ column: cur.column, row: cur.row + 1 });
+    if (!headIsMoving) {
+      if (this.currentRow.length > 0) {
+        // Type up to typingSpeed chars from the current row
+        let typed = 0;
+        while (this.currentRow.length > 0 && typed < this.config.typingSpeed) {
+          const ch = this.currentRow.shift()!;
+          ch.isVisible = true;
+          ch.activateScene("typing");
+          this.activeChars.add(ch);
+          this.allTypedChars.push(ch);
+          this.lastColumn = ch.inputCoord.column;
+          typed++;
+        }
+      } else if (this.pendingRows.length > 0) {
+        // Row finished — load next row, compute scroll amount, scroll typed chars up
+        this.currentRow = this.pendingRows.shift()!;
+        const nextRowNum = this.currentRow[0]?.inputCoord.row ?? this.currentRowNum - 1;
+        const scrollBy = this.currentRowNum - nextRowNum;
+        for (const ch of this.allTypedChars) {
+          const cur = ch.motion.currentCoord;
+          ch.motion.setCoordinate({ column: cur.column, row: cur.row + scrollBy });
+        }
+        this.currentRowNum = nextRowNum;
+
+        const firstCol = this.currentRow[0]?.inputCoord.column ?? 1;
+        this.typingHead.motion.setCoordinate({ column: this.lastColumn, row: 1 });
+        this.typingHead.isVisible = true;
+        const crPath = this.typingHead.motion.newPath(
+          "carriage_return",
+          this.config.printHeadReturnSpeed,
+          this.config.printHeadEasing,
+        );
+        crPath.addWaypoint({ column: firstCol, row: 1 });
+        this.typingHead.motion.activatePath("carriage_return");
+        this.activeChars.add(this.typingHead);
       }
-
-      // Load the next row
-      const next = this.pendingRows.shift();
-      if (next) this.currentRow = next;
     }
 
-    // Type chars from current row
-    let typed = 0;
-    while (this.currentRow.length > 0 && typed < this.config.typingSpeed) {
-      const ch = this.currentRow.shift();
-      if (!ch) break;
-      ch.isVisible = true;
-      ch.activateScene("typing");
-      this.activeChars.add(ch);
-      this.allTypedChars.push(ch);
-      typed++;
-    }
-
-    // Tick active chars
+    // Tick all active chars
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
+        if (ch === this.typingHead) ch.isVisible = false;
         this.activeChars.delete(ch);
       }
     }

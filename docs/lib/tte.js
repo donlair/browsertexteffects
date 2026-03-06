@@ -2474,7 +2474,7 @@ class ScatteredEffect {
 var defaultPourConfig = {
   pourDirection: "down",
   pourSpeed: 2,
-  movementSpeed: 0.5,
+  movementSpeedRange: [0.4, 0.6],
   gap: 1,
   startingColor: color("ffffff"),
   movementEasing: inQuad,
@@ -2544,7 +2544,9 @@ class PourEffect {
           startCoord = { column: dims.left, row: ch.inputCoord.row };
         }
         ch.motion.setCoordinate(startCoord);
-        const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
+        const [minSpeed, maxSpeed] = this.config.movementSpeedRange;
+        const speed = Math.random() * (maxSpeed - minSpeed) + minSpeed;
+        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
@@ -2873,7 +2875,7 @@ var defaultRainConfig = {
     color("B8D8F8"),
     color("E3EFFC")
   ],
-  fallSpeed: 0.5,
+  fallSpeed: [0.33, 0.57],
   fallEasing: inQuart,
   charsPerTick: 2,
   finalGradientStops: [color("488bff"), color("b2e7de"), color("57eaf7")],
@@ -2904,7 +2906,9 @@ class RainEffect {
     }
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       ch.motion.setCoordinate({ column: ch.inputCoord.column, row: dims.top });
-      const path = ch.motion.newPath("fall", this.config.fallSpeed, this.config.fallEasing);
+      const [minSpeed, maxSpeed] = this.config.fallSpeed;
+      const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+      const path = ch.motion.newPath("fall", speed, this.config.fallEasing);
       path.addWaypoint(ch.inputCoord);
       const raindropColor = this.config.rainColors[Math.floor(Math.random() * this.config.rainColors.length)];
       const rainScene = ch.newScene("rain");
@@ -2958,7 +2962,9 @@ var defaultPrintConfig = {
   typingSpeed: 2,
   finalGradientStops: [color("02b8bd"), color("c1f0e3"), color("00ffa0")],
   finalGradientSteps: 12,
-  finalGradientDirection: "diagonal"
+  finalGradientDirection: "diagonal",
+  printHeadReturnSpeed: 1.5,
+  printHeadEasing: inOutQuad
 };
 
 class PrintEffect {
@@ -2968,6 +2974,9 @@ class PrintEffect {
   currentRow = [];
   allTypedChars = [];
   activeChars = new Set;
+  typingHead;
+  lastColumn = 0;
+  currentRowNum = 0;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
@@ -2996,34 +3005,51 @@ class PrintEffect {
       }
     }
     this.pendingRows = rows;
+    const headId = this.canvas.characters.length > 0 ? Math.max(...this.canvas.characters.map((c) => c.id)) + 1 : 0;
+    const typingHead = new EffectCharacter(headId, "█", 1, 1);
+    typingHead.isVisible = false;
+    this.canvas.characters.push(typingHead);
+    this.typingHead = typingHead;
+    this.currentRow = this.pendingRows.shift() ?? [];
+    this.currentRowNum = this.currentRow[0]?.inputCoord.row ?? 1;
   }
   step() {
-    if (this.pendingRows.length === 0 && this.currentRow.length === 0 && this.activeChars.size === 0) {
-      return false;
-    }
-    if (this.currentRow.length === 0 && this.pendingRows.length > 0) {
-      for (const ch of this.allTypedChars) {
-        const cur = ch.motion.currentCoord;
-        ch.motion.setCoordinate({ column: cur.column, row: cur.row + 1 });
+    const headIsMoving = this.activeChars.has(this.typingHead);
+    if (!headIsMoving) {
+      if (this.currentRow.length > 0) {
+        let typed = 0;
+        while (this.currentRow.length > 0 && typed < this.config.typingSpeed) {
+          const ch = this.currentRow.shift();
+          ch.isVisible = true;
+          ch.activateScene("typing");
+          this.activeChars.add(ch);
+          this.allTypedChars.push(ch);
+          this.lastColumn = ch.inputCoord.column;
+          typed++;
+        }
+      } else if (this.pendingRows.length > 0) {
+        this.currentRow = this.pendingRows.shift();
+        const nextRowNum = this.currentRow[0]?.inputCoord.row ?? this.currentRowNum - 1;
+        const scrollBy = this.currentRowNum - nextRowNum;
+        for (const ch of this.allTypedChars) {
+          const cur = ch.motion.currentCoord;
+          ch.motion.setCoordinate({ column: cur.column, row: cur.row + scrollBy });
+        }
+        this.currentRowNum = nextRowNum;
+        const firstCol = this.currentRow[0]?.inputCoord.column ?? 1;
+        this.typingHead.motion.setCoordinate({ column: this.lastColumn, row: 1 });
+        this.typingHead.isVisible = true;
+        const crPath = this.typingHead.motion.newPath("carriage_return", this.config.printHeadReturnSpeed, this.config.printHeadEasing);
+        crPath.addWaypoint({ column: firstCol, row: 1 });
+        this.typingHead.motion.activatePath("carriage_return");
+        this.activeChars.add(this.typingHead);
       }
-      const next = this.pendingRows.shift();
-      if (next)
-        this.currentRow = next;
-    }
-    let typed = 0;
-    while (this.currentRow.length > 0 && typed < this.config.typingSpeed) {
-      const ch = this.currentRow.shift();
-      if (!ch)
-        break;
-      ch.isVisible = true;
-      ch.activateScene("typing");
-      this.activeChars.add(ch);
-      this.allTypedChars.push(ch);
-      typed++;
     }
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
+        if (ch === this.typingHead)
+          ch.isVisible = false;
         this.activeChars.delete(ch);
       }
     }
@@ -7653,14 +7679,12 @@ class LaserEtchEffect {
 var defaultOrbittingVolleyConfig = {
   launcherSymbols: ["█", "█", "█", "█"],
   launcherMovementSpeed: 0.8,
-  launcherColor: color("888888"),
   characterMovementSpeed: 1.5,
   characterEasing: outSine,
   volleySize: 0.03,
   launchDelay: 30,
   finalGradientStops: [color("FFA15C"), color("44D492")],
   finalGradientSteps: 12,
-  finalGradientFrames: 9,
   finalGradientDirection: "radial"
 };
 var nextLauncherId = 200000;
@@ -7689,12 +7713,13 @@ class OrbittingVolleyEffect {
   perimeter = [];
   activeContentChars = new Set;
   delayCounter;
-  totalChars;
+  totalInputChars;
   pathCounter = 0;
+  launcherColorMap = new Map;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
-    this.totalChars = 0;
+    this.totalInputChars = 0;
     this.delayCounter = 0;
     this.build();
   }
@@ -7703,7 +7728,9 @@ class OrbittingVolleyEffect {
     const centerCol = Math.round((dims.left + dims.right) / 2);
     const centerRow = Math.round((dims.top + dims.bottom) / 2);
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
-    this.totalChars = nonSpaceChars.length;
+    this.totalInputChars = this.canvas.getCharacters().length;
+    if (nonSpaceChars.length === 0)
+      return;
     nonSpaceChars.sort((a, b) => {
       const da = Math.hypot(a.inputCoord.column - centerCol, a.inputCoord.row - centerRow);
       const db = Math.hypot(b.inputCoord.column - centerCol, b.inputCoord.row - centerRow);
@@ -7713,11 +7740,10 @@ class OrbittingVolleyEffect {
     const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
     for (const ch of nonSpaceChars) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
-      const scene = ch.newScene("final");
-      const charGradient = new Gradient([this.config.finalGradientStops[0], finalColor], this.config.finalGradientSteps);
-      scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
+      const finalColor = colorMapping.get(key) ?? this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor.rgbHex };
     }
+    this.launcherColorMap = finalGradient.buildCoordinateColorMapping(dims.bottom, dims.top, dims.left, dims.right, this.config.finalGradientDirection);
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = false;
     }
@@ -7731,7 +7757,8 @@ class OrbittingVolleyEffect {
       const sym = this.config.launcherSymbols[i] ?? "█";
       const launcherChar = new EffectCharacter(baseId + i, sym, coord.column, coord.row);
       launcherChar.isVisible = true;
-      launcherChar.currentVisual = { symbol: sym, fgColor: this.config.launcherColor.rgbHex };
+      const initColor = this.launcherColorMap.get(coordKey(coord.column, coord.row));
+      launcherChar.currentVisual = { symbol: sym, fgColor: initColor?.rgbHex ?? "888888" };
       this.canvas.characters.push(launcherChar);
       this.launchers.push({
         char: launcherChar,
@@ -7744,8 +7771,8 @@ class OrbittingVolleyEffect {
     }
   }
   fireVolley() {
-    const { volleySize, characterMovementSpeed, characterEasing, launcherColor } = this.config;
-    const volleyCount = Math.max(1, Math.floor(volleySize * this.totalChars / 4));
+    const { volleySize, characterMovementSpeed, characterEasing } = this.config;
+    const volleyCount = Math.max(1, Math.floor(volleySize * this.totalInputChars / 4));
     const perimLen = this.perimeter.length;
     for (const launcher of this.launchers) {
       const count = Math.min(volleyCount, launcher.magazine.length);
@@ -7761,26 +7788,31 @@ class OrbittingVolleyEffect {
         const path = ch.motion.newPath(pathId, { speed: characterMovementSpeed, ease: characterEasing });
         path.addWaypoint(ch.inputCoord);
         ch.motion.activatePath(pathId);
-        ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "final");
         ch.isVisible = true;
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: launcherColor.rgbHex };
         this.activeContentChars.add(ch);
       }
     }
   }
   step() {
+    if (this.launchers.length === 0)
+      return false;
     const perimLen = this.perimeter.length;
     for (const launcher of this.launchers) {
       launcher.perimIdx = (launcher.perimIdx + this.config.launcherMovementSpeed) % perimLen;
       const coord = this.perimeter[Math.round(launcher.perimIdx) % perimLen];
       launcher.char.motion.setCoordinate(coord);
+      const launcherColor = this.launcherColorMap.get(coordKey(coord.column, coord.row));
+      if (launcherColor) {
+        launcher.char.currentVisual = { symbol: launcher.char.currentVisual.symbol, fgColor: launcherColor.rgbHex };
+      }
     }
     const anyMagazineHasChars = this.launchers.some((l) => l.magazine.length > 0);
     if (anyMagazineHasChars) {
-      this.delayCounter--;
-      if (this.delayCounter <= 0) {
+      if (this.delayCounter === 0) {
         this.fireVolley();
         this.delayCounter = this.config.launchDelay;
+      } else {
+        this.delayCounter--;
       }
     }
     for (const ch of this.activeContentChars) {
@@ -7822,10 +7854,14 @@ function createEffect(container, text, effectName, config) {
     const cfg = { ...defaultBurnConfig, ...config };
     effect = new BurnEffect(canvas, cfg);
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
+  } else if (effectName === "print") {
+    const cfg = { ...defaultPrintConfig, ...config };
+    effect = new PrintEffect(canvas, cfg);
+    renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   } else {
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   }
-  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn") {} else if (effectName === "decrypt") {
+  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn" || effectName === "print") {} else if (effectName === "decrypt") {
     const cfg = { ...defaultDecryptConfig, ...config };
     effect = new DecryptEffect(canvas, cfg);
   } else if (effectName === "slide") {
@@ -7858,9 +7894,6 @@ function createEffect(container, text, effectName, config) {
   } else if (effectName === "rain") {
     const cfg = { ...defaultRainConfig, ...config };
     effect = new RainEffect(canvas, cfg);
-  } else if (effectName === "print") {
-    const cfg = { ...defaultPrintConfig, ...config };
-    effect = new PrintEffect(canvas, cfg);
   } else if (effectName === "matrix") {
     const cfg = { ...defaultMatrixConfig, ...config };
     effect = new MatrixEffect(canvas, cfg);

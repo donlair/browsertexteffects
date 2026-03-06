@@ -9,7 +9,7 @@ export type PourDirection = "up" | "down" | "left" | "right";
 export interface PourConfig {
   pourDirection: PourDirection;
   pourSpeed: number;
-  movementSpeed: number;
+  movementSpeedRange: [number, number];
   gap: number;
   startingColor: Color;
   movementEasing: EasingFunction;
@@ -22,7 +22,7 @@ export interface PourConfig {
 export const defaultPourConfig: PourConfig = {
   pourDirection: "down",
   pourSpeed: 2,
-  movementSpeed: 0.5,
+  movementSpeedRange: [0.4, 0.6],
   gap: 1,
   startingColor: color("ffffff"),
   movementEasing: inQuad,
@@ -113,7 +113,9 @@ export class PourEffect {
 
         ch.motion.setCoordinate(startCoord);
 
-        const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
+        const [minSpeed, maxSpeed] = this.config.movementSpeedRange;
+        const speed = Math.random() * (maxSpeed - minSpeed) + minSpeed;
+        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
 
         // Gradient scene

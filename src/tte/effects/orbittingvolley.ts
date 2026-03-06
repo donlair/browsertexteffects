@@ -7,28 +7,24 @@ import { outSine } from "../easing";
 export interface OrbittingVolleyConfig {
   launcherSymbols: string[];
   launcherMovementSpeed: number;
-  launcherColor: Color;
   characterMovementSpeed: number;
   characterEasing: EasingFunction;
   volleySize: number;
   launchDelay: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
-  finalGradientFrames: number;
   finalGradientDirection: GradientDirection;
 }
 
 export const defaultOrbittingVolleyConfig: OrbittingVolleyConfig = {
   launcherSymbols: ["█", "█", "█", "█"],
   launcherMovementSpeed: 0.8,
-  launcherColor: color("888888"),
   characterMovementSpeed: 1.5,
   characterEasing: outSine,
   volleySize: 0.03,
   launchDelay: 30,
   finalGradientStops: [color("FFA15C"), color("44D492")],
   finalGradientSteps: 12,
-  finalGradientFrames: 9,
   finalGradientDirection: "radial",
 };
 
@@ -71,13 +67,14 @@ export class OrbittingVolleyEffect {
   private perimeter: Coord[] = [];
   private activeContentChars: Set<EffectCharacter> = new Set();
   private delayCounter: number;
-  private totalChars: number;
+  private totalInputChars: number;
   private pathCounter = 0;
+  private launcherColorMap: Map<string, { rgbHex: string }> = new Map();
 
   constructor(canvas: Canvas, config: OrbittingVolleyConfig) {
     this.canvas = canvas;
     this.config = config;
-    this.totalChars = 0;
+    this.totalInputChars = 0;
     // Python initializes delay to 0 so the first volley fires on tick 1
     this.delayCounter = 0;
     this.build();
@@ -90,31 +87,34 @@ export class OrbittingVolleyEffect {
 
     // Sort non-space chars by distance from center ascending (center chars first)
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
-    this.totalChars = nonSpaceChars.length;
+    this.totalInputChars = this.canvas.getCharacters().length;
+    if (nonSpaceChars.length === 0) return; // nothing to animate; step() will immediately return false
+
     nonSpaceChars.sort((a, b) => {
       const da = Math.hypot(a.inputCoord.column - centerCol, a.inputCoord.row - centerRow);
       const db = Math.hypot(b.inputCoord.column - centerCol, b.inputCoord.row - centerRow);
       return da - db;
     });
 
-    // Build final gradient color mapping
+    // Build final gradient color mapping (text bounds for character colors)
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(
       dims.textBottom, dims.textTop, dims.textLeft, dims.textRight,
       this.config.finalGradientDirection,
     );
 
-    // Build "final" scene for each non-space char (gradient landing animation)
+    // Pre-set each character's appearance to its final gradient color (Python: set_appearance before launch)
     for (const ch of nonSpaceChars) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
-      const scene = ch.newScene("final");
-      const charGradient = new Gradient(
-        [this.config.finalGradientStops[0], finalColor],
-        this.config.finalGradientSteps,
-      );
-      scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
+      const finalColor = colorMapping.get(key) ?? this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
+      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor.rgbHex };
     }
+
+    // Build launcher color map over full canvas bounds (Python: launcher_gradient_coordinate_map)
+    this.launcherColorMap = finalGradient.buildCoordinateColorMapping(
+      dims.bottom, dims.top, dims.left, dims.right,
+      this.config.finalGradientDirection,
+    );
 
     // Hide all original characters initially
     for (const ch of this.canvas.getCharacters()) {
@@ -135,7 +135,8 @@ export class OrbittingVolleyEffect {
       const sym = this.config.launcherSymbols[i] ?? "█";
       const launcherChar = new EffectCharacter(baseId + i, sym, coord.column, coord.row);
       launcherChar.isVisible = true;
-      launcherChar.currentVisual = { symbol: sym, fgColor: this.config.launcherColor.rgbHex };
+      const initColor = this.launcherColorMap.get(coordKey(coord.column, coord.row));
+      launcherChar.currentVisual = { symbol: sym, fgColor: initColor?.rgbHex ?? "888888" };
       this.canvas.characters.push(launcherChar);
 
       this.launchers.push({
@@ -152,8 +153,8 @@ export class OrbittingVolleyEffect {
   }
 
   private fireVolley(): void {
-    const { volleySize, characterMovementSpeed, characterEasing, launcherColor } = this.config;
-    const volleyCount = Math.max(1, Math.floor((volleySize * this.totalChars) / 4));
+    const { volleySize, characterMovementSpeed, characterEasing } = this.config;
+    const volleyCount = Math.max(1, Math.floor((volleySize * this.totalInputChars) / 4));
     const perimLen = this.perimeter.length;
 
     for (const launcher of this.launchers) {
@@ -172,10 +173,7 @@ export class OrbittingVolleyEffect {
         path.addWaypoint(ch.inputCoord);
         ch.motion.activatePath(pathId);
 
-        ch.eventHandler.register("PATH_COMPLETE", pathId, "ACTIVATE_SCENE", "final");
-
         ch.isVisible = true;
-        ch.currentVisual = { symbol: ch.inputSymbol, fgColor: launcherColor.rgbHex };
 
         this.activeContentChars.add(ch);
       }
@@ -183,6 +181,7 @@ export class OrbittingVolleyEffect {
   }
 
   step(): boolean {
+    if (this.launchers.length === 0) return false;
     const perimLen = this.perimeter.length;
 
     // Advance launcher positions along perimeter
@@ -190,15 +189,21 @@ export class OrbittingVolleyEffect {
       launcher.perimIdx = (launcher.perimIdx + this.config.launcherMovementSpeed) % perimLen;
       const coord = this.perimeter[Math.round(launcher.perimIdx) % perimLen];
       launcher.char.motion.setCoordinate(coord);
+      // Update launcher color to match gradient at current canvas position
+      const launcherColor = this.launcherColorMap.get(coordKey(coord.column, coord.row));
+      if (launcherColor) {
+        launcher.char.currentVisual = { symbol: launcher.char.currentVisual.symbol, fgColor: launcherColor.rgbHex };
+      }
     }
 
-    // Fire volleys on delay when magazines have chars
+    // Fire volleys on delay when magazines have chars (check-then-decrement, matching Python)
     const anyMagazineHasChars = this.launchers.some((l) => l.magazine.length > 0);
     if (anyMagazineHasChars) {
-      this.delayCounter--;
-      if (this.delayCounter <= 0) {
+      if (this.delayCounter === 0) {
         this.fireVolley();
         this.delayCounter = this.config.launchDelay;
+      } else {
+        this.delayCounter--;
       }
     }
 

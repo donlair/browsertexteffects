@@ -197,11 +197,15 @@ export function createEffect(
     const cfg = { ...defaultBurnConfig, ...config } as BurnConfig;
     effect = new BurnEffect(canvas, cfg);
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
+  } else if (effectName === "print") {
+    const cfg = { ...defaultPrintConfig, ...config } as PrintConfig;
+    effect = new PrintEffect(canvas, cfg);
+    renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   } else {
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   }
 
-  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn") {
+  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn" || effectName === "print") {
     // already constructed above
   } else if (effectName === "decrypt") {
     const cfg = { ...defaultDecryptConfig, ...config } as DecryptConfig;
@@ -236,9 +240,6 @@ export function createEffect(
   } else if (effectName === "rain") {
     const cfg = { ...defaultRainConfig, ...config } as RainConfig;
     effect = new RainEffect(canvas, cfg);
-  } else if (effectName === "print") {
-    const cfg = { ...defaultPrintConfig, ...config } as PrintConfig;
-    effect = new PrintEffect(canvas, cfg);
   } else if (effectName === "matrix") {
     const cfg = { ...defaultMatrixConfig, ...config } as MatrixConfig;
     effect = new MatrixEffect(canvas, cfg);

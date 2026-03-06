@@ -7,7 +7,7 @@ import { inQuart } from "../easing";
 export interface RainConfig {
   rainSymbols: string[];
   rainColors: Color[];
-  fallSpeed: number;
+  fallSpeed: [number, number];
   fallEasing: EasingFunction;
   charsPerTick: number;
   finalGradientStops: Color[];
@@ -28,7 +28,7 @@ export const defaultRainConfig: RainConfig = {
     color("B8D8F8"),
     color("E3EFFC"),
   ],
-  fallSpeed: 0.5,
+  fallSpeed: [0.33, 0.57],
   fallEasing: inQuart,
   charsPerTick: 2,
   finalGradientStops: [color("488bff"), color("b2e7de"), color("57eaf7")],
@@ -70,9 +70,10 @@ export class RainEffect {
       // Start at top edge of canvas (matches Python canvas.top)
       ch.motion.setCoordinate({ column: ch.inputCoord.column, row: dims.top });
 
-      // Fall path to input position — speed is per-character in Python (random in range);
-      // TS uses a fixed scalar (intentional simplification)
-      const path = ch.motion.newPath("fall", this.config.fallSpeed, this.config.fallEasing);
+      // Fall path: sample random speed per-character from range (matches Python movement_speed tuple)
+      const [minSpeed, maxSpeed] = this.config.fallSpeed;
+      const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+      const path = ch.motion.newPath("fall", speed, this.config.fallEasing);
       path.addWaypoint(ch.inputCoord);
 
       // Rain scene: single randomly chosen symbol with a random rain color (matches Python)
