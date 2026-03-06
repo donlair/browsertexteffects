@@ -193,6 +193,59 @@ export function buildSpanningTreeSimple(
   return linkOrder;
 }
 
+/**
+ * Builds a spanning tree using recursive backtracker (stack-based DFS).
+ * Produces long winding corridors with sudden backtracking jumps.
+ * Matches Python's RecursiveBacktracker algorithm used in laseretch.
+ */
+export function buildSpanningTreeDFS(
+  chars: EffectCharacter[],
+  options?: Pick<SpanningTreeOptions, "connectivity" | "startStrategy" | "includeDisconnected">,
+): EffectCharacter[] {
+  if (chars.length === 0) return [];
+
+  const connectivity = options?.connectivity ?? 8;
+  const startStrategy = options?.startStrategy ?? "random";
+  const includeDisconnected = options?.includeDisconnected ?? true;
+
+  const coordMap = buildCoordMap(chars);
+  const startChar = findStartChar(chars, startStrategy);
+
+  const linked = new Set<number>();
+  const linkOrder: EffectCharacter[] = [];
+  const stack: EffectCharacter[] = [];
+
+  linked.add(startChar.id);
+  linkOrder.push(startChar);
+  stack.push(startChar);
+
+  while (stack.length > 0) {
+    const current = stack[stack.length - 1];
+    const unvisited = getNeighbors(current, coordMap, connectivity).filter(
+      (n) => !linked.has(n.id),
+    );
+
+    if (unvisited.length > 0) {
+      const next = unvisited[Math.floor(Math.random() * unvisited.length)];
+      linked.add(next.id);
+      linkOrder.push(next);
+      stack.push(next);
+    } else {
+      stack.pop();
+    }
+  }
+
+  if (includeDisconnected) {
+    for (const ch of chars) {
+      if (!linked.has(ch.id)) {
+        linkOrder.push(ch);
+      }
+    }
+  }
+
+  return linkOrder;
+}
+
 export function buildSpanningTree(
   chars: EffectCharacter[],
   options?: SpanningTreeOptions,

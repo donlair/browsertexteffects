@@ -3036,6 +3036,7 @@ var exports_graph = {};
 __export(exports_graph, {
   getNeighbors: () => getNeighbors,
   buildSpanningTreeSimple: () => buildSpanningTreeSimple,
+  buildSpanningTreeDFS: () => buildSpanningTreeDFS,
   buildSpanningTree: () => buildSpanningTree,
   buildCoordMap: () => buildCoordMap
 });
@@ -3139,6 +3140,41 @@ function buildSpanningTreeSimple(chars, options) {
     }
     if (getUnlinkedNeighbors(next).length > 0) {
       edgeChars.push(next);
+    }
+  }
+  if (includeDisconnected) {
+    for (const ch of chars) {
+      if (!linked.has(ch.id)) {
+        linkOrder.push(ch);
+      }
+    }
+  }
+  return linkOrder;
+}
+function buildSpanningTreeDFS(chars, options) {
+  if (chars.length === 0)
+    return [];
+  const connectivity = options?.connectivity ?? 8;
+  const startStrategy = options?.startStrategy ?? "random";
+  const includeDisconnected = options?.includeDisconnected ?? true;
+  const coordMap = buildCoordMap(chars);
+  const startChar = findStartChar(chars, startStrategy);
+  const linked = new Set;
+  const linkOrder = [];
+  const stack = [];
+  linked.add(startChar.id);
+  linkOrder.push(startChar);
+  stack.push(startChar);
+  while (stack.length > 0) {
+    const current = stack[stack.length - 1];
+    const unvisited = getNeighbors(current, coordMap, connectivity).filter((n) => !linked.has(n.id));
+    if (unvisited.length > 0) {
+      const next = unvisited[Math.floor(Math.random() * unvisited.length)];
+      linked.add(next.id);
+      linkOrder.push(next);
+      stack.push(next);
+    } else {
+      stack.pop();
     }
   }
   if (includeDisconnected) {
@@ -7358,16 +7394,13 @@ class SwarmEffect {
 var defaultLaserEtchConfig = {
   etchSpeed: 1,
   etchDelay: 1,
-  beamSymbols: ["/", "//", "▓"],
   beamGradientStops: [color("ffffff"), color("376cff")],
   beamGradientSteps: 6,
-  beamFrameDuration: 2,
-  searSymbols: ["▓", "▒", "░", "█"],
-  searColors: [color("ffe680"), color("ff7b00"), color("8A003C"), color("510100")],
-  searFrameDuration: 3,
-  sparkSymbols: ["*", "·", "."],
+  beamFrameDuration: 3,
+  sparkSymbols: [".", ",", "*"],
   sparkGradientStops: [color("ffffff"), color("ffe680"), color("ff7b00"), color("1a0900")],
   sparkCoolingFrames: 7,
+  coolGradientStops: [color("ffe680"), color("ff7b00")],
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 8,
   finalGradientFrames: 4,
@@ -7380,8 +7413,8 @@ class Laser {
   beamChars = [];
   isHidden = false;
   constructor(canvas, config) {
-    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
-    const beamLength = canvas.dims.top;
+    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps, true);
+    const beamLength = canvas.dims.top + 1;
     for (let i = 0;i < beamLength; i++) {
       const id = nextLaserId++;
       const sym = i === 0 ? "*" : "/";
@@ -7449,15 +7482,17 @@ class LaserEtchEffect {
   }
   buildSparkPool() {
     const { config, canvas } = this;
-    const sparkGradient = new Gradient(config.sparkGradientStops, config.sparkGradientStops.length);
+    const sparkGradient = new Gradient(config.sparkGradientStops, [3, 8]);
     for (let i = 0;i < SPARK_POOL_SIZE; i++) {
       const id = nextLaserId++;
       const sym = config.sparkSymbols[Math.floor(Math.random() * config.sparkSymbols.length)];
       const ch = new EffectCharacter(id, sym, 0, 0);
       ch.isVisible = false;
-      ch.layer = 1;
+      ch.layer = 2;
       const scene = ch.newScene("spark");
-      scene.applyGradientToSymbols(config.sparkSymbols, config.sparkCoolingFrames, sparkGradient);
+      for (const c of sparkGradient.spectrum) {
+        scene.addFrame(ch.inputSymbol, config.sparkCoolingFrames, c.rgbHex);
+      }
       ch.eventHandler.register("SCENE_COMPLETE", "spark", "CALLBACK", {
         callback: (c) => {
           c.isVisible = false;
@@ -7474,33 +7509,31 @@ class LaserEtchEffect {
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
-    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
-    const searGradient = new Gradient(config.searColors, config.searColors.length);
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.layer === 2 || ch.layer === 1)
+      if (ch.layer === 2)
         continue;
       ch.isVisible = false;
     }
     const nonSpace = this.canvas.getNonSpaceCharacters();
     for (const ch of nonSpace) {
-      const beamScene = ch.newScene("beam");
-      beamScene.applyGradientToSymbols(config.beamSymbols, config.beamFrameDuration, beamGradient);
-      const searScene = ch.newScene("sear");
-      searScene.applyGradientToSymbols(config.searSymbols, config.searFrameDuration, searGradient);
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const lastSearColor = config.searColors[config.searColors.length - 1];
-      const charGradient = new Gradient([lastSearColor, finalColor], config.finalGradientSteps);
-      const finalScene = ch.newScene("final");
-      finalScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, charGradient);
-      ch.eventHandler.register("SCENE_COMPLETE", "beam", "ACTIVATE_SCENE", "sear");
-      ch.eventHandler.register("SCENE_COMPLETE", "sear", "ACTIVATE_SCENE", "final");
+      const coolGrad = new Gradient([...config.coolGradientStops, finalColor], 8);
+      const spawnScene = ch.newScene("spawn");
+      spawnScene.addFrame("^", 3, "ffe680");
+      for (const c of coolGrad.spectrum) {
+        spawnScene.addFrame(ch.inputSymbol, 3, c.rgbHex);
+      }
     }
-    this.pendingChars = buildSpanningTree(nonSpace, { startStrategy: "random" });
+    const allChars = this.canvas.getCharacters().filter((ch) => ch.layer !== 2);
+    this.pendingChars = buildSpanningTreeDFS(allChars, {
+      startStrategy: "random",
+      connectivity: 4
+    }).filter((ch) => !ch.isSpace);
   }
   emitSparks(coord) {
     const { canvas } = this;
-    const sparkCount = 3 + Math.floor(Math.random() * 3);
+    const sparkCount = 1;
     for (let i = 0;i < sparkCount; i++) {
       const spark = this.sparkPool[this.sparkIndex % SPARK_POOL_SIZE];
       this.sparkIndex++;
@@ -7510,11 +7543,11 @@ class LaserEtchEffect {
       }
       spark.motion.setCoordinate({ column: coord.column, row: coord.row });
       spark.motion.activePath = null;
-      const fallColumn = coord.column + Math.floor(Math.random() * 20) - 10;
+      const fallColumn = coord.column + Math.floor(Math.random() * 41) - 20;
       const fallPath = spark.motion.newPath("fall", { speed: 0.3, ease: outSine });
       const bezierControl = {
         column: fallColumn,
-        row: coord.row + Math.floor(Math.random() * 30) - 10
+        row: coord.row + Math.floor(Math.random() * 31) - 10
       };
       fallPath.addWaypoint({ column: fallColumn, row: canvas.dims.bottom }, bezierControl);
       spark.isVisible = true;
@@ -7525,6 +7558,7 @@ class LaserEtchEffect {
   }
   step() {
     if (this.pendingChars.length === 0 && this.activeChars.size === 0 && this.activeSparks.size === 0) {
+      this.laser.hide();
       return false;
     }
     this.frameCount++;
@@ -7536,15 +7570,15 @@ class LaserEtchEffect {
           if (!ch)
             break;
           ch.isVisible = true;
-          ch.activateScene("beam");
+          ch.activateScene("spawn");
           this.activeChars.add(ch);
           this.laser.reposition(ch.inputCoord);
           this.emitSparks(ch.inputCoord);
         }
       }
-      if (this.pendingChars.length === 0) {
-        this.laser.hide();
-      }
+    }
+    if (this.pendingChars.length === 0) {
+      this.laser.hide();
     }
     for (const ch of this.activeChars) {
       ch.tick();

@@ -2,22 +2,19 @@ import { type Color, type Coord, type GradientDirection, color } from "../types"
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import { EffectCharacter } from "../character";
-import { buildSpanningTree } from "../graph";
+import { buildSpanningTreeDFS } from "../graph";
 import { outSine } from "../easing";
 
 export interface LaserEtchConfig {
   etchSpeed: number;
   etchDelay: number;
-  beamSymbols: string[];
   beamGradientStops: Color[];
   beamGradientSteps: number;
   beamFrameDuration: number;
-  searSymbols: string[];
-  searColors: Color[];
-  searFrameDuration: number;
   sparkSymbols: string[];
   sparkGradientStops: Color[];
   sparkCoolingFrames: number;
+  coolGradientStops: Color[];
   finalGradientStops: Color[];
   finalGradientSteps: number;
   finalGradientFrames: number;
@@ -27,16 +24,13 @@ export interface LaserEtchConfig {
 export const defaultLaserEtchConfig: LaserEtchConfig = {
   etchSpeed: 1,
   etchDelay: 1,
-  beamSymbols: ["/", "//", "▓"],
   beamGradientStops: [color("ffffff"), color("376cff")],
   beamGradientSteps: 6,
-  beamFrameDuration: 2,
-  searSymbols: ["▓", "▒", "░", "█"],
-  searColors: [color("ffe680"), color("ff7b00"), color("8A003C"), color("510100")],
-  searFrameDuration: 3,
-  sparkSymbols: ["*", "·", "."],
+  beamFrameDuration: 3,
+  sparkSymbols: [".", ",", "*"],
   sparkGradientStops: [color("ffffff"), color("ffe680"), color("ff7b00"), color("1a0900")],
   sparkCoolingFrames: 7,
+  coolGradientStops: [color("ffe680"), color("ff7b00")],
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 8,
   finalGradientFrames: 4,
@@ -52,8 +46,8 @@ class Laser {
   isHidden = false;
 
   constructor(canvas: Canvas, config: LaserEtchConfig) {
-    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
-    const beamLength = canvas.dims.top;
+    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps, true);
+    const beamLength = canvas.dims.top + 1;
 
     for (let i = 0; i < beamLength; i++) {
       const id = nextLaserId++;
@@ -132,17 +126,19 @@ export class LaserEtchEffect {
 
   private buildSparkPool(): void {
     const { config, canvas } = this;
-    const sparkGradient = new Gradient(config.sparkGradientStops, config.sparkGradientStops.length);
+    const sparkGradient = new Gradient(config.sparkGradientStops, [3, 8]);
 
     for (let i = 0; i < SPARK_POOL_SIZE; i++) {
       const id = nextLaserId++;
       const sym = config.sparkSymbols[Math.floor(Math.random() * config.sparkSymbols.length)];
       const ch = new EffectCharacter(id, sym, 0, 0);
       ch.isVisible = false;
-      ch.layer = 1;
+      ch.layer = 2;
 
       const scene = ch.newScene("spark");
-      scene.applyGradientToSymbols(config.sparkSymbols, config.sparkCoolingFrames, sparkGradient);
+      for (const c of sparkGradient.spectrum) {
+        scene.addFrame(ch.inputSymbol, config.sparkCoolingFrames, c.rgbHex);
+      }
 
       // On scene complete, hide the spark
       ch.eventHandler.register("SCENE_COMPLETE", "spark", "CALLBACK", {
@@ -168,43 +164,38 @@ export class LaserEtchEffect {
       config.finalGradientDirection,
     );
 
-    const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
-    const searGradient = new Gradient(config.searColors, config.searColors.length);
-
     for (const ch of this.canvas.getCharacters()) {
       // Skip laser beam chars and spark pool chars (they manage their own visibility)
-      if (ch.layer === 2 || ch.layer === 1) continue;
+      if (ch.layer === 2) continue;
       ch.isVisible = false;
     }
 
     const nonSpace = this.canvas.getNonSpaceCharacters();
 
     for (const ch of nonSpace) {
-      const beamScene = ch.newScene("beam");
-      beamScene.applyGradientToSymbols(config.beamSymbols, config.beamFrameDuration, beamGradient);
-
-      const searScene = ch.newScene("sear");
-      searScene.applyGradientToSymbols(config.searSymbols, config.searFrameDuration, searGradient);
-
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) ?? config.finalGradientStops[config.finalGradientStops.length - 1];
-      const lastSearColor = config.searColors[config.searColors.length - 1];
-      const charGradient = new Gradient([lastSearColor, finalColor], config.finalGradientSteps);
-      const finalScene = ch.newScene("final");
-      finalScene.applyGradientToSymbols(ch.inputSymbol, config.finalGradientFrames, charGradient);
+      const coolGrad = new Gradient([...config.coolGradientStops, finalColor], 8);
 
-      ch.eventHandler.register("SCENE_COMPLETE", "beam", "ACTIVATE_SCENE", "sear");
-      ch.eventHandler.register("SCENE_COMPLETE", "sear", "ACTIVATE_SCENE", "final");
+      const spawnScene = ch.newScene("spawn");
+      spawnScene.addFrame("^", 3, "ffe680");
+      for (const c of coolGrad.spectrum) {
+        spawnScene.addFrame(ch.inputSymbol, 3, c.rgbHex);
+      }
     }
 
-    // Python's laseretch uses RecursiveBacktracker starting from a random char within text boundary.
-    this.pendingChars = buildSpanningTree(nonSpace, { startStrategy: "random" });
+    // Python's RecursiveBacktracker traverses ALL chars (including spaces) for 4-connectivity,
+    // so DFS can cross blank lines through space positions. Then filter to non-space for etching.
+    const allChars = this.canvas.getCharacters().filter(ch => ch.layer !== 2);
+    this.pendingChars = buildSpanningTreeDFS(allChars, {
+      startStrategy: "random",
+      connectivity: 4,
+    }).filter(ch => !ch.isSpace);
   }
 
   private emitSparks(coord: Coord): void {
     const { canvas } = this;
-    // Emit a few sparks per activation (matching Python's spark emission rate)
-    const sparkCount = 3 + Math.floor(Math.random() * 3);
+    const sparkCount = 1;
     for (let i = 0; i < sparkCount; i++) {
       const spark = this.sparkPool[this.sparkIndex % SPARK_POOL_SIZE];
       this.sparkIndex++;
@@ -222,11 +213,11 @@ export class LaserEtchEffect {
       spark.motion.activePath = null;
 
       // Create fall path with bezier curve
-      const fallColumn = coord.column + Math.floor(Math.random() * 20) - 10;
+      const fallColumn = coord.column + Math.floor(Math.random() * 41) - 20;
       const fallPath = spark.motion.newPath("fall", { speed: 0.3, ease: outSine });
       const bezierControl: Coord = {
         column: fallColumn,
-        row: coord.row + Math.floor(Math.random() * 30) - 10,
+        row: coord.row + Math.floor(Math.random() * 31) - 10,
       };
       fallPath.addWaypoint({ column: fallColumn, row: canvas.dims.bottom }, bezierControl);
 
@@ -239,6 +230,7 @@ export class LaserEtchEffect {
 
   step(): boolean {
     if (this.pendingChars.length === 0 && this.activeChars.size === 0 && this.activeSparks.size === 0) {
+      this.laser.hide();
       return false;
     }
 
@@ -251,7 +243,7 @@ export class LaserEtchEffect {
           const ch = this.pendingChars.shift();
           if (!ch) break;
           ch.isVisible = true;
-          ch.activateScene("beam");
+          ch.activateScene("spawn");
           this.activeChars.add(ch);
 
           // Move laser beam to this character and emit sparks
@@ -259,11 +251,11 @@ export class LaserEtchEffect {
           this.emitSparks(ch.inputCoord);
         }
       }
+    }
 
-      // Hide beam when all characters have been activated
-      if (this.pendingChars.length === 0) {
-        this.laser.hide();
-      }
+    // Hide beam when all characters have been activated (checked every frame, matching Python)
+    if (this.pendingChars.length === 0) {
+      this.laser.hide();
     }
 
     for (const ch of this.activeChars) {
