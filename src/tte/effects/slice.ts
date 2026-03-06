@@ -11,7 +11,6 @@ export interface SliceConfig {
   movementEasing: EasingFunction;
   finalGradientStops: Color[];
   finalGradientSteps: number;
-  finalGradientFrames: number;
   finalGradientDirection: GradientDirection;
 }
 
@@ -21,7 +20,6 @@ export const defaultSliceConfig: SliceConfig = {
   movementEasing: inOutExpo,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
-  finalGradientFrames: 6,
   finalGradientDirection: "diagonal",
 };
 
@@ -47,40 +45,33 @@ export class SliceEffect {
       this.config.finalGradientDirection,
     );
 
-    // Make spaces visible immediately
-    for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace) {
-        ch.isVisible = true;
-      }
-    }
-
     const { sliceDirection } = this.config;
+    const charsToActivate: EffectCharacter[] = [];
 
     if (sliceDirection === "vertical") {
       const centerCol = dims.textCenterColumn;
       for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
-        const speed = this.config.movementSpeed;
-        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
+        const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
 
-        const startRow =
-          ch.inputCoord.column <= centerCol ? dims.top + 1 : dims.bottom - 1;
+        const startRow = ch.inputCoord.column <= centerCol ? dims.top + 1 : dims.bottom - 1;
         ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
 
-        this.addGradientScene(ch, colorMapping);
+        this.setStaticAppearance(ch, colorMapping);
+        charsToActivate.push(ch);
       }
     } else if (sliceDirection === "horizontal") {
       const speed = this.config.movementSpeed * 2;
       const centerRow = dims.textCenterRow;
-      for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
+      for (const ch of this.canvas.getCharacters()) {
         const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
 
-        const startCol =
-          ch.inputCoord.row <= centerRow ? dims.left - 1 : dims.right + 1;
+        const startCol = ch.inputCoord.row <= centerRow ? dims.left - 1 : dims.right + 1;
         ch.motion.setCoordinate({ column: startCol, row: ch.inputCoord.row });
 
-        this.addGradientScene(ch, colorMapping);
+        this.setStaticAppearance(ch, colorMapping);
+        charsToActivate.push(ch);
       }
     } else {
       // diagonal
@@ -94,7 +85,8 @@ export class SliceEffect {
           const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
           path.addWaypoint(ch.inputCoord);
           ch.motion.setCoordinate({ column: group[0].inputCoord.column, row: dims.bottom - 1 });
-          this.addGradientScene(ch, colorMapping);
+          this.setStaticAppearance(ch, colorMapping);
+          charsToActivate.push(ch);
         }
       }
 
@@ -103,29 +95,25 @@ export class SliceEffect {
           const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
           path.addWaypoint(ch.inputCoord);
           ch.motion.setCoordinate({ column: group[group.length - 1].inputCoord.column, row: dims.top + 1 });
-          this.addGradientScene(ch, colorMapping);
+          this.setStaticAppearance(ch, colorMapping);
+          charsToActivate.push(ch);
         }
       }
     }
 
-    // Activate all characters at once
-    for (const ch of this.canvas.getCharacters().filter(ch => !ch.isSpace)) {
+    for (const ch of charsToActivate) {
       ch.isVisible = true;
       ch.motion.activatePath("input_path");
-      ch.activateScene("gradient_scene");
       this.activeChars.add(ch);
     }
   }
 
-  private addGradientScene(ch: EffectCharacter, colorMapping: Map<string, Color>): void {
+  private setStaticAppearance(ch: EffectCharacter, colorMapping: Map<string, Color>): void {
     const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
     const charFinalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-    const scene = ch.newScene("gradient_scene");
-    const charGradient = new Gradient(
-      [this.config.finalGradientStops[0], charFinalColor],
-      this.config.finalGradientSteps,
-    );
-    scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
+    const scene = ch.newScene("static");
+    scene.addFrame(ch.inputSymbol, 1, charFinalColor.rgbHex);
+    ch.activateScene("static");
   }
 
   step(): boolean {

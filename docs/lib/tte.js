@@ -3061,6 +3061,7 @@ class PrintEffect {
 var exports_graph = {};
 __export(exports_graph, {
   getNeighbors: () => getNeighbors,
+  buildSpanningTreeWaves: () => buildSpanningTreeWaves,
   buildSpanningTreeSimple: () => buildSpanningTreeSimple,
   buildSpanningTreeDFS: () => buildSpanningTreeDFS,
   buildSpanningTree: () => buildSpanningTree,
@@ -3280,6 +3281,67 @@ function buildSpanningTree(chars, options) {
   }
   order.push(...disconnected);
   return order;
+}
+function buildSpanningTreeWaves(chars, options) {
+  if (chars.length === 0)
+    return [];
+  const connectivity = options?.connectivity ?? 8;
+  const startStrategy = options?.startStrategy ?? "bottomCenter";
+  const weightFn = options?.weightFn ?? defaultWeightFn;
+  const includeDisconnected = options?.includeDisconnected ?? true;
+  const coordMap = buildCoordMap(chars);
+  const startChar = findStartChar(chars, startStrategy);
+  const inTree = new Set;
+  const treeChildren = new Map;
+  const frontier = [];
+  function addToTree(ch, parent) {
+    inTree.add(ch.id);
+    if (parent) {
+      if (!treeChildren.has(parent.id))
+        treeChildren.set(parent.id, []);
+      treeChildren.get(parent.id)?.push(ch);
+    }
+    for (const neighbor of getNeighbors(ch, coordMap, connectivity)) {
+      if (!inTree.has(neighbor.id)) {
+        const dc = neighbor.inputCoord.column - ch.inputCoord.column;
+        const dr = neighbor.inputCoord.row - ch.inputCoord.row;
+        frontier.push({ char: neighbor, weight: weightFn(dc, dr), parent: ch });
+      }
+    }
+  }
+  addToTree(startChar, null);
+  while (frontier.length > 0) {
+    let minIdx = 0;
+    for (let i = 1;i < frontier.length; i++) {
+      if (frontier[i].weight < frontier[minIdx].weight)
+        minIdx = i;
+    }
+    const entry = frontier[minIdx];
+    frontier.splice(minIdx, 1);
+    if (inTree.has(entry.char.id))
+      continue;
+    addToTree(entry.char, entry.parent);
+  }
+  const waves = [];
+  let currentLevel = [startChar];
+  while (currentLevel.length > 0) {
+    waves.push(currentLevel);
+    const nextLevel = [];
+    for (const ch of currentLevel) {
+      nextLevel.push(...treeChildren.get(ch.id) ?? []);
+    }
+    currentLevel = nextLevel;
+  }
+  if (includeDisconnected) {
+    const disconnected = [];
+    for (const ch of chars) {
+      if (!inTree.has(ch.id))
+        disconnected.push(ch);
+    }
+    if (disconnected.length > 0)
+      waves.push(disconnected);
+  }
+  return waves;
 }
 
 // src/tte/effects/burn.ts
@@ -3857,7 +3919,6 @@ var defaultRingsConfig = {
   spinDisperseCycles: 3,
   finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
-  finalGradientFrames: 9,
   finalGradientDirection: "vertical"
 };
 function shuffle2(arr) {
@@ -3876,12 +3937,16 @@ class RingsEffect {
   activeChars = new Set;
   rings = [];
   center = { column: 1, row: 1 };
-  colorMapping = new Map;
+  charFinalColorMap = new Map;
   charRingMap = new Map;
+  nonRingChars = [];
+  initialDisperseComplete = false;
+  gapPixels = 1;
   phase = "start";
   phaseFrames = 0;
   cyclesRemaining;
   pathCounter = 0;
+  charLastRingCoord = new Map;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
@@ -3892,7 +3957,7 @@ class RingsEffect {
     const { dims } = this.canvas;
     this.center = dims.center;
     const minDim = Math.min(dims.right - dims.left + 1, dims.top - dims.bottom + 1);
-    const gapPixels = Math.max(1, Math.round(this.config.ringGap * minDim));
+    this.gapPixels = Math.max(1, Math.round(this.config.ringGap * minDim));
     const maxRadius = Math.max(dims.right, dims.top);
     let radius = 1;
     let ringIdx = 0;
@@ -3910,55 +3975,110 @@ class RingsEffect {
           coordsReversed: [...coords].reverse(),
           speed,
           characters: [],
-          clockwise: ringIdx % 2 === 0
+          clockwise: ringIdx % 2 === 0,
+          charRingPathId: new Map,
+          charRingStartCoord: new Map
         });
         ringIdx++;
       }
-      radius += gapPixels;
+      radius += this.gapPixels;
     }
     if (this.rings.length === 0)
       return;
+    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    for (const ch of this.canvas.getCharacters()) {
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      this.charFinalColorMap.set(ch.id, colorMapping.get(key) ?? this.config.finalGradientStops[0]);
+    }
+    for (const ch of this.canvas.getCharacters()) {
+      const finalColor = this.charFinalColorMap.get(ch.id);
+      const startScene = ch.newScene("start", true);
+      startScene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
+      ch.activateScene(startScene);
+      const homePath = ch.motion.newPath("home", { speed: 0.8, ease: outQuad });
+      homePath.addWaypoint(ch.inputCoord);
+      ch.isVisible = true;
+    }
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
     shuffle2(nonSpaceChars);
     let charIdx = 0;
     for (const ring of this.rings) {
+      const ringColor = this.config.ringColors[ring.index % this.config.ringColors.length];
+      const coords = ring.clockwise ? ring.coords : ring.coordsReversed;
       for (let i = 0;i < ring.coords.length && charIdx < nonSpaceChars.length; i++, charIdx++) {
         const ch = nonSpaceChars[charIdx];
         ring.characters.push(ch);
         this.charRingMap.set(ch.id, ring);
+        const charIndex = ring.characters.length - 1;
+        const finalColor = this.charFinalColorMap.get(ch.id);
+        const pathId = `ring_${ch.id}`;
+        const ringPath = ch.motion.newPath(pathId, { speed: ring.speed, loop: true });
+        const startIdx = charIndex % coords.length;
+        for (let j = 0;j < coords.length; j++) {
+          ringPath.addWaypoint(coords[(startIdx + j) % coords.length]);
+        }
+        ring.charRingPathId.set(ch.id, pathId);
+        ring.charRingStartCoord.set(ch.id, coords[startIdx]);
+        const gradientScene = ch.newScene("gradient", false);
+        const gradientGrad = new Gradient([finalColor, ringColor], 8);
+        gradientScene.applyGradientToSymbols(ch.inputSymbol, 3, gradientGrad);
+        const disperseScene = ch.newScene("disperse", false);
+        const disperseGrad = new Gradient([ringColor, finalColor], 8);
+        disperseScene.applyGradientToSymbols(ch.inputSymbol, 10, disperseGrad);
       }
       if (charIdx >= nonSpaceChars.length)
         break;
     }
-    const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
     for (const ch of this.canvas.getCharacters()) {
-      ch.isVisible = true;
-      if (!ch.isSpace) {
-        this.activeChars.add(ch);
-      }
-    }
-    for (const ring of this.rings) {
-      const ringColor = this.config.ringColors[ring.index % this.config.ringColors.length];
-      for (const ch of ring.characters) {
-        const scene = ch.newScene("ring_color", true);
-        scene.addFrame(ch.inputSymbol, 1, ringColor.rgbHex);
-      }
+      if (this.charRingMap.has(ch.id))
+        continue;
+      const externalPath = ch.motion.newPath("external", { speed: 0.8, ease: outSine });
+      externalPath.addWaypoint(this.canvas.randomCoord({ outsideScope: true }));
+      this.nonRingChars.push(ch);
     }
   }
   transitionToDisperse() {
     this.phase = "disperse";
     this.phaseFrames = 0;
+    const isFirstDisperse = !this.initialDisperseComplete;
+    if (isFirstDisperse) {
+      this.initialDisperseComplete = true;
+      for (const ch of this.nonRingChars) {
+        ch.motion.activatePath("external");
+        this.activeChars.add(ch);
+      }
+    } else {
+      for (const ring of this.rings) {
+        for (const ch of ring.characters) {
+          this.charLastRingCoord.set(ch.id, { ...ch.motion.currentCoord });
+        }
+      }
+    }
     for (const ring of this.rings) {
-      const disperseRadius = Math.max(2, Math.round(ring.radius * 0.5));
       for (const ch of ring.characters) {
-        const disperseCoords = findCoordsInRect(this.center, disperseRadius);
-        const target = disperseCoords[Math.floor(Math.random() * disperseCoords.length)];
-        const pathId = `d${this.pathCounter++}`;
-        const path = ch.motion.newPath(pathId, 0.5);
-        path.addWaypoint(target);
-        ch.motion.activatePath(pathId);
-        ch.activateScene("ring_color");
+        const origin = isFirstDisperse ? ring.charRingStartCoord.get(ch.id) ?? ch.motion.currentCoord : ch.motion.currentCoord;
+        if (isFirstDisperse) {
+          this.activeChars.add(ch);
+        }
+        const disperseCoords = findCoordsInRect(origin, this.gapPixels);
+        if (disperseCoords.length === 0)
+          continue;
+        const dispersePathId = `disp_${ch.id}`;
+        const dispersePath = ch.motion.newPath(dispersePathId, { speed: 0.14, loop: true });
+        for (let i = 0;i < 5; i++) {
+          dispersePath.addWaypoint(disperseCoords[Math.floor(Math.random() * disperseCoords.length)]);
+        }
+        if (isFirstDisperse) {
+          const initPathId = `init_${ch.id}`;
+          const initPath = ch.motion.newPath(initPathId, { speed: 0.3, ease: outCubic });
+          initPath.addWaypoint(dispersePath.waypoints[0].coord);
+          ch.eventHandler.register("PATH_COMPLETE", initPathId, "ACTIVATE_PATH", dispersePathId);
+          ch.motion.activatePath(initPathId);
+        } else {
+          ch.motion.activatePath(dispersePathId);
+        }
+        ch.activateScene("disperse");
       }
     }
   }
@@ -3966,49 +4086,30 @@ class RingsEffect {
     this.phase = "spin";
     this.phaseFrames = 0;
     for (const ring of this.rings) {
-      const coords = ring.clockwise ? ring.coords : ring.coordsReversed;
-      if (coords.length === 0)
-        continue;
       for (const ch of ring.characters) {
-        let closestIdx = 0;
-        let closestDist = Infinity;
-        for (let i = 0;i < coords.length; i++) {
-          const dx = coords[i].column - ch.motion.currentCoord.column;
-          const dy = coords[i].row - ch.motion.currentCoord.row;
-          const dist = dx * dx + dy * dy;
-          if (dist < closestDist) {
-            closestDist = dist;
-            closestIdx = i;
-          }
-        }
-        const pathId = `s${this.pathCounter++}`;
-        const path = ch.motion.newPath(pathId, ring.speed);
-        const laps = 3;
-        for (let lap = 0;lap < laps; lap++) {
-          for (let i = 0;i < coords.length; i++) {
-            const idx = (closestIdx + i) % coords.length;
-            path.addWaypoint(coords[idx]);
-          }
-        }
-        ch.motion.activatePath(pathId);
+        const ringPathId = ring.charRingPathId.get(ch.id);
+        const ringPath = ch.motion.paths.get(ringPathId);
+        const condenseId = `cond_${this.pathCounter++}`;
+        const condensePath = ch.motion.newPath(condenseId, 0.1);
+        const condenseTgt = this.charLastRingCoord.get(ch.id) ?? ringPath.waypoints[0].coord;
+        condensePath.addWaypoint(condenseTgt);
+        ch.eventHandler.register("PATH_COMPLETE", condenseId, "ACTIVATE_PATH", ringPathId);
+        ch.motion.activatePath(condenseId);
+        ch.activateScene("gradient");
       }
     }
   }
   transitionToFinal() {
     this.phase = "final";
     this.phaseFrames = 0;
+    for (const ch of this.canvas.getCharacters()) {
+      ch.isVisible = true;
+      ch.motion.activatePath("home");
+      this.activeChars.add(ch);
+    }
     for (const ring of this.rings) {
       for (const ch of ring.characters) {
-        const pathId = `f${this.pathCounter++}`;
-        const path = ch.motion.newPath(pathId, 0.5);
-        path.addWaypoint(ch.inputCoord);
-        ch.motion.activatePath(pathId);
-        const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-        const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
-        const scene = ch.newScene("gradient");
-        const charGradient = new Gradient([this.config.finalGradientStops[0], finalColor], 10);
-        scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
-        ch.activateScene(scene);
+        ch.activateScene("disperse");
       }
     }
   }
@@ -4025,6 +4126,11 @@ class RingsEffect {
       case "disperse":
         for (const ch of this.activeChars) {
           ch.tick();
+          if (!ch.isActive) {
+            if (this.nonRingChars.includes(ch))
+              ch.isVisible = false;
+            this.activeChars.delete(ch);
+          }
         }
         if (this.phaseFrames >= this.config.disperseDuration) {
           this.transitionToSpin();
@@ -4033,6 +4139,11 @@ class RingsEffect {
       case "spin":
         for (const ch of this.activeChars) {
           ch.tick();
+          if (!ch.isActive) {
+            if (this.nonRingChars.includes(ch))
+              ch.isVisible = false;
+            this.activeChars.delete(ch);
+          }
         }
         if (this.phaseFrames >= this.config.spinDuration) {
           this.cyclesRemaining--;
@@ -4813,10 +4924,7 @@ class SpotlightsEffect {
     this.canvas = canvas;
     this.config = config;
     const { dims } = canvas;
-    this.center = {
-      column: Math.round((dims.left + dims.right) / 2),
-      row: Math.round((dims.top + dims.bottom) / 2)
-    };
+    this.center = dims.center;
     const smallestDim = Math.min(dims.right, dims.top);
     this.beamWidth = Math.max(1, Math.floor(smallestDim / config.beamWidthRatio));
     this.maxExpandRadius = Math.floor(Math.max(dims.right, dims.top) / 1.5);
@@ -4857,7 +4965,11 @@ class SpotlightsEffect {
   }
   newSpotlightPath(spotlight) {
     const { dims } = this.canvas;
-    const newEnd = randomCoord(dims);
+    const minDist = Math.floor(dims.right / 4);
+    let newEnd;
+    do {
+      newEnd = randomCoord(dims);
+    } while (findLengthOfLine(spotlight.coord, newEnd) < minDist);
     spotlight.pathStart = { ...spotlight.coord };
     spotlight.pathEnd = newEnd;
     spotlight.pathControl = randomControl(spotlight.pathStart, newEnd, dims);
@@ -4868,7 +4980,8 @@ class SpotlightsEffect {
     for (const sl of this.spotlights) {
       const step = sl.speed / sl.pathLength;
       sl.pathProgress = Math.min(1, sl.pathProgress + step);
-      sl.coord = findCoordOnBezierCurve(sl.pathStart, [sl.pathControl], sl.pathEnd, sl.pathProgress);
+      const easedT = inOutQuad(sl.pathProgress);
+      sl.coord = findCoordOnBezierCurve(sl.pathStart, [sl.pathControl], sl.pathEnd, easedT);
       if (sl.pathProgress >= 1) {
         this.newSpotlightPath(sl);
       }
@@ -5542,7 +5655,7 @@ var defaultSmokeConfig = {
 
 class SmokeEffect {
   canvas;
-  pendingChars = [];
+  pendingWaves = [];
   activeChars = new Set;
   constructor(canvas, config) {
     this.canvas = canvas;
@@ -5571,18 +5684,18 @@ class SmokeEffect {
       paintScene.applyGradientToSymbols([ch.inputSymbol], 5, paintGradient);
       ch.eventHandler.register("SCENE_COMPLETE", "smoke", "ACTIVATE_SCENE", "paint");
     }
-    this.pendingChars = buildSpanningTree(chars, { startStrategy: "random", traversal: "bfs" });
+    this.pendingWaves = buildSpanningTreeWaves(chars, { startStrategy: "random" });
   }
   step() {
-    if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
+    if (this.pendingWaves.length === 0 && this.activeChars.size === 0) {
       return false;
     }
-    if (this.pendingChars.length > 0) {
-      const ch = this.pendingChars.shift();
-      if (!ch)
-        return false;
-      ch.activateScene("smoke");
-      this.activeChars.add(ch);
+    if (this.pendingWaves.length > 0) {
+      const wave = this.pendingWaves.shift();
+      for (const ch of wave) {
+        ch.activateScene("smoke");
+        this.activeChars.add(ch);
+      }
     }
     for (const ch of this.activeChars) {
       ch.tick();
@@ -5590,7 +5703,7 @@ class SmokeEffect {
         this.activeChars.delete(ch);
       }
     }
-    return this.pendingChars.length > 0 || this.activeChars.size > 0;
+    return this.pendingWaves.length > 0 || this.activeChars.size > 0;
   }
 }
 
@@ -6036,7 +6149,6 @@ var defaultSliceConfig = {
   movementEasing: inOutExpo,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
-  finalGradientFrames: 6,
   finalGradientDirection: "diagonal"
 };
 
@@ -6053,31 +6165,28 @@ class SliceEffect {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace) {
-        ch.isVisible = true;
-      }
-    }
     const { sliceDirection } = this.config;
+    const charsToActivate = [];
     if (sliceDirection === "vertical") {
       const centerCol = dims.textCenterColumn;
       for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
-        const speed = this.config.movementSpeed;
-        const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
+        const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
         const startRow = ch.inputCoord.column <= centerCol ? dims.top + 1 : dims.bottom - 1;
         ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
-        this.addGradientScene(ch, colorMapping);
+        this.setStaticAppearance(ch, colorMapping);
+        charsToActivate.push(ch);
       }
     } else if (sliceDirection === "horizontal") {
       const speed = this.config.movementSpeed * 2;
       const centerRow = dims.textCenterRow;
-      for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
+      for (const ch of this.canvas.getCharacters()) {
         const path = ch.motion.newPath("input_path", speed, this.config.movementEasing);
         path.addWaypoint(ch.inputCoord);
         const startCol = ch.inputCoord.row <= centerRow ? dims.left - 1 : dims.right + 1;
         ch.motion.setCoordinate({ column: startCol, row: ch.inputCoord.row });
-        this.addGradientScene(ch, colorMapping);
+        this.setStaticAppearance(ch, colorMapping);
+        charsToActivate.push(ch);
       }
     } else {
       const groups = this.canvas.getCharactersGrouped("diagonal", { includeSpaces: false });
@@ -6089,7 +6198,8 @@ class SliceEffect {
           const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
           path.addWaypoint(ch.inputCoord);
           ch.motion.setCoordinate({ column: group[0].inputCoord.column, row: dims.bottom - 1 });
-          this.addGradientScene(ch, colorMapping);
+          this.setStaticAppearance(ch, colorMapping);
+          charsToActivate.push(ch);
         }
       }
       for (const group of rightHalf) {
@@ -6097,23 +6207,23 @@ class SliceEffect {
           const path = ch.motion.newPath("input_path", this.config.movementSpeed, this.config.movementEasing);
           path.addWaypoint(ch.inputCoord);
           ch.motion.setCoordinate({ column: group[group.length - 1].inputCoord.column, row: dims.top + 1 });
-          this.addGradientScene(ch, colorMapping);
+          this.setStaticAppearance(ch, colorMapping);
+          charsToActivate.push(ch);
         }
       }
     }
-    for (const ch of this.canvas.getCharacters().filter((ch2) => !ch2.isSpace)) {
+    for (const ch of charsToActivate) {
       ch.isVisible = true;
       ch.motion.activatePath("input_path");
-      ch.activateScene("gradient_scene");
       this.activeChars.add(ch);
     }
   }
-  addGradientScene(ch, colorMapping) {
+  setStaticAppearance(ch, colorMapping) {
     const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
     const charFinalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-    const scene = ch.newScene("gradient_scene");
-    const charGradient = new Gradient([this.config.finalGradientStops[0], charFinalColor], this.config.finalGradientSteps);
-    scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
+    const scene = ch.newScene("static");
+    scene.addFrame(ch.inputSymbol, 1, charFinalColor.rgbHex);
+    ch.activateScene("static");
   }
   step() {
     if (this.activeChars.size === 0)

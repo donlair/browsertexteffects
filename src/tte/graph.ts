@@ -335,3 +335,86 @@ export function buildSpanningTree(
   order.push(...disconnected);
   return order;
 }
+
+/**
+ * Builds a spanning tree using Prim's weighted algorithm and returns characters
+ * grouped by BFS depth level. Each inner array contains all characters at the
+ * same distance from the root in the spanning tree.
+ *
+ * Matches Python's smoke effect: PrimsWeighted builds the tree, BreadthFirst
+ * traverses it level-by-level so all chars at equal depth activate in one frame.
+ */
+export function buildSpanningTreeWaves(
+  chars: EffectCharacter[],
+  options?: Pick<SpanningTreeOptions, "connectivity" | "startStrategy" | "weightFn" | "includeDisconnected">,
+): EffectCharacter[][] {
+  if (chars.length === 0) return [];
+
+  const connectivity = options?.connectivity ?? 8;
+  const startStrategy = options?.startStrategy ?? "bottomCenter";
+  const weightFn = options?.weightFn ?? defaultWeightFn;
+  const includeDisconnected = options?.includeDisconnected ?? true;
+
+  const coordMap = buildCoordMap(chars);
+  const startChar = findStartChar(chars, startStrategy);
+
+  const inTree = new Set<number>();
+  const treeChildren = new Map<number, EffectCharacter[]>();
+
+  interface FrontierEntry {
+    char: EffectCharacter;
+    weight: number;
+    parent: EffectCharacter;
+  }
+  const frontier: FrontierEntry[] = [];
+
+  function addToTree(ch: EffectCharacter, parent: EffectCharacter | null) {
+    inTree.add(ch.id);
+    if (parent) {
+      if (!treeChildren.has(parent.id)) treeChildren.set(parent.id, []);
+      treeChildren.get(parent.id)?.push(ch);
+    }
+    for (const neighbor of getNeighbors(ch, coordMap, connectivity)) {
+      if (!inTree.has(neighbor.id)) {
+        const dc = neighbor.inputCoord.column - ch.inputCoord.column;
+        const dr = neighbor.inputCoord.row - ch.inputCoord.row;
+        frontier.push({ char: neighbor, weight: weightFn(dc, dr), parent: ch });
+      }
+    }
+  }
+
+  addToTree(startChar, null);
+
+  while (frontier.length > 0) {
+    let minIdx = 0;
+    for (let i = 1; i < frontier.length; i++) {
+      if (frontier[i].weight < frontier[minIdx].weight) minIdx = i;
+    }
+    const entry = frontier[minIdx];
+    frontier.splice(minIdx, 1);
+    if (inTree.has(entry.char.id)) continue;
+    addToTree(entry.char, entry.parent);
+  }
+
+  // BFS level-by-level traversal over the spanning tree
+  const waves: EffectCharacter[][] = [];
+  let currentLevel: EffectCharacter[] = [startChar];
+  while (currentLevel.length > 0) {
+    waves.push(currentLevel);
+    const nextLevel: EffectCharacter[] = [];
+    for (const ch of currentLevel) {
+      nextLevel.push(...(treeChildren.get(ch.id) ?? []));
+    }
+    currentLevel = nextLevel;
+  }
+
+  if (includeDisconnected) {
+    const disconnected: EffectCharacter[] = [];
+    for (const ch of chars) {
+      if (!inTree.has(ch.id)) disconnected.push(ch);
+    }
+    if (disconnected.length > 0) waves.push(disconnected);
+  }
+
+  return waves;
+}

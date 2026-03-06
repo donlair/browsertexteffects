@@ -3,7 +3,7 @@ import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
 import { findCoordOnBezierCurve, findLengthOfLine } from "../geometry";
-import { inOutSine } from "../easing";
+import { inOutSine, inOutQuad } from "../easing";
 
 export interface SpotlightsConfig {
   spotlightCount: number;
@@ -85,10 +85,7 @@ export class SpotlightsEffect {
     this.config = config;
 
     const { dims } = canvas;
-    this.center = {
-      column: Math.round((dims.left + dims.right) / 2),
-      row: Math.round((dims.top + dims.bottom) / 2),
-    };
+    this.center = dims.center;
     // Python: max(int(min(smallest_dim // ratio, smallest_dim)), 1)
     const smallestDim = Math.min(dims.right, dims.top);
     this.beamWidth = Math.max(1, Math.floor(smallestDim / config.beamWidthRatio));
@@ -145,7 +142,11 @@ export class SpotlightsEffect {
 
   private newSpotlightPath(spotlight: Spotlight): void {
     const { dims } = this.canvas;
-    const newEnd = randomCoord(dims);
+    const minDist = Math.floor(dims.right / 4);
+    let newEnd: Coord;
+    do {
+      newEnd = randomCoord(dims);
+    } while (findLengthOfLine(spotlight.coord, newEnd) < minDist);
     spotlight.pathStart = { ...spotlight.coord };
     spotlight.pathEnd = newEnd;
     spotlight.pathControl = randomControl(spotlight.pathStart, newEnd, dims);
@@ -157,7 +158,8 @@ export class SpotlightsEffect {
     for (const sl of this.spotlights) {
       const step = sl.speed / sl.pathLength;
       sl.pathProgress = Math.min(1, sl.pathProgress + step);
-      sl.coord = findCoordOnBezierCurve(sl.pathStart, [sl.pathControl], sl.pathEnd, sl.pathProgress);
+      const easedT = inOutQuad(sl.pathProgress);
+      sl.coord = findCoordOnBezierCurve(sl.pathStart, [sl.pathControl], sl.pathEnd, easedT);
 
       if (sl.pathProgress >= 1) {
         this.newSpotlightPath(sl);

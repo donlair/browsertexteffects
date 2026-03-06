@@ -2,7 +2,7 @@ import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { buildSpanningTree } from "../graph";
+import { buildSpanningTreeWaves } from "../graph";
 
 export interface SmokeConfig {
   startingColor: Color;
@@ -27,7 +27,7 @@ export const defaultSmokeConfig: SmokeConfig = {
 
 export class SmokeEffect {
   private canvas: Canvas;
-  private pendingChars: EffectCharacter[] = [];
+  private pendingWaves: EffectCharacter[][] = [];
   private activeChars: Set<EffectCharacter> = new Set();
 
   constructor(canvas: Canvas, config: SmokeConfig) {
@@ -79,23 +79,25 @@ export class SmokeEffect {
       ch.eventHandler.register("SCENE_COMPLETE", "smoke", "ACTIVATE_SCENE", "paint");
     }
 
-    // Build spanning tree from a random start, then return characters in BFS traversal order.
-    // Matches Python's smoke effect: PrimsWeighted builds the tree, BreadthFirst traverses it
-    // wave-by-wave so nearby characters activate at similar times (flood-fill spread).
-    this.pendingChars = buildSpanningTree(chars, { startStrategy: "random", traversal: "bfs" });
+    // Build spanning tree from a random start, grouped by BFS depth level.
+    // Matches Python: PrimsWeighted builds the tree, BreadthFirst advances one full depth
+    // level per frame — all chars at equal distance from root activate simultaneously.
+    this.pendingWaves = buildSpanningTreeWaves(chars, { startStrategy: "random" });
   }
 
   step(): boolean {
-    if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
+    if (this.pendingWaves.length === 0 && this.activeChars.size === 0) {
       return false;
     }
 
-    // Release one character per tick, matching Python BFS one-step-per-frame
-    if (this.pendingChars.length > 0) {
-      const ch = this.pendingChars.shift();
-      if (!ch) return false;
-      ch.activateScene("smoke");
-      this.activeChars.add(ch);
+    // Activate all chars in the next BFS depth level — matches Python BreadthFirst
+    // which advances one full level per frame (explored_last_step).
+    if (this.pendingWaves.length > 0) {
+      const wave = this.pendingWaves.shift()!;
+      for (const ch of wave) {
+        ch.activateScene("smoke");
+        this.activeChars.add(ch);
+      }
     }
 
     for (const ch of this.activeChars) {
@@ -105,6 +107,6 @@ export class SmokeEffect {
       }
     }
 
-    return this.pendingChars.length > 0 || this.activeChars.size > 0;
+    return this.pendingWaves.length > 0 || this.activeChars.size > 0;
   }
 }
