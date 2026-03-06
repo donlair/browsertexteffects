@@ -40,14 +40,20 @@ export class Canvas {
     let maxCol = 0;
     const numRows = lines.length;
 
+    // When includeSpaces is true, we need maxLineLength to fill blank lines
+    const maxLineLength = includeSpaces ? Math.max(...lines.map((l) => l.length), 0) : 0;
+
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
-      if (line.trim().length === 0) continue; // preserve row gap, skip chars
+      if (line.trim().length === 0 && !includeSpaces) continue; // preserve row gap, skip chars
       // Row: top line = highest row number, bottom = 1
       const row = numRows - lineIdx;
 
-      for (let colIdx = 0; colIdx < line.length; colIdx++) {
-        const ch = line[colIdx];
+      // For blank lines with includeSpaces, fill with spaces up to maxLineLength
+      const effectiveLine = line.trim().length === 0 && includeSpaces ? " ".repeat(maxLineLength) : line;
+
+      for (let colIdx = 0; colIdx < effectiveLine.length; colIdx++) {
+        const ch = effectiveLine[colIdx];
         if (!includeSpaces && ch === " ") continue;
         const col = colIdx + 1; // 1-based columns
         const ec = new EffectCharacter(id++, ch, col, row);

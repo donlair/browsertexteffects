@@ -742,13 +742,15 @@ class Canvas {
     let id = 0;
     let maxCol = 0;
     const numRows = lines.length;
+    const maxLineLength = includeSpaces ? Math.max(...lines.map((l) => l.length), 0) : 0;
     for (let lineIdx = 0;lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
-      if (line.trim().length === 0)
+      if (line.trim().length === 0 && !includeSpaces)
         continue;
       const row = numRows - lineIdx;
-      for (let colIdx = 0;colIdx < line.length; colIdx++) {
-        const ch = line[colIdx];
+      const effectiveLine = line.trim().length === 0 && includeSpaces ? " ".repeat(maxLineLength) : line;
+      for (let colIdx = 0;colIdx < effectiveLine.length; colIdx++) {
+        const ch = effectiveLine[colIdx];
         if (!includeSpaces && ch === " ")
           continue;
         const col = colIdx + 1;
@@ -3220,42 +3222,84 @@ function buildSpanningTree(chars, options) {
 
 // src/tte/effects/burn.ts
 var defaultBurnConfig = {
-  burnSpeed: 3,
   burnSymbols: ["'", ".", "▖", "▙", "█", "▜", "▀", "▝", "."],
   burnFrameDuration: 4,
   burnColors: [color("ffffff"), color("fff75d"), color("fe650d"), color("8A003C"), color("510100")],
   startingColor: color("837373"),
+  smokeChance: 0.5,
   finalGradientStops: [color("00c3ff"), color("ffff1c")],
   finalGradientSteps: 12,
   finalGradientFrames: 4,
   finalGradientDirection: "vertical"
 };
+var SMOKE_SYMBOLS = [".", ",", "'", "`", "#", "*"];
+var SMOKE_POOL_SIZE = 2000;
 
 class BurnEffect {
   canvas;
   config;
   pendingChars = [];
   activeChars = new Set;
+  smokeParticles = [];
+  smokeParticleIds = new Set;
+  smokeIndex = 0;
+  pendingSmoke = new Set;
   constructor(canvas, config) {
     this.canvas = canvas;
     this.config = config;
+    this.makeSmoke();
     this.build();
+  }
+  makeSmoke() {
+    const smokeGradient = new Gradient([color("504F4F"), color("C7C7C7")], 9);
+    const smokeColors = smokeGradient.spectrum;
+    let nextId = this.canvas.characters.length > 0 ? Math.max(...this.canvas.characters.map((c) => c.id)) + 1 : 0;
+    for (let i = 0;i < SMOKE_POOL_SIZE; i++) {
+      const symbol = SMOKE_SYMBOLS[Math.floor(Math.random() * SMOKE_SYMBOLS.length)];
+      const ch = new EffectCharacter(nextId++, symbol, 0, 0);
+      ch.layer = 2;
+      const smokeScene = ch.newScene("smoke");
+      for (const c of smokeColors) {
+        smokeScene.addFrame(ch.inputSymbol, 10, c.rgbHex);
+      }
+      ch.eventHandler.register("SCENE_COMPLETE", "smoke", "CALLBACK", {
+        callback: (c) => {
+          c.isVisible = false;
+        },
+        args: []
+      });
+      this.smokeParticles.push(ch);
+      this.smokeParticleIds.add(ch.id);
+      this.canvas.characters.push(ch);
+    }
+  }
+  emitSmoke(origin) {
+    if (Math.random() > this.config.smokeChance)
+      return;
+    const particle = this.smokeParticles[this.smokeIndex];
+    this.smokeIndex = (this.smokeIndex + 1) % this.smokeParticles.length;
+    particle.motion.setCoordinate(origin);
+    const smokeScene = particle.scenes.get("smoke");
+    if (smokeScene)
+      smokeScene.reset();
+    particle.isVisible = true;
+    const smokePath = particle.motion.newPath("smoke_rise", { speed: 0.5 });
+    const riseCol = origin.column + Math.floor(Math.random() * 9) - 4;
+    const riseRow = this.canvas.dims.top + 1;
+    smokePath.addWaypoint({ column: riseCol, row: riseRow });
+    particle.motion.activatePath("smoke_rise");
+    particle.activateScene("smoke");
+    this.pendingSmoke.add(particle);
   }
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
     const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
     const fireGradient = new Gradient(this.config.burnColors, 10);
-    for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace) {
-        ch.isVisible = true;
-        continue;
-      }
+    const allChars = this.canvas.getCharacters().filter((ch) => !this.smokeParticleIds.has(ch.id));
+    for (const ch of allChars) {
       ch.isVisible = true;
       ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.config.startingColor.rgbHex };
-    }
-    const nonSpace = this.canvas.getNonSpaceCharacters();
-    for (const ch of nonSpace) {
       const burnScene = ch.newScene("burn");
       burnScene.applyGradientToSymbols(this.config.burnSymbols, this.config.burnFrameDuration, fireGradient);
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
@@ -3265,21 +3309,32 @@ class BurnEffect {
       const charGradient = new Gradient([lastBurnColor, finalColor], 8);
       finalScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
       ch.eventHandler.register("SCENE_COMPLETE", "burn", "ACTIVATE_SCENE", "final");
+      ch.eventHandler.register("SCENE_COMPLETE", "burn", "CALLBACK", {
+        callback: (c) => {
+          this.emitSmoke(c.inputCoord);
+        },
+        args: []
+      });
     }
-    this.pendingChars = buildSpanningTreeSimple(nonSpace, { startStrategy: "random" });
+    this.pendingChars = buildSpanningTreeSimple(allChars, { startStrategy: "random", connectivity: 4 });
   }
   step() {
     if (this.pendingChars.length === 0 && this.activeChars.size === 0) {
       return false;
     }
-    let ignited = 0;
-    while (this.pendingChars.length > 0 && ignited < this.config.burnSpeed) {
-      const ch = this.pendingChars.shift();
-      if (!ch)
+    for (const p of this.pendingSmoke) {
+      this.activeChars.add(p);
+    }
+    this.pendingSmoke.clear();
+    const activateCount = Math.floor(Math.random() * 3) + 2;
+    for (let i = 0;i < activateCount; i++) {
+      if (this.pendingChars.length === 0)
         break;
+      const ch = this.pendingChars.shift();
+      if (ch.inputSymbol === " ")
+        continue;
       ch.activateScene("burn");
       this.activeChars.add(ch);
-      ignited++;
     }
     for (const ch of this.activeChars) {
       ch.tick();
@@ -7677,10 +7732,14 @@ function createEffect(container, text, effectName, config) {
     const cfg = { ...defaultLaserEtchConfig, ...config };
     effect = new LaserEtchEffect(canvas, cfg);
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
+  } else if (effectName === "burn") {
+    const cfg = { ...defaultBurnConfig, ...config };
+    effect = new BurnEffect(canvas, cfg);
+    renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   } else {
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   }
-  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch") {} else if (effectName === "decrypt") {
+  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn") {} else if (effectName === "decrypt") {
     const cfg = { ...defaultDecryptConfig, ...config };
     effect = new DecryptEffect(canvas, cfg);
   } else if (effectName === "slide") {
@@ -7716,9 +7775,6 @@ function createEffect(container, text, effectName, config) {
   } else if (effectName === "print") {
     const cfg = { ...defaultPrintConfig, ...config };
     effect = new PrintEffect(canvas, cfg);
-  } else if (effectName === "burn") {
-    const cfg = { ...defaultBurnConfig, ...config };
-    effect = new BurnEffect(canvas, cfg);
   } else if (effectName === "matrix") {
     const cfg = { ...defaultMatrixConfig, ...config };
     effect = new MatrixEffect(canvas, cfg);
