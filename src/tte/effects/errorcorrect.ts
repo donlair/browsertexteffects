@@ -1,8 +1,7 @@
-import { type Color, type EasingFunction, type GradientDirection, color } from "../types";
+import { type Color, type GradientDirection, color } from "../types";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
-import { inOutCubic } from "../easing";
 
 export interface ErrorCorrectConfig {
   errorPairs: number; // 0-1.0, fraction of chars to pair-swap
@@ -10,7 +9,6 @@ export interface ErrorCorrectConfig {
   errorColor: Color;
   correctColor: Color;
   movementSpeed: number;
-  movementEasing: EasingFunction;
   finalGradientStops: Color[];
   finalGradientSteps: number;
   finalGradientDirection: GradientDirection;
@@ -22,7 +20,6 @@ export const defaultErrorCorrectConfig: ErrorCorrectConfig = {
   errorColor: color("e74c3c"),
   correctColor: color("45bf55"),
   movementSpeed: 0.9,
-  movementEasing: inOutCubic,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
   finalGradientDirection: "vertical",
@@ -92,13 +89,11 @@ export class ErrorCorrectEffect {
       if (pairedSet.has(ch)) {
         this.buildSwappedChar(ch, finalColor);
       } else {
-        // Non-swapped chars: just show with final gradient immediately
+        // Non-swapped chars: show static in final gradient color (matches Python)
         ch.isVisible = true;
-        const scene = ch.newScene("final");
-        const grad = new Gradient([this.config.finalGradientStops[0], finalColor], 8);
-        scene.applyGradientToSymbols(ch.inputSymbol, 2, grad);
+        const scene = ch.newScene("spawn");
+        scene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
         ch.activateScene(scene);
-        this.activeChars.add(ch);
       }
     }
   }
@@ -130,7 +125,7 @@ export class ErrorCorrectEffect {
     }
 
     // --- correcting scene: gradient from error → correct color, uses "█" symbol (steps=10, duration=3) ---
-    const correctingScene = ch.newScene("correcting");
+    const correctingScene = ch.newScene("correcting", { sync: "DISTANCE" });
     const correctGrad = new Gradient([this.config.errorColor, this.config.correctColor], 10);
     correctingScene.applyGradientToSymbols("█", 3, correctGrad);
 
@@ -146,7 +141,7 @@ export class ErrorCorrectEffect {
     finalScene.applyGradientToSymbols(ch.inputSymbol, 3, finalGrad);
 
     // --- motion path back to input coord ---
-    const path = ch.motion.newPath("correct_path", this.config.movementSpeed, this.config.movementEasing);
+    const path = ch.motion.newPath("correct_path", this.config.movementSpeed);
     path.addWaypoint(ch.inputCoord);
 
     // --- event chain (matches Python) ---

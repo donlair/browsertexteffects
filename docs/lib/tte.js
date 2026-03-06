@@ -3950,7 +3950,6 @@ var defaultErrorCorrectConfig = {
   errorColor: color("e74c3c"),
   correctColor: color("45bf55"),
   movementSpeed: 0.9,
-  movementEasing: inOutCubic,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
@@ -4000,11 +3999,9 @@ class ErrorCorrectEffect {
         this.buildSwappedChar(ch, finalColor);
       } else {
         ch.isVisible = true;
-        const scene = ch.newScene("final");
-        const grad = new Gradient([this.config.finalGradientStops[0], finalColor], 8);
-        scene.applyGradientToSymbols(ch.inputSymbol, 2, grad);
+        const scene = ch.newScene("spawn");
+        scene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
         ch.activateScene(scene);
-        this.activeChars.add(ch);
       }
     }
   }
@@ -4026,7 +4023,7 @@ class ErrorCorrectEffect {
     for (const block of blockWipeUp) {
       firstWipe.addFrame(block, 3, errorColor);
     }
-    const correctingScene = ch.newScene("correcting");
+    const correctingScene = ch.newScene("correcting", { sync: "DISTANCE" });
     const correctGrad = new Gradient([this.config.errorColor, this.config.correctColor], 10);
     correctingScene.applyGradientToSymbols("█", 3, correctGrad);
     const lastWipe = ch.newScene("last_block_wipe");
@@ -4036,7 +4033,7 @@ class ErrorCorrectEffect {
     const finalScene = ch.newScene("final");
     const finalGrad = new Gradient([this.config.correctColor, finalColor], 10);
     finalScene.applyGradientToSymbols(ch.inputSymbol, 3, finalGrad);
-    const path = ch.motion.newPath("correct_path", this.config.movementSpeed, this.config.movementEasing);
+    const path = ch.motion.newPath("correct_path", this.config.movementSpeed);
     path.addWaypoint(ch.inputCoord);
     ch.eventHandler.register("SCENE_COMPLETE", "error", "ACTIVATE_SCENE", "first_block_wipe");
     ch.eventHandler.register("SCENE_COMPLETE", "first_block_wipe", "ACTIVATE_PATH", "correct_path");
