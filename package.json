@@ -2,17 +2,21 @@
   "name": "browser-text-effects",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --format esm",
-    "dev": "bun build src/index.ts --outdir dist --format esm --watch",
-    "docs:build": "bun build src/index.ts --outfile docs/lib/tte.js --format esm",
-    "docs:serve": "bun scripts/serve-docs.ts",
+    "build": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser",
+    "dev": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser --watch",
+    "docs:build": "esbuild src/index.ts --bundle --format=esm --outfile=docs/lib/tte.js --platform=browser",
+    "docs:serve": "node scripts/serve-docs.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint ./src",
     "lint:fix": "biome lint --write ./src"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.5",
+    "esbuild": "^0.25.0",
     "typescript": "^5.0.0"
   }
 }

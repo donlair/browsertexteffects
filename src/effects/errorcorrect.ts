@@ -125,7 +125,7 @@ export class ErrorCorrectEffect {
     }
 
     // --- correcting scene: gradient from error → correct color, uses "█" symbol (steps=10, duration=3) ---
-    const correctingScene = ch.newScene("correcting", { sync: "DISTANCE" });
+    const correctingScene = ch.newScene("correcting", false, { sync: "DISTANCE" });
     const correctGrad = new Gradient([this.config.errorColor, this.config.correctColor], 10);
     correctingScene.applyGradientToSymbols("█", 3, correctGrad);
 

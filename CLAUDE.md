@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Development
 
 ```bash
-bun run build        # Build ESM bundle to dist/index.js
-bun run dev          # Build with watch mode
+npm run build        # Build ESM bundle to dist/index.js
+npm run dev          # Build with watch mode
 ```
 
-Uses Bun as both package manager and build tool. Single devDependency: TypeScript.
+Uses Node 22+ and npm. Build tool: esbuild. Package manager: npm.
 
 ## Architecture
 

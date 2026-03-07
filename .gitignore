@@ -1,2 +1,5 @@
 node_modules/
 dist/
+.playwright-mcp/
+.claude/
+CLAUDE.md
