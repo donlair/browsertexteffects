@@ -1,18 +1,47 @@
 {
-  "name": "browser-text-effects",
-  "version": "0.1.0",
-  "private": true,
+  "name": "browsertexteffects",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "37 animated text effects for the browser — decrypt, matrix, burn, fireworks, and more",
+  "license": "MIT",
+  "author": "Don Lair <don.lair@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/donlair/browsertexteffects.git"
+  },
+  "keywords": [
+    "text-effects",
+    "animation",
+    "browser",
+    "dom",
+    "typescript",
+    "canvas",
+    "text-animation"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser",
+    "build": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser && tsc --emitDeclarationOnly",
     "dev": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser --watch",
-    "docs:build": "esbuild src/index.ts --bundle --format=esm --outfile=docs/lib/tte.js --platform=browser",
+    "docs:build": "esbuild src/index.ts --bundle --format=esm --outfile=docs/lib/bte.js --platform=browser",
     "docs:serve": "node scripts/serve-docs.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint ./src",
-    "lint:fix": "biome lint --write ./src"
+    "lint:fix": "biome lint --write ./src",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.5",
