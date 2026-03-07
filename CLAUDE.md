@@ -28,7 +28,7 @@ Effects live in `src/effects/`. Each effect:
 - Implements a `step()` method returning boolean (animation complete)
 - Manages character state transitions through scenes and paths
 
-14 built-in effects: burn, colorshift, decrypt, expand, middleout, pour, print, rain, randomsequence, scattered, slide, sweep, waves, wipe.
+37 built-in effects (see `src/effects/`).
 
 ## Public API
 
@@ -39,6 +39,28 @@ Entry point: `src/index.ts`. Two main exports:
 ## Coordinate System
 
 1-based columns (left-to-right). Rows are **reversed**: top line = highest row number, bottom = 1. This applies to both input positions and animation waypoints.
+
+## Publishing
+
+npm package: `browsertexteffects`. GitHub repo: `donlair/browsertexteffects`.
+
+```bash
+# Bump version in package.json, then:
+npm publish --otp=<code>   # 2FA required
+```
+
+`prepublishOnly` runs `npm run build` automatically, which bundles with esbuild and generates `.d.ts` files via `tsc --emitDeclarationOnly`.
+
+## Docs / GitHub Pages
+
+Showroom served from `docs/` on `main` branch via GitHub Pages.
+
+```bash
+npm run docs:build   # Rebuild docs/lib/bte.js
+npm run docs:serve   # Local preview
+```
+
+The `docs.yml` GitHub Action auto-rebuilds `docs/lib/bte.js` on push to main.
 
 ## Testing
 
