@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "bun build src/tte/index.ts --outdir dist --format esm",
-    "dev": "bun build src/tte/index.ts --outdir dist --format esm --watch",
-    "docs:build": "bun build src/tte/index.ts --outfile docs/lib/tte.js --format esm",
+    "build": "bun build src/index.ts --outdir dist --format esm",
+    "dev": "bun build src/index.ts --outdir dist --format esm --watch",
+    "docs:build": "bun build src/index.ts --outfile docs/lib/tte.js --format esm",
     "docs:serve": "bun scripts/serve-docs.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint ./src",

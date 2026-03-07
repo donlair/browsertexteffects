@@ -9,7 +9,7 @@ var __export = (target, all) => {
     });
 };
 
-// src/tte/scene.ts
+// src/scene.ts
 function* cyclicDistribute(larger, smaller) {
   if (smaller.length === 0)
     return;
@@ -158,7 +158,7 @@ class Scene {
   }
 }
 
-// src/tte/geometry.ts
+// src/geometry.ts
 var exports_geometry = {};
 __export(exports_geometry, {
   findNormalizedDistanceFromCenter: () => findNormalizedDistanceFromCenter,
@@ -311,7 +311,7 @@ function findNormalizedDistanceFromCenter(bottom, top, left, right, coord) {
   return distance / (maxDistance / 2);
 }
 
-// src/tte/motion.ts
+// src/motion.ts
 class Path {
   id;
   speed;
@@ -528,7 +528,7 @@ function coordOnLine(start, end, t) {
   };
 }
 
-// src/tte/events.ts
+// src/events.ts
 class EventHandler {
   registry = new Map;
   register(event, callerId, action, target = null) {
@@ -544,7 +544,7 @@ class EventHandler {
   }
 }
 
-// src/tte/character.ts
+// src/character.ts
 class EffectCharacter {
   id;
   inputSymbol;
@@ -727,7 +727,7 @@ class EffectCharacter {
   }
 }
 
-// src/tte/canvas.ts
+// src/canvas.ts
 class Canvas {
   characters = [];
   dims;
@@ -901,7 +901,7 @@ class Canvas {
   }
 }
 
-// src/tte/renderer.ts
+// src/renderer.ts
 class DOMRenderer {
   container;
   canvas;
@@ -1140,7 +1140,7 @@ class DOMRenderer {
   }
 }
 
-// src/tte/types.ts
+// src/types.ts
 var XTERM_TO_HEX = {
   0: "000000",
   1: "800000",
@@ -1430,7 +1430,7 @@ function adjustBrightness(c, factor) {
   return color(nr.toString(16).padStart(2, "0") + ng.toString(16).padStart(2, "0") + nb.toString(16).padStart(2, "0"));
 }
 
-// src/tte/gradient.ts
+// src/gradient.ts
 class Gradient {
   spectrum;
   constructor(stops, steps = 1, loop = false) {
@@ -1542,7 +1542,7 @@ function normalizedDistFromCenter(bottom, top, left, right, col, row) {
   return dist / (maxDist / 2);
 }
 
-// src/tte/effects/decrypt.ts
+// src/effects/decrypt.ts
 var defaultDecryptConfig = {
   typingSpeed: 2,
   ciphertextColors: [color("008000"), color("00cb00"), color("00ff00")],
@@ -1673,7 +1673,7 @@ class DecryptEffect {
   }
 }
 
-// src/tte/easing.ts
+// src/easing.ts
 var exports_easing = {};
 __export(exports_easing, {
   outSine: () => outSine,
@@ -1909,7 +1909,7 @@ class SequenceEaser {
   }
 }
 
-// src/tte/effects/slide.ts
+// src/effects/slide.ts
 var defaultSlideConfig = {
   movementSpeed: 0.8,
   grouping: "row",
@@ -2062,7 +2062,7 @@ class SlideEffect {
   }
 }
 
-// src/tte/effects/wipe.ts
+// src/effects/wipe.ts
 var defaultWipeConfig = {
   wipeDirection: "diagonalTopLeftToBottomRight",
   wipeEase: inOutCirc,
@@ -2147,7 +2147,7 @@ class WipeEffect {
   }
 }
 
-// src/tte/effects/randomsequence.ts
+// src/effects/randomsequence.ts
 var defaultRandomSequenceConfig = {
   startingColor: color("000000"),
   speed: 0.007,
@@ -2218,7 +2218,7 @@ class RandomSequenceEffect {
   }
 }
 
-// src/tte/effects/middleout.ts
+// src/effects/middleout.ts
 var defaultMiddleOutConfig = {
   startingColor: color("ffffff"),
   expandDirection: "vertical",
@@ -2315,7 +2315,7 @@ class MiddleOutEffect {
   }
 }
 
-// src/tte/effects/colorshift.ts
+// src/effects/colorshift.ts
 var defaultColorShiftConfig = {
   gradientStops: [color("e81416"), color("ffa500"), color("faeb36"), color("79c314"), color("487de7"), color("4b369d"), color("70369d")],
   gradientSteps: 12,
@@ -2408,7 +2408,7 @@ class ColorShiftEffect {
   }
 }
 
-// src/tte/effects/scattered.ts
+// src/effects/scattered.ts
 var defaultScatteredConfig = {
   movementSpeed: 0.5,
   movementEasing: inOutBack,
@@ -2470,7 +2470,7 @@ class ScatteredEffect {
   }
 }
 
-// src/tte/effects/pour.ts
+// src/effects/pour.ts
 var defaultPourConfig = {
   pourDirection: "down",
   pourSpeed: 2,
@@ -2594,7 +2594,7 @@ class PourEffect {
   }
 }
 
-// src/tte/effects/sweep.ts
+// src/effects/sweep.ts
 var defaultSweepConfig = {
   sweepSymbols: ["█", "▓", "▒", "░"],
   firstSweepDirection: "right_to_left",
@@ -2716,7 +2716,7 @@ class SweepEffect {
   }
 }
 
-// src/tte/effects/expand.ts
+// src/effects/expand.ts
 var defaultExpandConfig = {
   movementSpeed: 0.35,
   expandEasing: inOutQuart,
@@ -2773,7 +2773,7 @@ class ExpandEffect {
   }
 }
 
-// src/tte/effects/waves.ts
+// src/effects/waves.ts
 var defaultWavesConfig = {
   waveSymbols: ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂", "▁"],
   waveCount: 7,
@@ -2847,7 +2847,7 @@ class WavesEffect {
   }
 }
 
-// src/tte/effects/rain.ts
+// src/effects/rain.ts
 var defaultRainConfig = {
   rainSymbols: ["o", ".", ",", "*", "|"],
   rainColors: [
@@ -2942,7 +2942,7 @@ class RainEffect {
   }
 }
 
-// src/tte/effects/print.ts
+// src/effects/print.ts
 var defaultPrintConfig = {
   typingSpeed: 2,
   finalGradientStops: [color("02b8bd"), color("c1f0e3"), color("00ffa0")],
@@ -3042,7 +3042,7 @@ class PrintEffect {
   }
 }
 
-// src/tte/graph.ts
+// src/graph.ts
 var exports_graph = {};
 __export(exports_graph, {
   getNeighbors: () => getNeighbors,
@@ -3329,7 +3329,7 @@ function buildSpanningTreeWaves(chars, options) {
   return waves;
 }
 
-// src/tte/effects/burn.ts
+// src/effects/burn.ts
 var defaultBurnConfig = {
   burnSymbols: ["'", ".", "▖", "▙", "█", "▜", "▀", "▝", "."],
   burnFrameDuration: 4,
@@ -3455,7 +3455,7 @@ class BurnEffect {
   }
 }
 
-// src/tte/effects/matrix.ts
+// src/effects/matrix.ts
 var RAIN_SYMBOLS_COMMON = ["2", "5", "9", "8", "Z", "*", ")", ":", ".", '"', "=", "+", "-", "¦", "|", "_"];
 var RAIN_SYMBOLS_KATA = [
   "ｦ",
@@ -3827,7 +3827,7 @@ class MatrixEffect {
   }
 }
 
-// src/tte/effects/highlight.ts
+// src/effects/highlight.ts
 var defaultHighlightConfig = {
   highlightBrightness: 1.75,
   highlightDirection: "diagonal",
@@ -3894,7 +3894,7 @@ class HighlightEffect {
   }
 }
 
-// src/tte/effects/rings.ts
+// src/effects/rings.ts
 var defaultRingsConfig = {
   ringColors: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   ringGap: 0.1,
@@ -4156,7 +4156,7 @@ class RingsEffect {
   }
 }
 
-// src/tte/effects/errorcorrect.ts
+// src/effects/errorcorrect.ts
 var defaultErrorCorrectConfig = {
   errorPairs: 0.1,
   swapDelay: 6,
@@ -4289,7 +4289,7 @@ class ErrorCorrectEffect {
   }
 }
 
-// src/tte/effects/unstable.ts
+// src/effects/unstable.ts
 var defaultUnstableConfig = {
   unstableColor: color("ff9200"),
   explosionEase: outExpo,
@@ -4453,7 +4453,7 @@ class UnstableEffect {
   }
 }
 
-// src/tte/effects/overflow.ts
+// src/effects/overflow.ts
 var defaultOverflowConfig = {
   overflowGradientStops: [color("f2ebc0"), color("8dbfb3"), color("f2ebc0")],
   overflowCyclesRange: [2, 4],
@@ -4618,7 +4618,7 @@ class OverflowEffect {
   }
 }
 
-// src/tte/effects/bouncyballs.ts
+// src/effects/bouncyballs.ts
 var defaultBouncyBallsConfig = {
   ballColors: [color("d1f4a5"), color("96e2a4"), color("5acda9")],
   ballSymbols: ["*", "o", "O", "0", "."],
@@ -4717,7 +4717,7 @@ class BouncyBallsEffect {
   }
 }
 
-// src/tte/effects/fireworks.ts
+// src/effects/fireworks.ts
 var defaultFireworksConfig = {
   explodeAnywhere: false,
   fireworkColors: [
@@ -4857,7 +4857,7 @@ class FireworksEffect {
   }
 }
 
-// src/tte/effects/spotlights.ts
+// src/effects/spotlights.ts
 var defaultSpotlightsConfig = {
   spotlightCount: 3,
   beamWidthRatio: 2,
@@ -5100,7 +5100,7 @@ class SpotlightsEffect {
   }
 }
 
-// src/tte/effects/vhstape.ts
+// src/effects/vhstape.ts
 var defaultVhstapeConfig = {
   glitchLineColors: [
     color("ffffff"),
@@ -5401,7 +5401,7 @@ class VhstapeEffect {
   }
 }
 
-// src/tte/effects/blackhole.ts
+// src/effects/blackhole.ts
 var defaultBlackholeConfig = {
   blackholeColor: color("ffffff"),
   starColors: [
@@ -5685,7 +5685,7 @@ class BlackholeEffect {
   }
 }
 
-// src/tte/effects/smoke.ts
+// src/effects/smoke.ts
 var defaultSmokeConfig = {
   startingColor: color("7A7A7A"),
   smokeSymbols: ["░", "▒", "▓", "▒", "░"],
@@ -5750,7 +5750,7 @@ class SmokeEffect {
   }
 }
 
-// src/tte/effects/bubbles.ts
+// src/effects/bubbles.ts
 var defaultBubblesConfig = {
   bubbleColors: [color("d33aff"), color("7395c4"), color("43c2a7"), color("02ff7f")],
   popColor: color("ffffff"),
@@ -5904,7 +5904,7 @@ class BubblesEffect {
   }
 }
 
-// src/tte/effects/spray.ts
+// src/effects/spray.ts
 var defaultSprayConfig = {
   sprayColors: [color("8A008A"), color("00D1FF"), color("ffffff")],
   spraySymbols: ["*", "·", ".", "+"],
@@ -6039,7 +6039,7 @@ class SprayEffect {
   }
 }
 
-// src/tte/effects/beams.ts
+// src/effects/beams.ts
 var defaultBeamsConfig = {
   beamRowSymbols: ["▂", "▁", "_"],
   beamColumnSymbols: ["▌", "▍", "▎", "▏"],
@@ -6194,7 +6194,7 @@ class BeamsEffect {
   }
 }
 
-// src/tte/effects/slice.ts
+// src/effects/slice.ts
 var defaultSliceConfig = {
   sliceDirection: "vertical",
   movementSpeed: 0.25,
@@ -6290,7 +6290,7 @@ class SliceEffect {
   }
 }
 
-// src/tte/effects/synthgrid.ts
+// src/effects/synthgrid.ts
 var defaultSynthGridConfig = {
   gridRowSymbol: "─",
   gridColumnSymbol: "│",
@@ -6565,7 +6565,7 @@ class SynthGridEffect {
   }
 }
 
-// src/tte/effects/binarypath.ts
+// src/effects/binarypath.ts
 function randInt14(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -6801,7 +6801,7 @@ class BinaryPathEffect {
   }
 }
 
-// src/tte/particles.ts
+// src/particles.ts
 var nextParticleId = 2000000;
 
 class ParticleSystem {
@@ -6884,7 +6884,7 @@ class ParticleSystem {
   }
 }
 
-// src/tte/effects/thunderstorm.ts
+// src/effects/thunderstorm.ts
 var defaultThunderstormConfig = {
   lightningColor: color("68A3E8"),
   glowingTextColor: color("EF5411"),
@@ -7312,7 +7312,7 @@ function randChoice4(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// src/tte/effects/crumble.ts
+// src/effects/crumble.ts
 var defaultCrumbleConfig = {
   finalGradientStops: [color("5CE1FF"), color("FF8C00")],
   finalGradientSteps: 12,
@@ -7478,7 +7478,7 @@ class CrumbleEffect {
   }
 }
 
-// src/tte/effects/swarm.ts
+// src/effects/swarm.ts
 var defaultSwarmConfig = {
   baseColors: [color("31a0d4")],
   flashColor: color("f2ea79"),
@@ -7671,7 +7671,7 @@ class SwarmEffect {
   }
 }
 
-// src/tte/effects/laseretch.ts
+// src/effects/laseretch.ts
 var defaultLaserEtchConfig = {
   etchSpeed: 1,
   etchDelay: 1,
@@ -7875,7 +7875,7 @@ class LaserEtchEffect {
   }
 }
 
-// src/tte/effects/orbittingvolley.ts
+// src/effects/orbittingvolley.ts
 var defaultOrbittingVolleyConfig = {
   launcherSymbols: ["█", "█", "█", "█"],
   launcherMovementSpeed: 0.8,
@@ -8032,7 +8032,7 @@ class OrbittingVolleyEffect {
   }
 }
 
-// src/tte/index.ts
+// src/index.ts
 function createEffect(container, text, effectName, config) {
   const canvas = new Canvas(text, { includeSpaces: true });
   let animId = null;
