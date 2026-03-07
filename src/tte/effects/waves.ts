@@ -1,4 +1,5 @@
-import { type Color, type GradientDirection, color } from "../types";
+import { type Color, type EasingFunction, type GradientDirection, color } from "../types";
+import { inOutSine } from "../easing";
 import { Gradient, coordKey } from "../gradient";
 import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
@@ -16,11 +17,11 @@ export interface WavesConfig {
   waveCount: number;
   waveFrameDuration: number;
   waveDirection: WaveDirection;
-  gap: number;
   waveGradientStops: Color[];
   waveGradientSteps: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
+  waveEasing: EasingFunction;
   finalGradientDirection: GradientDirection;
 }
 
@@ -29,11 +30,11 @@ export const defaultWavesConfig: WavesConfig = {
   waveCount: 7,
   waveFrameDuration: 2,
   waveDirection: "column_left_to_right",
-  gap: 0,
   waveGradientStops: [color("f0ff65"), color("ffb102"), color("31a0d4"), color("ffb102"), color("f0ff65")],
   waveGradientSteps: 6,
   finalGradientStops: [color("ffb102"), color("31a0d4"), color("f0ff65")],
   finalGradientSteps: 12,
+  waveEasing: inOutSine,
   finalGradientDirection: "diagonal",
 };
 
@@ -42,7 +43,6 @@ export class WavesEffect {
   private config: WavesConfig;
   private pendingGroups: EffectCharacter[][] = [];
   private activeChars: Set<EffectCharacter> = new Set();
-  private currentGap = 0;
 
   constructor(canvas: Canvas, config: WavesConfig) {
     this.canvas = canvas;
@@ -59,12 +59,34 @@ export class WavesEffect {
     );
     const waveGradient = new Gradient(this.config.waveGradientStops, this.config.waveGradientSteps);
 
-    // Make spaces visible
+    // Build scenes for ALL characters first (matches Python build order)
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace) ch.isVisible = true;
+      // Wave scene: repeat wave symbols waveCount times
+      const waveScene = ch.newScene("wave", false, { ease: this.config.waveEasing });
+      for (let i = 0; i < this.config.waveCount; i++) {
+        waveScene.applyGradientToSymbols(
+          this.config.waveSymbols,
+          this.config.waveFrameDuration,
+          waveGradient,
+        );
+      }
+
+      // Final scene: transition to final color
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
+      const finalScene = ch.newScene("final");
+      const lastWaveColor = waveGradient.spectrum[waveGradient.spectrum.length - 1];
+      const charGradient = new Gradient([lastWaveColor, finalColor], this.config.finalGradientSteps);
+      finalScene.applyGradientToSymbols(ch.inputSymbol, 10, charGradient);
+
+      // Chain: wave complete → activate final
+      ch.eventHandler.register("SCENE_COMPLETE", "wave", "ACTIVATE_SCENE", "final");
+
+      // Activate wave scene immediately (matches Python)
+      ch.activateScene("wave");
     }
 
-    // Group by direction
+    // Group by direction (after scene setup, matching Python order)
     const directionGroupingMap: Record<WaveDirection, Parameters<typeof this.canvas.getCharactersGrouped>[0]> = {
       column_left_to_right: "column",
       column_right_to_left: "columnRightToLeft",
@@ -73,39 +95,10 @@ export class WavesEffect {
       center_to_outside: "centerToOutside",
       outside_to_center: "outsideToCenter",
     };
-    const groups = this.canvas.getCharactersGrouped(
+    this.pendingGroups = this.canvas.getCharactersGrouped(
       directionGroupingMap[this.config.waveDirection],
-      { includeSpaces: false },
+      { includeSpaces: true },
     );
-
-    // Build scenes for each character
-    for (const group of groups) {
-      for (const ch of group) {
-        // Wave scene: repeat wave symbols waveCount times
-        const waveScene = ch.newScene("wave");
-        for (let i = 0; i < this.config.waveCount; i++) {
-          waveScene.applyGradientToSymbols(
-            this.config.waveSymbols,
-            this.config.waveFrameDuration,
-            waveGradient,
-          );
-        }
-
-        // Final scene: transition to final color
-        // Python: for step in Gradient(lastColor, finalColor, steps=finalGradientSteps): add_frame(symbol, 10)
-        const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-        const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
-        const finalScene = ch.newScene("final");
-        const lastWaveColor = waveGradient.spectrum[waveGradient.spectrum.length - 1];
-        const charGradient = new Gradient([lastWaveColor, finalColor], this.config.finalGradientSteps);
-        finalScene.applyGradientToSymbols(ch.inputSymbol, 10, charGradient);
-
-        // Chain: wave complete → activate final
-        ch.eventHandler.register("SCENE_COMPLETE", "wave", "ACTIVATE_SCENE", "final");
-      }
-    }
-
-    this.pendingGroups = groups;
   }
 
   step(): boolean {
@@ -113,19 +106,12 @@ export class WavesEffect {
       return false;
     }
 
-    // Release next group
+    // Release next group (one per frame, matching Python)
     if (this.pendingGroups.length > 0) {
-      if (this.currentGap >= this.config.gap) {
-        const group = this.pendingGroups.shift();
-        if (!group) return true;
-        for (const ch of group) {
-          ch.isVisible = true;
-          ch.activateScene("wave");
-          this.activeChars.add(ch);
-        }
-        this.currentGap = 0;
-      } else {
-        this.currentGap++;
+      const group = this.pendingGroups.shift()!;
+      for (const ch of group) {
+        ch.isVisible = true;
+        this.activeChars.add(ch);
       }
     }
 

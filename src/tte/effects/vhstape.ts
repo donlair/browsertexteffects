@@ -4,32 +4,18 @@ import type { Canvas } from "../canvas";
 import type { EffectCharacter } from "../character";
 
 export interface VhstapeConfig {
-  glitchLineChance: number;
-  noiseChance: number;
-  totalGlitchTime: number;
-  maxGlitchLines: number;
-  glitchShiftRange: [number, number];
-  glitchLineDuration: number;
-  glitchWaveHeight: number;
   glitchLineColors: Color[];
   glitchWaveColors: Color[];
   noiseColors: Color[];
-  noiseDuration: number;
-  noiseSymbols: string[];
-  redrawLineDelay: number;
+  glitchLineChance: number;
+  noiseChance: number;
+  totalGlitchTime: number;
   finalGradientStops: Color[];
   finalGradientSteps: number;
   finalGradientDirection: GradientDirection;
 }
 
 export const defaultVhstapeConfig: VhstapeConfig = {
-  glitchLineChance: 0.05,
-  noiseChance: 0.004,
-  totalGlitchTime: 600,
-  maxGlitchLines: 3,
-  glitchShiftRange: [4, 25],
-  glitchLineDuration: 10,
-  glitchWaveHeight: 3,
   glitchLineColors: [
     color("ffffff"), color("ff0000"), color("00ff00"), color("0000ff"), color("ffffff"),
   ],
@@ -39,9 +25,9 @@ export const defaultVhstapeConfig: VhstapeConfig = {
   noiseColors: [
     color("1e1e1f"), color("3c3b3d"), color("6d6c70"), color("a2a1a6"), color("cbc9cf"), color("ffffff"),
   ],
-  noiseDuration: 30,
-  noiseSymbols: ["#", "*", ".", ":"],
-  redrawLineDelay: 4,
+  glitchLineChance: 0.05,
+  noiseChance: 0.004,
+  totalGlitchTime: 600,
   finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
   finalGradientDirection: "vertical",
@@ -51,34 +37,154 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-interface GlitchingLine {
-  row: number;
-  remainingFrames: number;
-  shiftAmount: number;
-  colorIndex: number;
+function randChoice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+class Line {
+  characters: EffectCharacter[];
+  private config: VhstapeConfig;
+  private characterFinalColorMap: Map<EffectCharacter, Color>;
+
+  constructor(
+    characters: EffectCharacter[],
+    config: VhstapeConfig,
+    characterFinalColorMap: Map<EffectCharacter, Color>,
+  ) {
+    this.characters = characters;
+    this.config = config;
+    this.characterFinalColorMap = characterFinalColorMap;
+    this.buildLineEffects();
+  }
+
+  private buildLineEffects(): void {
+    const glitchLineColors = this.config.glitchLineColors;
+    const snowChars = ["#", "*", ".", ":"];
+    const noiseColors = this.config.noiseColors;
+    const offset = randInt(4, 25);
+    const direction = Math.random() < 0.5 ? -1 : 1;
+    const holdTime = randInt(1, 50);
+
+    for (const character of this.characters) {
+      const finalColor = this.characterFinalColorMap.get(character)!;
+
+      // Paths
+      const glitchPath = character.motion.newPath("glitch", { speed: 2, holdDuration: holdTime });
+      glitchPath.addWaypoint({
+        column: character.inputCoord.column + offset * direction,
+        row: character.inputCoord.row,
+      });
+
+      character.motion.newPath("restore", 2).addWaypoint({ ...character.inputCoord });
+
+      character.motion.newPath("glitch_wave_mid", 2).addWaypoint({
+        column: character.inputCoord.column + 8,
+        row: character.inputCoord.row,
+      });
+
+      character.motion.newPath("glitch_wave_end", 2).addWaypoint({
+        column: character.inputCoord.column + 14,
+        row: character.inputCoord.row,
+      });
+
+      // Scenes
+      const baseScn = character.newScene("base");
+      baseScn.addFrame(character.inputSymbol, 1, finalColor.rgbHex);
+
+      const glitchScnFwd = character.newScene("rgb_glitch_fwd", false, { sync: "STEP" });
+      for (const c of glitchLineColors) {
+        glitchScnFwd.addFrame(character.inputSymbol, 1, c.rgbHex);
+      }
+
+      const glitchScnBwd = character.newScene("rgb_glitch_bwd", false, { sync: "STEP" });
+      for (const c of [...glitchLineColors].reverse()) {
+        glitchScnBwd.addFrame(character.inputSymbol, 1, c.rgbHex);
+      }
+
+      const snowScn = character.newScene("snow");
+      for (let i = 0; i < 25; i++) {
+        snowScn.addFrame(randChoice(snowChars), 2, randChoice(noiseColors).rgbHex);
+      }
+      snowScn.addFrame(character.inputSymbol, 1, finalColor.rgbHex);
+
+      const finalSnowScn = character.newScene("final_snow");
+      for (let i = 0; i < 30; i++) {
+        finalSnowScn.addFrame(randChoice(snowChars), 2, randChoice(noiseColors).rgbHex);
+      }
+
+      const finalRedrawScn = character.newScene("final_redraw");
+      finalRedrawScn.addFrame("\u2588", 6, "ffffff");
+      finalRedrawScn.addFrame(character.inputSymbol, 1, finalColor.rgbHex);
+
+      // Events
+      character.eventHandler.register("PATH_COMPLETE", "glitch", "ACTIVATE_PATH", "restore");
+      character.eventHandler.register("PATH_ACTIVATED", "glitch", "ACTIVATE_SCENE", "rgb_glitch_fwd");
+      character.eventHandler.register("PATH_ACTIVATED", "restore", "ACTIVATE_SCENE", "rgb_glitch_bwd");
+      character.eventHandler.register("PATH_ACTIVATED", "glitch_wave_mid", "ACTIVATE_SCENE", "rgb_glitch_fwd");
+      character.eventHandler.register("PATH_ACTIVATED", "glitch_wave_end", "ACTIVATE_SCENE", "rgb_glitch_fwd");
+      character.eventHandler.register("SCENE_COMPLETE", "rgb_glitch_bwd", "ACTIVATE_SCENE", "base");
+    }
+  }
+
+  snow(): void {
+    for (const character of this.characters) {
+      character.activateScene("snow");
+    }
+  }
+
+  setHoldTime(holdTime: number): void {
+    for (const character of this.characters) {
+      const path = character.motion.paths.get("glitch")!;
+      path.holdDuration = holdTime;
+    }
+  }
+
+  glitch(final = false): void {
+    for (const character of this.characters) {
+      const glitchPath = character.motion.paths.get("glitch")!;
+      const restorePath = character.motion.paths.get("restore")!;
+      if (final) {
+        glitchPath.holdDuration = 0;
+        restorePath.holdDuration = 0;
+      }
+      glitchPath.speed = 40 / randInt(20, 40);
+      restorePath.speed = 40 / randInt(20, 40);
+      character.motion.activatePath(glitchPath);
+    }
+  }
+
+  restore(): void {
+    for (const character of this.characters) {
+      const restorePath = character.motion.paths.get("restore")!;
+      restorePath.speed = 40 / randInt(20, 40);
+      character.motion.activatePath(restorePath);
+    }
+  }
+
+  activatePath(pathId: string): void {
+    for (const character of this.characters) {
+      character.motion.activatePath(pathId);
+    }
+  }
+
+  lineMovementComplete(): boolean {
+    return this.characters.every(ch => ch.motion.movementIsComplete());
+  }
 }
 
 export class VhstapeEffect {
   private canvas: Canvas;
   private config: VhstapeConfig;
-  private phase: "glitch" | "noise" | "redraw" = "glitch";
-  private frameCount = 0;
+  private lines: Map<number, Line> = new Map();
+  private activeGlitchWaveTop: number | null = null;
+  private activeGlitchWaveLines: Line[] = [];
+  private activeGlitchLines: Line[] = [];
+  private activeCharacters: Set<EffectCharacter> = new Set();
 
-  private rowGroups: EffectCharacter[][] = [];
-  private rowNumbers: number[] = [];
-  private rowMap: Map<number, EffectCharacter[]> = new Map();
-
-  private activeGlitchLines: GlitchingLine[] = [];
-  private glitchWaveIndex = 0;
-  private glitchWaveDirection = 1;
-
-  private noiseFrameCount = 0;
-
-  private redrawIndex = 0;
-  private redrawDelay = 0;
-
-  private colorMapping: Map<string, Color> = new Map();
-  private allChars: EffectCharacter[] = [];
+  private _phase: "glitching" | "noise" | "redraw" | "complete" = "glitching";
+  private _glitchingStepsElapsed = 0;
+  private _toRedraw: Line[] = [];
+  private _redrawing = false;
 
   constructor(canvas: Canvas, config: VhstapeConfig) {
     this.canvas = canvas;
@@ -90,214 +196,174 @@ export class VhstapeEffect {
     const { dims } = this.canvas;
 
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
       dims.textBottom, dims.textTop, dims.textLeft, dims.textRight,
       this.config.finalGradientDirection,
     );
 
-    this.rowGroups = this.canvas.getCharactersGrouped("row");
-    for (const group of this.rowGroups) {
-      if (group.length > 0) {
-        const rowNum = group[0].inputCoord.row;
-        this.rowMap.set(rowNum, group);
-        this.rowNumbers.push(rowNum);
+    const characterFinalColorMap = new Map<EffectCharacter, Color>();
+    for (const ch of this.canvas.getCharacters()) {
+      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
+      characterFinalColorMap.set(ch, colorMapping.get(key) || this.config.finalGradientStops[0]);
+    }
+
+    const rowGroups = this.canvas.getCharactersGrouped("rowBottomToTop");
+    for (let rowIndex = 0; rowIndex < rowGroups.length; rowIndex++) {
+      this.lines.set(rowIndex, new Line(rowGroups[rowIndex], this.config, characterFinalColorMap));
+    }
+
+    for (const ch of this.canvas.getCharacters()) {
+      ch.isVisible = true;
+      ch.activateScene("base");
+    }
+
+    this._glitchingStepsElapsed = 0;
+    this._phase = "glitching";
+    this._toRedraw = [...this.lines.values()];
+    this._redrawing = false;
+  }
+
+  private glitchWave(): void {
+    if (!this.activeGlitchWaveTop) {
+      if (this.canvas.dims.textHeight >= 3) {
+        this.activeGlitchWaveTop = this.canvas.dims.textBottom + randInt(
+          Math.max(3, Math.round(this.canvas.dims.textHeight * 0.5)),
+          this.canvas.dims.textHeight,
+        );
+      } else {
+        return;
       }
     }
 
-    this.allChars = this.canvas.getCharacters();
+    if (this.activeGlitchWaveLines.every(line => line.lineMovementComplete())) {
+      if (this.activeGlitchWaveLines.length > 0) {
+        const waveTopDelta = Math.random() < 0.3
+          ? (Math.random() < 0.3 ? 1 : -1)
+          : 0;
+        this.activeGlitchWaveTop! += waveTopDelta;
+        this.activeGlitchWaveTop = Math.max(2, Math.min(this.activeGlitchWaveTop!, this.canvas.dims.textTop));
+      }
 
-    for (const ch of this.allChars) {
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
+      const newWaveLines: Line[] = [];
+      for (let lineIndex = this.activeGlitchWaveTop! - 2; lineIndex <= this.activeGlitchWaveTop!; lineIndex++) {
+        const adjustedLineIndex = lineIndex - (this.canvas.dims.textBottom - 1);
+        const line = this.lines.get(adjustedLineIndex);
+        if (line) {
+          newWaveLines.push(line);
+        }
+      }
 
-      const redrawScene = ch.newScene("redraw");
-      redrawScene.addFrame("█", 6, "ffffff");
-      redrawScene.addFrame(ch.inputSymbol, 1, finalColor.rgbHex);
+      for (const line of this.activeGlitchWaveLines) {
+        if (!newWaveLines.includes(line)) {
+          line.restore();
+          for (const ch of line.characters) this.activeCharacters.add(ch);
+        }
+      }
+      this.activeGlitchWaveLines = newWaveLines;
 
-      ch.isVisible = true;
-      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor.rgbHex };
+      if (this.activeGlitchWaveTop! < this.canvas.dims.textBottom + 2) {
+        for (const line of this.activeGlitchWaveLines) {
+          line.restore();
+          for (const ch of line.characters) this.activeCharacters.add(ch);
+        }
+        this.activeGlitchWaveTop = null;
+        this.activeGlitchWaveLines = [];
+      } else {
+        const pathIds = ["glitch_wave_mid", "glitch_wave_end", "glitch_wave_mid"];
+        for (let i = 0; i < this.activeGlitchWaveLines.length; i++) {
+          this.activeGlitchWaveLines[i].activatePath(pathIds[i]);
+          for (const ch of this.activeGlitchWaveLines[i].characters) {
+            this.activeCharacters.add(ch);
+          }
+        }
+      }
     }
   }
 
   step(): boolean {
-    this.frameCount++;
-
-    if (this.phase === "glitch") {
-      return this.stepGlitch();
-    } else if (this.phase === "noise") {
-      return this.stepNoise();
-    } else {
-      return this.stepRedraw();
-    }
-  }
-
-  private stepGlitch(): boolean {
-    // Update existing glitch lines
-    for (let i = this.activeGlitchLines.length - 1; i >= 0; i--) {
-      const gl = this.activeGlitchLines[i];
-      gl.remainingFrames--;
-      gl.colorIndex = (gl.colorIndex + 1) % this.config.glitchLineColors.length;
-
-      if (gl.remainingFrames <= 0) {
-        this.restoreRow(gl.row);
-        this.activeGlitchLines.splice(i, 1);
-      } else {
-        this.applyGlitchToRow(gl.row, gl.shiftAmount, gl.colorIndex);
-      }
-    }
-
-    // Maybe activate new glitch lines
-    if (this.activeGlitchLines.length < this.config.maxGlitchLines) {
-      if (Math.random() < this.config.glitchLineChance) {
-        const activeRows = new Set(this.activeGlitchLines.map(gl => gl.row));
-        const available = this.rowNumbers.filter(r => !activeRows.has(r));
-        if (available.length > 0) {
-          const row = available[Math.floor(Math.random() * available.length)];
-          const [minShift, maxShift] = this.config.glitchShiftRange;
-          const shift = randInt(minShift, maxShift) * (Math.random() < 0.5 ? 1 : -1);
-          this.activeGlitchLines.push({
-            row,
-            remainingFrames: this.config.glitchLineDuration,
-            shiftAmount: shift,
-            colorIndex: Math.floor(Math.random() * this.config.glitchLineColors.length),
-          });
+    if (this._phase !== "complete" || this.activeCharacters.size > 0) {
+      if (this._phase === "glitching") {
+        if (
+          this.activeGlitchWaveLines.length === 0 ||
+          this.activeGlitchWaveLines.every(line => line.lineMovementComplete())
+        ) {
+          this.glitchWave();
         }
-      }
-    }
 
-    // Advance glitch wave
-    if (this.rowNumbers.length > 1) {
-      const halfHeight = Math.floor(this.config.glitchWaveHeight / 2);
-      const activeRows = new Set(this.activeGlitchLines.map(gl => gl.row));
-      for (let offset = -halfHeight; offset <= halfHeight; offset++) {
-        const idx = this.glitchWaveIndex + offset;
-        if (idx >= 0 && idx < this.rowNumbers.length) {
-          const rowNum = this.rowNumbers[idx];
-          if (!activeRows.has(rowNum)) {
-            const waveShift = randInt(1, 3) * (Math.random() < 0.5 ? 1 : -1);
-            this.applyShiftToRow(rowNum, waveShift);
+        this.activeGlitchLines = this.activeGlitchLines.filter(
+          line => !line.lineMovementComplete(),
+        );
+
+        if (Math.random() < this.config.glitchLineChance && this.activeGlitchLines.length < 3) {
+          const allLines = [...this.lines.values()];
+          const glitchLine = randChoice(allLines);
+          if (
+            !this.activeGlitchWaveLines.includes(glitchLine) &&
+            !this.activeGlitchLines.includes(glitchLine)
+          ) {
+            glitchLine.setHoldTime(randInt(20, 75));
+            this.activeGlitchLines.push(glitchLine);
+            glitchLine.glitch();
+            for (const ch of glitchLine.characters) this.activeCharacters.add(ch);
+          }
+        }
+
+        if (Math.random() < this.config.noiseChance) {
+          for (const line of this.lines.values()) {
+            line.snow();
+            if (
+              !this.activeGlitchWaveLines.includes(line) &&
+              !this.activeGlitchLines.includes(line)
+            ) {
+              for (const ch of line.characters) this.activeCharacters.add(ch);
+            }
+          }
+        }
+
+        this._glitchingStepsElapsed++;
+        if (this._glitchingStepsElapsed >= this.config.totalGlitchTime) {
+          for (const line of this.activeGlitchWaveLines) {
+            line.restore();
+          }
+          for (const line of this.activeGlitchLines) {
+            line.restore();
+          }
+          this._phase = "noise";
+        }
+
+      } else if (this._phase === "noise") {
+        if (this.activeCharacters.size === 0) {
+          for (const ch of this.canvas.getCharacters()) {
+            ch.activateScene("final_snow");
+            this.activeCharacters.add(ch);
+          }
+          this._phase = "redraw";
+        }
+
+      } else if (this._phase === "redraw") {
+        if (this._redrawing || this.activeCharacters.size === 0) {
+          this._redrawing = true;
+          if (this._toRedraw.length > 0) {
+            const nextLine = this._toRedraw.pop()!;
+            for (const ch of nextLine.characters) {
+              ch.activateScene("final_redraw");
+              this.activeCharacters.add(ch);
+            }
+          } else {
+            this._phase = "complete";
           }
         }
       }
-      this.glitchWaveIndex += this.glitchWaveDirection;
-      if (this.glitchWaveIndex >= this.rowNumbers.length || this.glitchWaveIndex < 0) {
-        this.glitchWaveDirection *= -1;
-        this.glitchWaveIndex += this.glitchWaveDirection * 2;
-      }
-    }
 
-    // Rare full-canvas noise burst
-    if (Math.random() < this.config.noiseChance) {
-      this.applyNoiseToAll();
-    }
-
-    // Restore non-glitching rows
-    const activeRows = new Set(this.activeGlitchLines.map(gl => gl.row));
-    for (const rowNum of this.rowNumbers) {
-      if (!activeRows.has(rowNum)) {
-        this.restoreRow(rowNum);
-      }
-    }
-
-    // Check phase transition
-    if (this.frameCount >= this.config.totalGlitchTime) {
-      for (const gl of this.activeGlitchLines) {
-        this.restoreRow(gl.row);
-      }
-      this.activeGlitchLines = [];
-      this.phase = "noise";
-      this.noiseFrameCount = 0;
-    }
-
-    return true;
-  }
-
-  private stepNoise(): boolean {
-    this.noiseFrameCount++;
-    this.applyNoiseToAll();
-
-    if (this.noiseFrameCount >= this.config.noiseDuration) {
-      this.phase = "redraw";
-      this.redrawIndex = 0;
-      this.redrawDelay = 0;
-    }
-
-    return true;
-  }
-
-  private stepRedraw(): boolean {
-    if (this.redrawIndex < this.rowNumbers.length) {
-      if (this.redrawDelay <= 0) {
-        const rowNum = this.rowNumbers[this.redrawIndex];
-        const chars = this.rowMap.get(rowNum);
-        if (chars) {
-          for (const ch of chars) {
-            ch.motion.setCoordinate(ch.inputCoord);
-            ch.activateScene("redraw");
-          }
+      for (const ch of this.activeCharacters) {
+        ch.tick();
+        if (!ch.isActive) {
+          this.activeCharacters.delete(ch);
         }
-        this.redrawIndex++;
-        this.redrawDelay = this.config.redrawLineDelay;
-      } else {
-        this.redrawDelay--;
       }
-    }
 
-    let anyActive = false;
-    for (const ch of this.allChars) {
-      ch.tick();
-      if (ch.isActive) {
-        anyActive = true;
-      }
+      return true;
     }
-
-    return anyActive || this.redrawIndex < this.rowNumbers.length;
-  }
-
-  private applyGlitchToRow(row: number, shiftAmount: number, colorIndex: number): void {
-    const chars = this.rowMap.get(row);
-    if (!chars) return;
-    const glitchColor = this.config.glitchLineColors[colorIndex];
-    for (const ch of chars) {
-      ch.motion.setCoordinate({
-        column: ch.inputCoord.column + shiftAmount,
-        row: ch.inputCoord.row,
-      });
-      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: glitchColor.rgbHex };
-    }
-  }
-
-  private applyShiftToRow(row: number, shiftAmount: number): void {
-    const chars = this.rowMap.get(row);
-    if (!chars) return;
-    for (const ch of chars) {
-      ch.motion.setCoordinate({
-        column: ch.inputCoord.column + shiftAmount,
-        row: ch.inputCoord.row,
-      });
-    }
-  }
-
-  private restoreRow(row: number): void {
-    const chars = this.rowMap.get(row);
-    if (!chars) return;
-    for (const ch of chars) {
-      ch.motion.setCoordinate(ch.inputCoord);
-      const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
-      const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
-      ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor.rgbHex };
-    }
-  }
-
-  private applyNoiseToAll(): void {
-    for (const ch of this.allChars) {
-      const sym = this.config.noiseSymbols[
-        Math.floor(Math.random() * this.config.noiseSymbols.length)
-      ];
-      const noiseColor = this.config.noiseColors[
-        Math.floor(Math.random() * this.config.noiseColors.length)
-      ];
-      ch.currentVisual = { symbol: sym, fgColor: noiseColor.rgbHex };
-    }
+    return false;
   }
 }

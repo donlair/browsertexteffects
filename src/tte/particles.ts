@@ -60,7 +60,8 @@ export class ParticleSystem {
 
     const span = document.createElement("span");
     span.style.position = "absolute";
-    span.style.lineHeight = `${this.lineHeight}em`;
+    span.style.width = `${Math.ceil(this.cellWidthPx)}px`;
+    span.style.lineHeight = `${Math.round(this.cellHeightPx)}px`;
     span.textContent = config.symbol;
     span.style.color = config.fgColor ? `#${config.fgColor}` : "";
     this._positionSpan(span, config.coord);
@@ -98,8 +99,8 @@ export class ParticleSystem {
   }
 
   private _positionSpan(span: HTMLSpanElement, coord: Coord): void {
-    span.style.left = `${(coord.column - 1) * this.cellWidthPx}px`;
-    span.style.top = `${(this.totalRows - coord.row) * this.cellHeightPx}px`;
+    span.style.left = `${Math.round((coord.column - 1) * this.cellWidthPx)}px`;
+    span.style.top = `${Math.round((this.totalRows - coord.row) * this.cellHeightPx)}px`;
   }
 
   dispose(): void {

@@ -75,12 +75,13 @@ class GridLine {
       const span = document.createElement("span");
       span.style.position = "absolute";
       span.style.visibility = "hidden";
-      span.style.lineHeight = `${LINE_HEIGHT}em`;
+      span.style.width = `${Math.ceil(cellWidth)}px`;
+      span.style.lineHeight = `${Math.round(cellHeight)}px`;
       span.textContent = symbol;
       const c = colorMapping.get(coordKey(col, row));
       if (c) span.style.color = `#${c.rgbHex}`;
-      span.style.left = `${(col - 1) * cellWidth}px`;
-      span.style.top = `${(totalRows - row) * cellHeight}px`;
+      span.style.left = `${Math.round((col - 1) * cellWidth)}px`;
+      span.style.top = `${Math.round((totalRows - row) * cellHeight)}px`;
       container.appendChild(span);
       this.spans.push(span);
     }
@@ -233,7 +234,7 @@ export class SynthGridEffect {
     // Ranges use [r1, r2) = left-closed, right-open — matching Python's range(prev, current)
     const rowBounds = [dims.bottom, ...internalRowLines, dims.top + 1];
     const colBounds = [dims.left, ...internalColLines, dims.right + 1];
-    const nonSpaceChars = this.canvas.getNonSpaceCharacters();
+    const allChars = [...this.canvas.getCharacters()];
 
     const blocks: EffectCharacter[][] = [];
     for (let ri = 0; ri < rowBounds.length - 1; ri++) {
@@ -242,7 +243,7 @@ export class SynthGridEffect {
       for (let ci = 0; ci < colBounds.length - 1; ci++) {
         const c1 = colBounds[ci];
         const c2 = colBounds[ci + 1];
-        const block = nonSpaceChars.filter(
+        const block = allChars.filter(
           ch =>
             ch.inputCoord.row >= r1 && ch.inputCoord.row < r2 &&
             ch.inputCoord.column >= c1 && ch.inputCoord.column < c2,
@@ -255,7 +256,7 @@ export class SynthGridEffect {
     this.totalBlocks = blocks.length;
 
     // Build dissolve scenes: random 15-30 frames (matches Python's randint(15, 30))
-    for (const ch of nonSpaceChars) {
+    for (const ch of allChars) {
       const dissolveScene = ch.newScene("dissolve");
       const frameCount = randInt(15, 30);
       for (let i = 0; i < frameCount; i++) {
