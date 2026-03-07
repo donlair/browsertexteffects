@@ -431,18 +431,18 @@
 
     const POEM = [
 "",
-"          ____",
-"         |  _ \\                                 ",
-"         | |_) |_ __ _____      _____  ___ _ __ ",
-"         |  _ <| '__/ _ \\ \\ /\\ / / __|/ _ \\ '__|",
-"         | |_) | | | (_) \\ V  V /\\__ \\  __/ |   ",
-"         |____/|_|  \\___/ \\_/\\_/ |___/\\___|_|  ",
-"          _______        _                      ",
-"         |__   __|      | |                     ",
-"            | | _____  _| |_                    ",
-"            | |/ _ \\ \\/ / __|                   ",
-"            | |  __/>  <| |_                    ",
-"            |_|\\___/_/\\_\\\\__|                   ",
+"         ____",
+"        |  _ \\                                 ",
+"        | |_) |_ __ _____      _____  ___ _ __ ",
+"        |  _ <| '__/ _ \\ \\ /\\ / / __|/ _ \\ '__|",
+"        | |_) | | | (_) \\ V  V /\\__ \\  __/ |   ",
+"        |____/|_|  \\___/ \\_/\\_/ |___/\\___|_|  ",
+"                _______        _                      ",
+"               |__   __|      | |                     ",
+"                  | | _____  _| |_                    ",
+"                  | |/ _ \\ \\/ / __|                   ",
+"                  | |  __/>  <| |_                    ",
+"                  |_|\\___/_/\\_\\\\__|                   ",
 "          ______  __  __          _             ",
 "         |  ____|/ _|/ _|        | |            ",
 "         | |__  | |_| |_ ___  ___| |_ ___       ",
@@ -452,8 +452,8 @@
 "",
 "         -<>--<>--<>--<>--<>--<>--<>--<>-",
 "",
-"          Animate your text.",
-"          Right in the browser.",
+"                Animate your text.",
+"               Right in the browser.",
 "          37 effects. Zero dependencies.",
 "",
 "         -<>--<>--<>--<>--<>--<>--<>--<>-",
@@ -760,7 +760,8 @@
     // ── State ────────────────────────────────────────────────────────────────
     let currentHandleArt = null;
     let currentHandleText = null;
-    let currentEffect = EFFECTS.find(e => e.key === 'waves');
+    const initialKey = new URLSearchParams(window.location.search).get('effect') || 'beams';
+    let currentEffect = EFFECTS.find(e => e.key === initialKey) || EFFECTS[0];
 
     // ── DOM refs ─────────────────────────────────────────────────────────────
     const artEl = document.getElementById('preview-art');
@@ -960,6 +961,11 @@
       for (const item of sidebarEl.querySelectorAll('.sidebar-item')) {
         item.classList.toggle('active', item.dataset.effectKey === effectDef.key);
       }
+
+      // Update URL
+      const url = new URL(window.location);
+      url.searchParams.set('effect', effectDef.key);
+      history.replaceState(null, '', url);
 
       // Update title and desc
       titleEl.textContent = effectDef.label;

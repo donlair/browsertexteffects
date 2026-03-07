@@ -2,6 +2,10 @@
 
 37 animated text effects for the browser. Decrypt, matrix, burn, fireworks, rain, and more.
 
+[Live Demo (Effect Showroom)](https://donlair.github.io/browsertexteffects/)
+
+![Thunderstorm effect demo](assets/thunderstorm-demo.gif)
+
 ## Install
 
 ```bash

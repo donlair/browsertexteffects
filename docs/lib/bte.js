@@ -1,18 +1,12 @@
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)
-    __defProp(target, name, {
-      get: all[name],
-      enumerable: true,
-      configurable: true,
-      set: (newValue) => all[name] = () => newValue
-    });
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
 
 // src/scene.ts
 function* cyclicDistribute(larger, smaller) {
-  if (smaller.length === 0)
-    return;
+  if (smaller.length === 0) return;
   const repeatFactor = Math.floor(larger.length / smaller.length);
   let overflow = larger.length % smaller.length;
   let smallerIdx = 0;
@@ -38,18 +32,18 @@ function* cyclicDistribute(larger, smaller) {
     yield [item, smaller[smallerIdx]];
   }
 }
-
-class Scene {
-  id;
-  isLooping;
-  frames = [];
-  playedFrames = [];
-  ease = null;
-  frameIndexMap = [];
-  easingTotalSteps = 0;
-  easingCurrentStep = 0;
-  sync = null;
+var Scene = class {
   constructor(id, isLooping = false, options) {
+    this.frames = [];
+    this.playedFrames = [];
+    // Scene-level easing: plays frames non-linearly via easing function (matches Python Scene.ease)
+    this.ease = null;
+    // frameIndexMap[step] = Frame at that easing step; built in addFrame when ease is set
+    this.frameIndexMap = [];
+    this.easingTotalSteps = 0;
+    this.easingCurrentStep = 0;
+    // Scene sync: ties animation frame to motion path progress (matches Python Scene.SyncMetric)
+    this.sync = null;
     this.id = id;
     this.isLooping = isLooping;
     if (options) {
@@ -65,7 +59,7 @@ class Scene {
       ticksElapsed: 0
     };
     this.frames.push(frame);
-    for (let i = 0;i < duration; i++) {
+    for (let i = 0; i < duration; i++) {
       this.frameIndexMap.push(frame);
     }
     this.easingTotalSteps += duration;
@@ -83,14 +77,11 @@ class Scene {
         colorPairs.push(isLargerFg ? { fg: largerColor.rgbHex, bg: smallerColor.rgbHex } : { fg: smallerColor.rgbHex, bg: largerColor.rgbHex });
       }
     } else if (fgColors.length > 0) {
-      for (const c of fgColors)
-        colorPairs.push({ fg: c.rgbHex, bg: null });
+      for (const c of fgColors) colorPairs.push({ fg: c.rgbHex, bg: null });
     } else if (bgColors.length > 0) {
-      for (const c of bgColors)
-        colorPairs.push({ fg: null, bg: c.rgbHex });
+      for (const c of bgColors) colorPairs.push({ fg: null, bg: c.rgbHex });
     }
-    if (colorPairs.length === 0)
-      return;
+    if (colorPairs.length === 0) return;
     if (syms.length >= colorPairs.length) {
       for (const [sym, cp] of cyclicDistribute(syms, colorPairs)) {
         this.addFrame(sym, duration, cp.fg, { bgColor: cp.bg });
@@ -102,8 +93,7 @@ class Scene {
     }
   }
   activate() {
-    if (this.frames.length === 0)
-      throw new Error(`Scene "${this.id}" has no frames`);
+    if (this.frames.length === 0) throw new Error(`Scene "${this.id}" has no frames`);
     return this.frames[0].visual;
   }
   getNextVisual() {
@@ -135,10 +125,12 @@ class Scene {
     this.playedFrames = [];
     this.easingCurrentStep = 0;
   }
+  /** Returns the visual at an absolute frame index without consuming frames (used by sync mode). */
   getVisualAtIndex(index) {
     const i = Math.max(0, Math.min(index, this.frames.length - 1));
     return this.frames[i].visual;
   }
+  /** Advances animation using easing; returns the visual for this tick. Matches Python _ease_animation. */
   getNextVisualEased() {
     const stepRatio = this.easingCurrentStep / Math.max(this.easingTotalSteps, 1);
     const easedRatio = this.ease(stepRatio);
@@ -156,32 +148,31 @@ class Scene {
     }
     return frame.visual;
   }
-}
+};
 
 // src/geometry.ts
-var exports_geometry = {};
-__export(exports_geometry, {
-  findNormalizedDistanceFromCenter: () => findNormalizedDistanceFromCenter,
-  findLengthOfLine: () => findLengthOfLine,
-  findLengthOfBezierCurve: () => findLengthOfBezierCurve,
-  findCoordsOnRect: () => findCoordsOnRect,
-  findCoordsOnCircle: () => findCoordsOnCircle,
-  findCoordsInRect: () => findCoordsInRect,
-  findCoordsInCircle: () => findCoordsInCircle,
-  findCoordOnLine: () => findCoordOnLine,
+var geometry_exports = {};
+__export(geometry_exports, {
+  extrapolateAlongRay: () => extrapolateAlongRay,
   findCoordOnBezierCurve: () => findCoordOnBezierCurve,
-  extrapolateAlongRay: () => extrapolateAlongRay
+  findCoordOnLine: () => findCoordOnLine,
+  findCoordsInCircle: () => findCoordsInCircle,
+  findCoordsInRect: () => findCoordsInRect,
+  findCoordsOnCircle: () => findCoordsOnCircle,
+  findCoordsOnRect: () => findCoordsOnRect,
+  findLengthOfBezierCurve: () => findLengthOfBezierCurve,
+  findLengthOfLine: () => findLengthOfLine,
+  findNormalizedDistanceFromCenter: () => findNormalizedDistanceFromCenter
 });
 function findCoordsOnCircle(origin, radius, coordsLimit = 0, unique = true) {
   const points = [];
-  if (!radius)
-    return points;
-  const seen = new Set;
+  if (!radius) return points;
+  const seen = /* @__PURE__ */ new Set();
   if (!coordsLimit) {
     coordsLimit = Math.round(2 * Math.PI * radius);
   }
   const angleStep = 2 * Math.PI / coordsLimit;
-  for (let i = 0;i < coordsLimit; i++) {
+  for (let i = 0; i < coordsLimit; i++) {
     const angle = angleStep * i;
     let x = origin.column + radius * Math.cos(angle);
     const xDiff = x - origin.column;
@@ -202,16 +193,15 @@ function findCoordsOnCircle(origin, radius, coordsLimit = 0, unique = true) {
 }
 function findCoordsInCircle(center, diameter) {
   const coords = [];
-  if (!diameter)
-    return coords;
+  if (!diameter) return coords;
   const h = center.column;
   const k = center.row;
   const aSquared = diameter ** 2;
   const bSquared = (diameter / 2) ** 2;
-  for (let x = h - diameter;x <= h + diameter; x++) {
+  for (let x = h - diameter; x <= h + diameter; x++) {
     const xComponent = (x - h) ** 2 / aSquared;
     const maxYOffset = Math.floor((bSquared * (1 - xComponent)) ** 0.5);
-    for (let y = k - maxYOffset;y <= k + maxYOffset; y++) {
+    for (let y = k - maxYOffset; y <= k + maxYOffset; y++) {
       coords.push({ column: x, row: y });
     }
   }
@@ -219,14 +209,13 @@ function findCoordsInCircle(center, diameter) {
 }
 function findCoordsInRect(origin, distance) {
   const coords = [];
-  if (!distance)
-    return coords;
+  if (!distance) return coords;
   const left = origin.column - distance;
   const right = origin.column + distance;
   const top = origin.row - distance;
   const bottom = origin.row + distance;
-  for (let col = left;col <= right; col++) {
-    for (let row = top;row <= bottom; row++) {
+  for (let col = left; col <= right; col++) {
+    for (let row = top; row <= bottom; row++) {
       coords.push({ column: col, row });
     }
   }
@@ -234,11 +223,10 @@ function findCoordsInRect(origin, distance) {
 }
 function findCoordsOnRect(origin, halfWidth, halfHeight) {
   const coords = [];
-  if (!halfWidth || !halfHeight)
-    return coords;
-  for (let col = origin.column - halfWidth;col <= origin.column + halfWidth; col++) {
+  if (!halfWidth || !halfHeight) return coords;
+  for (let col = origin.column - halfWidth; col <= origin.column + halfWidth; col++) {
     if (col === origin.column - halfWidth || col === origin.column + halfWidth) {
-      for (let row = origin.row - halfHeight;row <= origin.row + halfHeight; row++) {
+      for (let row = origin.row - halfHeight; row <= origin.row + halfHeight; row++) {
         coords.push({ column: col, row });
       }
     } else {
@@ -262,10 +250,9 @@ function extrapolateAlongRay(origin, target, offsetFromTarget) {
 function findCoordOnBezierCurve(start, control, end, t) {
   const points = [start, ...control, end];
   function deCasteljau(pts, t2) {
-    if (pts.length === 1)
-      return pts[0];
+    if (pts.length === 1) return pts[0];
     const newPoints = [];
-    for (let i = 0;i < pts.length - 1; i++) {
+    for (let i = 0; i < pts.length - 1; i++) {
       const x = (1 - t2) * pts[i].column + t2 * pts[i + 1].column;
       const y = (1 - t2) * pts[i].row + t2 * pts[i + 1].row;
       newPoints.push({ column: x, row: y });
@@ -284,7 +271,7 @@ function findLengthOfBezierCurve(start, control, end) {
   const ctrlArray = Array.isArray(control) ? control : [control];
   let length = 0;
   let prevCoord = start;
-  for (let i = 1;i <= 9; i++) {
+  for (let i = 1; i <= 9; i++) {
     const coord = findCoordOnBezierCurve(start, ctrlArray, end, i / 10);
     length += findLengthOfLine(prevCoord, coord, true);
     prevCoord = coord;
@@ -312,26 +299,27 @@ function findNormalizedDistanceFromCenter(bottom, top, left, right, coord) {
 }
 
 // src/motion.ts
-class Path {
-  id;
-  speed;
-  ease;
-  layer;
-  waypoints = [];
-  segments = [];
-  totalDistance = 0;
-  currentStep = 0;
-  maxSteps = 0;
-  currentSegmentIndex = -1;
-  originSegment = null;
-  holdDuration = 0;
-  holdElapsed = 0;
-  isHolding = false;
-  loop = false;
-  totalLoops = 0;
-  currentLoop = 0;
-  lastDistanceFactor = 0;
+var Path = class {
   constructor(id, speedOrConfig = 1, ease = null) {
+    this.waypoints = [];
+    this.segments = [];
+    this.totalDistance = 0;
+    this.currentStep = 0;
+    this.maxSteps = 0;
+    this.currentSegmentIndex = -1;
+    // Origin segment prepended by activatePath(); tracked so it can be replaced on loop re-activation
+    this.originSegment = null;
+    // Hold: pause at final position for N ticks after all loops complete
+    this.holdDuration = 0;
+    this.holdElapsed = 0;
+    this.isHolding = false;
+    // Loop: replay path traversal
+    this.loop = false;
+    this.totalLoops = 0;
+    // 0 = infinite, N = play N total times
+    this.currentLoop = 0;
+    // Tracks distance progress (0–1) after easing; used by scene DISTANCE sync
+    this.lastDistanceFactor = 0;
     this.id = id;
     if (typeof speedOrConfig === "object" && speedOrConfig !== null) {
       const cfg = speedOrConfig;
@@ -347,11 +335,11 @@ class Path {
     }
   }
   addWaypoint(coord, bezierControl) {
-    const wp = bezierControl !== undefined ? { coord, bezierControl } : { coord };
+    const wp = bezierControl !== void 0 ? { coord, bezierControl } : { coord };
     this.waypoints.push(wp);
     if (this.waypoints.length >= 2) {
       const prev = this.waypoints[this.waypoints.length - 2];
-      const dist = wp.bezierControl !== undefined ? findLengthOfBezierCurve(prev.coord, wp.bezierControl, coord) : lineLength(prev.coord, coord);
+      const dist = wp.bezierControl !== void 0 ? findLengthOfBezierCurve(prev.coord, wp.bezierControl, coord) : lineLength(prev.coord, coord);
       this.totalDistance += dist;
       this.segments.push({ start: prev, end: wp, distance: dist });
       this.maxSteps = Math.round(this.totalDistance / this.speed);
@@ -371,7 +359,7 @@ class Path {
     let distToTravel = distanceFactor * this.totalDistance;
     let activeSegment = this.segments[this.segments.length - 1];
     let foundIndex = this.segments.length - 1;
-    for (let i = 0;i < this.segments.length; i++) {
+    for (let i = 0; i < this.segments.length; i++) {
       if (distToTravel <= this.segments[i].distance) {
         activeSegment = this.segments[i];
         foundIndex = i;
@@ -384,7 +372,7 @@ class Path {
       return activeSegment.end.coord;
     }
     const t = Math.min(distToTravel / activeSegment.distance, 1);
-    if (activeSegment.end.bezierControl !== undefined) {
+    if (activeSegment.end.bezierControl !== void 0) {
       const ctrl = Array.isArray(activeSegment.end.bezierControl) ? activeSegment.end.bezierControl : [activeSegment.end.bezierControl];
       return findCoordOnBezierCurve(activeSegment.start.coord, ctrl, activeSegment.end.coord, t);
     }
@@ -394,38 +382,29 @@ class Path {
     return this.currentStep >= this.maxSteps;
   }
   get needsLoop() {
-    if (!this.loop || !this.isComplete)
-      return false;
-    if (this.segments.length <= 1)
-      return false;
-    if (this.totalLoops === 0)
-      return true;
+    if (!this.loop || !this.isComplete) return false;
+    if (this.segments.length <= 1) return false;
+    if (this.totalLoops === 0) return true;
     return this.currentLoop < this.totalLoops - 1;
   }
   get isFullyComplete() {
-    if (!this.isComplete)
-      return false;
-    if (this.isHolding)
-      return this.holdElapsed >= this.holdDuration;
-    if (this.holdDuration > 0 && !this.isHolding)
-      return false;
+    if (!this.isComplete) return false;
+    if (this.isHolding) return this.holdElapsed >= this.holdDuration;
+    if (this.holdDuration > 0 && !this.isHolding) return false;
     return true;
   }
   startHold() {
     this.isHolding = true;
     this.holdElapsed = 0;
   }
-}
-
-class Motion {
-  currentCoord;
-  previousCoord;
-  paths = new Map;
-  activePath = null;
-  _holdJustStarted = false;
-  _pathJustActivated = [];
-  _pendingLayer = null;
+};
+var Motion = class {
   constructor(inputCoord) {
+    this.paths = /* @__PURE__ */ new Map();
+    this.activePath = null;
+    this._holdJustStarted = false;
+    this._pathJustActivated = [];
+    this._pendingLayer = null;
     this.currentCoord = { ...inputCoord };
     this.previousCoord = { column: -1, row: -1 };
   }
@@ -449,7 +428,7 @@ class Motion {
       p.originSegment = null;
     }
     const firstWp = p.waypoints[0];
-    const dist = firstWp.bezierControl !== undefined ? findLengthOfBezierCurve(this.currentCoord, firstWp.bezierControl, firstWp.coord) : lineLength(this.currentCoord, firstWp.coord);
+    const dist = firstWp.bezierControl !== void 0 ? findLengthOfBezierCurve(this.currentCoord, firstWp.bezierControl, firstWp.coord) : lineLength(this.currentCoord, firstWp.coord);
     const originSeg = {
       start: { coord: { ...this.currentCoord } },
       end: firstWp,
@@ -464,7 +443,7 @@ class Motion {
     p.isHolding = false;
     p.holdElapsed = 0;
     p.maxSteps = Math.round(p.totalDistance / p.speed);
-    if (p.layer !== undefined) {
+    if (p.layer !== void 0) {
       this._pendingLayer = p.layer;
     }
     this._pathJustActivated.push(p.id);
@@ -472,8 +451,7 @@ class Motion {
   move() {
     this._holdJustStarted = false;
     this.previousCoord = { ...this.currentCoord };
-    if (!this.activePath || this.activePath.segments.length === 0)
-      return;
+    if (!this.activePath || this.activePath.segments.length === 0) return;
     this.currentCoord = this.activePath.step();
     if (this.activePath.isComplete) {
       if (this.activePath.needsLoop) {
@@ -503,6 +481,8 @@ class Motion {
   clearPathJustActivated() {
     this._pathJustActivated = [];
   }
+  // Removes and returns the last entry — used by ACTIVATE_PATH action handler to prevent
+  // double-firing PATH_ACTIVATED after firing it immediately in the same tick.
   popPathJustActivated() {
     return this._pathJustActivated.pop();
   }
@@ -515,7 +495,7 @@ class Motion {
   movementIsComplete() {
     return this.activePath === null;
   }
-}
+};
 function lineLength(a, b) {
   const dc = b.column - a.column;
   const dr = b.row - a.row;
@@ -529,8 +509,10 @@ function coordOnLine(start, end, t) {
 }
 
 // src/events.ts
-class EventHandler {
-  registry = new Map;
+var EventHandler = class {
+  constructor() {
+    this.registry = /* @__PURE__ */ new Map();
+  }
   register(event, callerId, action, target = null) {
     const key = `${event}:${callerId}`;
     if (!this.registry.has(key)) {
@@ -542,28 +524,22 @@ class EventHandler {
     const key = `${event}:${callerId}`;
     return this.registry.get(key) ?? [];
   }
-}
+};
 
 // src/character.ts
-class EffectCharacter {
-  id;
-  inputSymbol;
-  inputCoord;
-  isVisible = false;
-  isSpace = false;
-  layer = 0;
-  scenes = new Map;
-  activeScene = null;
-  currentVisual;
-  motion;
-  eventHandler;
+var EffectCharacter = class {
   constructor(id, symbol, col, row) {
+    this.isVisible = false;
+    this.isSpace = false;
+    this.layer = 0;
+    this.scenes = /* @__PURE__ */ new Map();
+    this.activeScene = null;
     this.id = id;
     this.inputSymbol = symbol;
     this.inputCoord = { column: col, row };
     this.currentVisual = { symbol, fgColor: null };
     this.motion = new Motion(this.inputCoord);
-    this.eventHandler = new EventHandler;
+    this.eventHandler = new EventHandler();
   }
   newScene(id, isLooping = false, options) {
     const scene = new Scene(id, isLooping, options);
@@ -572,8 +548,7 @@ class EffectCharacter {
   }
   activateScene(sceneOrId) {
     const scene = typeof sceneOrId === "string" ? this.scenes.get(sceneOrId) : sceneOrId;
-    if (!scene)
-      return;
+    if (!scene) return;
     this.activeScene = scene;
     this.currentVisual = scene.activate();
     this._handleActions("SCENE_ACTIVATED", scene.id);
@@ -656,8 +631,7 @@ class EffectCharacter {
       switch (reg.action) {
         case "ACTIVATE_SCENE": {
           const scene = this.scenes.get(reg.target);
-          if (scene)
-            this.activateScene(scene);
+          if (scene) this.activateScene(scene);
           break;
         }
         case "ACTIVATE_PATH": {
@@ -713,8 +687,7 @@ class EffectCharacter {
         }
         case "CALLBACK": {
           const cb = reg.target;
-          if (cb)
-            cb.callback(this, ...cb.args);
+          if (cb) cb.callback(this, ...cb.args);
           break;
         }
       }
@@ -725,40 +698,33 @@ class EffectCharacter {
     const motionActive = !this.motion.movementIsComplete();
     return animActive || motionActive;
   }
-}
+};
 
 // src/canvas.ts
-class Canvas {
-  characters = [];
-  dims;
+var Canvas = class {
   constructor(text, opts) {
+    this.characters = [];
     const includeSpaces = opts?.includeSpaces ?? false;
-    const lines = text.split(`
-`);
-    while (lines.length > 0 && lines[lines.length - 1].trim() === "")
-      lines.pop();
-    while (lines.length > 0 && lines[0].trim() === "")
-      lines.shift();
+    const lines = text.split("\n");
+    while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
+    while (lines.length > 0 && lines[0].trim() === "") lines.shift();
     let id = 0;
     let maxCol = 0;
     const numRows = lines.length;
     const maxLineLength = includeSpaces ? Math.max(...lines.map((l) => l.length), 0) : 0;
-    for (let lineIdx = 0;lineIdx < lines.length; lineIdx++) {
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
-      if (line.trim().length === 0 && !includeSpaces)
-        continue;
+      if (line.trim().length === 0 && !includeSpaces) continue;
       const row = numRows - lineIdx;
       const effectiveLine = line.trim().length === 0 && includeSpaces ? " ".repeat(maxLineLength) : line;
-      for (let colIdx = 0;colIdx < effectiveLine.length; colIdx++) {
+      for (let colIdx = 0; colIdx < effectiveLine.length; colIdx++) {
         const ch = effectiveLine[colIdx];
-        if (!includeSpaces && ch === " ")
-          continue;
+        if (!includeSpaces && ch === " ") continue;
         const col = colIdx + 1;
         const ec = new EffectCharacter(id++, ch, col, row);
         ec.isSpace = ch === " ";
         this.characters.push(ec);
-        if (col > maxCol)
-          maxCol = col;
+        if (col > maxCol) maxCol = col;
       }
     }
     const left = 1;
@@ -806,24 +772,32 @@ class Canvas {
   getNonSpaceCharacters() {
     return this.characters.filter((ch) => !ch.isSpace);
   }
+  /** Whether a coordinate falls within the canvas bounds. Matches Python Canvas.coord_is_in_canvas(). */
   coordIsInCanvas(coord) {
     const { left, right, bottom, top } = this.dims;
     return left <= coord.column && coord.column <= right && bottom <= coord.row && coord.row <= top;
   }
+  /** Whether a coordinate falls within the text boundary. Matches Python Canvas.coord_is_in_text(). */
   coordIsInText(coord) {
     const { textLeft, textRight, textBottom, textTop } = this.dims;
     return textLeft <= coord.column && coord.column <= textRight && textBottom <= coord.row && coord.row <= textTop;
   }
+  /** Random column within canvas (or text boundary). Matches Python Canvas.random_column(). */
   randomColumn(withinTextBoundary = false) {
     const lo = withinTextBoundary ? this.dims.textLeft : this.dims.left;
     const hi = withinTextBoundary ? this.dims.textRight : this.dims.right;
     return Math.floor(Math.random() * (hi - lo + 1)) + lo;
   }
+  /** Random row within canvas (or text boundary). Matches Python Canvas.random_row(). */
   randomRow(withinTextBoundary = false) {
     const lo = withinTextBoundary ? this.dims.textBottom : this.dims.bottom;
     const hi = withinTextBoundary ? this.dims.textTop : this.dims.top;
     return Math.floor(Math.random() * (hi - lo + 1)) + lo;
   }
+  /**
+   * Random coordinate within or outside the canvas. Matches Python Canvas.random_coord().
+   * outsideScope=true returns a coord on one of the 4 edges just outside the canvas.
+   */
   randomCoord(opts) {
     const { left, right, bottom, top } = this.dims;
     if (opts?.outsideScope) {
@@ -836,123 +810,131 @@ class Canvas {
     }
     return { column: this.randomColumn(opts?.withinTextBoundary), row: this.randomRow(opts?.withinTextBoundary) };
   }
+  /** Look up a character by its input coordinate. Matches Python Terminal.get_character_by_input_coord(). */
   getCharacterByInputCoord(coord) {
-    return this.characters.find((c) => c.inputCoord.column === coord.column && c.inputCoord.row === coord.row);
+    return this.characters.find(
+      (c) => c.inputCoord.column === coord.column && c.inputCoord.row === coord.row
+    );
   }
   getCharactersGrouped(grouping, opts) {
     const includeSpaces = opts?.includeSpaces ?? true;
     const pool = includeSpaces ? this.characters : this.getNonSpaceCharacters();
-    const sorted = [...pool].sort((a, b) => a.inputCoord.row - b.inputCoord.row || a.inputCoord.column - b.inputCoord.column);
+    const sorted = [...pool].sort(
+      (a, b) => a.inputCoord.row - b.inputCoord.row || a.inputCoord.column - b.inputCoord.column
+    );
     if (grouping === "row" || grouping === "rowBottomToTop") {
-      const rowMap = new Map;
+      const rowMap = /* @__PURE__ */ new Map();
       for (const ch of sorted) {
-        if (!rowMap.has(ch.inputCoord.row))
-          rowMap.set(ch.inputCoord.row, []);
+        if (!rowMap.has(ch.inputCoord.row)) rowMap.set(ch.inputCoord.row, []);
         rowMap.get(ch.inputCoord.row)?.push(ch);
       }
-      const rows = [...rowMap.entries()].sort((a, b) => grouping === "row" ? b[0] - a[0] : a[0] - b[0]);
+      const rows = [...rowMap.entries()].sort(
+        (a, b) => grouping === "row" ? b[0] - a[0] : a[0] - b[0]
+      );
       return rows.map(([, chars]) => chars);
     }
     if (grouping === "column" || grouping === "columnRightToLeft") {
-      const colMap = new Map;
+      const colMap = /* @__PURE__ */ new Map();
       for (const ch of sorted) {
-        if (!colMap.has(ch.inputCoord.column))
-          colMap.set(ch.inputCoord.column, []);
+        if (!colMap.has(ch.inputCoord.column)) colMap.set(ch.inputCoord.column, []);
         colMap.get(ch.inputCoord.column)?.push(ch);
       }
-      const cols = [...colMap.entries()].sort((a, b) => grouping === "column" ? a[0] - b[0] : b[0] - a[0]);
+      const cols = [...colMap.entries()].sort(
+        (a, b) => grouping === "column" ? a[0] - b[0] : b[0] - a[0]
+      );
       return cols.map(([, chars]) => chars);
     }
     if (grouping === "diagonal" || grouping === "diagonalTopRightToBottomLeft") {
-      const diagMap = new Map;
+      const diagMap = /* @__PURE__ */ new Map();
       for (const ch of sorted) {
         const key = ch.inputCoord.row + ch.inputCoord.column;
-        if (!diagMap.has(key))
-          diagMap.set(key, []);
+        if (!diagMap.has(key)) diagMap.set(key, []);
         diagMap.get(key)?.push(ch);
       }
-      const diags = [...diagMap.entries()].sort((a, b) => grouping === "diagonal" ? a[0] - b[0] : b[0] - a[0]);
+      const diags = [...diagMap.entries()].sort(
+        (a, b) => grouping === "diagonal" ? a[0] - b[0] : b[0] - a[0]
+      );
       return diags.map(([, chars]) => chars);
     }
     if (grouping === "diagonalTopLeftToBottomRight" || grouping === "diagonalBottomRightToTopLeft") {
-      const diagMap = new Map;
+      const diagMap = /* @__PURE__ */ new Map();
       for (const ch of sorted) {
         const key = ch.inputCoord.column - ch.inputCoord.row;
-        if (!diagMap.has(key))
-          diagMap.set(key, []);
+        if (!diagMap.has(key)) diagMap.set(key, []);
         diagMap.get(key)?.push(ch);
       }
-      const diags = [...diagMap.entries()].sort((a, b) => grouping === "diagonalTopLeftToBottomRight" ? a[0] - b[0] : b[0] - a[0]);
+      const diags = [...diagMap.entries()].sort(
+        (a, b) => grouping === "diagonalTopLeftToBottomRight" ? a[0] - b[0] : b[0] - a[0]
+      );
       return diags.map(([, chars]) => chars);
     }
     if (grouping === "centerToOutside" || grouping === "outsideToCenter") {
       const { textCenter } = this.dims;
-      const distMap = new Map;
+      const distMap = /* @__PURE__ */ new Map();
       for (const ch of sorted) {
         const dist = Math.abs(ch.inputCoord.column - textCenter.column) + Math.abs(ch.inputCoord.row - textCenter.row);
-        if (!distMap.has(dist))
-          distMap.set(dist, []);
+        if (!distMap.has(dist)) distMap.set(dist, []);
         distMap.get(dist)?.push(ch);
       }
-      const distances = [...distMap.keys()].sort((a, b) => grouping === "centerToOutside" ? a - b : b - a);
+      const distances = [...distMap.keys()].sort(
+        (a, b) => grouping === "centerToOutside" ? a - b : b - a
+      );
       return distances.map((d) => distMap.get(d) ?? []);
     }
     return [sorted];
   }
-}
+};
 
 // src/renderer.ts
-class DOMRenderer {
-  container;
-  canvas;
-  spanStates = new Map;
-  preMode;
-  rowToDisplayY = new Map;
-  lineHeight;
-  cellWidthPx = 0;
-  cellHeightPx = 0;
-  static blinkStyleInjected = false;
-  static injectBlinkStyle() {
-    if (DOMRenderer.blinkStyleInjected)
-      return;
-    const style = document.createElement("style");
-    style.textContent = `@keyframes tte-blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }`;
-    document.head.appendChild(style);
-    DOMRenderer.blinkStyleInjected = true;
-  }
+var DOMRenderer = class _DOMRenderer {
   constructor(container, canvas, lineHeight = 1.2) {
+    this.spanStates = /* @__PURE__ */ new Map();
+    // Absolute-mode fields
+    this.rowToDisplayY = /* @__PURE__ */ new Map();
+    this.cellWidthPx = 0;
+    this.cellHeightPx = 0;
     this.container = container;
     this.canvas = canvas;
     this.lineHeight = lineHeight;
     this.preMode = container.tagName === "PRE";
-    DOMRenderer.injectBlinkStyle();
+    _DOMRenderer.injectBlinkStyle();
     if (this.preMode) {
       this._buildPreDOM();
     } else {
       this._buildAbsoluteDOM();
     }
   }
+  static {
+    this.blinkStyleInjected = false;
+  }
+  static injectBlinkStyle() {
+    if (_DOMRenderer.blinkStyleInjected) return;
+    const style = document.createElement("style");
+    style.textContent = `@keyframes tte-blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }`;
+    document.head.appendChild(style);
+    _DOMRenderer.blinkStyleInjected = true;
+  }
+  // ── Pre mode: inline spans within lines ──────────────────────
   _buildPreDOM() {
     while (this.container.firstChild) {
       this.container.removeChild(this.container.firstChild);
     }
-    const rowMap = new Map;
+    const rowMap = /* @__PURE__ */ new Map();
     for (const ch of this.canvas.characters) {
       const row = ch.inputCoord.row;
-      if (!rowMap.has(row))
-        rowMap.set(row, []);
+      if (!rowMap.has(row)) rowMap.set(row, []);
       rowMap.get(row)?.push(ch);
     }
     const sortedRows = [...rowMap.keys()].sort((a, b) => b - a);
-    for (let i = 0;i < sortedRows.length; i++) {
+    for (let i = 0; i < sortedRows.length; i++) {
       const rowChars = rowMap.get(sortedRows[i]) ?? [];
       rowChars.sort((a, b) => a.inputCoord.column - b.inputCoord.column);
       const maxCol = rowChars[rowChars.length - 1].inputCoord.column;
-      const colToChar = new Map;
+      const colToChar = /* @__PURE__ */ new Map();
       for (const ch of rowChars) {
         colToChar.set(ch.inputCoord.column, ch);
       }
-      for (let col = 1;col <= maxCol; col++) {
+      for (let col = 1; col <= maxCol; col++) {
         const ch = colToChar.get(col);
         const span = document.createElement("span");
         if (ch) {
@@ -983,11 +965,11 @@ class DOMRenderer {
       }
       if (i < sortedRows.length - 1) {
         const gap = sortedRows[i] - sortedRows[i + 1];
-        this.container.appendChild(document.createTextNode(`
-`.repeat(gap)));
+        this.container.appendChild(document.createTextNode("\n".repeat(gap)));
       }
     }
   }
+  // ── Absolute mode: original approach ─────────────────────────
   _measureCell() {
     const probe = document.createElement("span");
     probe.textContent = "0";
@@ -1004,7 +986,7 @@ class DOMRenderer {
     while (this.container.firstChild) {
       this.container.removeChild(this.container.firstChild);
     }
-    const rowsWithChars = new Set;
+    const rowsWithChars = /* @__PURE__ */ new Set();
     for (const ch2 of this.canvas.characters) {
       rowsWithChars.add(ch2.inputCoord.row);
     }
@@ -1054,13 +1036,13 @@ class DOMRenderer {
       });
     }
   }
+  // ── Render (shared, with pre-mode skipping transforms) ───────
   render() {
     const cw = this.cellWidthPx;
     const ch = this.cellHeightPx;
     for (const char of this.canvas.characters) {
       const state = this.spanStates.get(char.id);
-      if (!state)
-        continue;
+      if (!state) continue;
       const opacity = char.isVisible ? "1" : "0";
       const symbol = char.currentVisual.symbol;
       const reverse = !!char.currentVisual.reverse;
@@ -1114,10 +1096,8 @@ class DOMRenderer {
       }
       if (state.lastUnderline !== underline || state.lastStrike !== strike) {
         const decorations = [];
-        if (underline)
-          decorations.push("underline");
-        if (strike)
-          decorations.push("line-through");
+        if (underline) decorations.push("underline");
+        if (strike) decorations.push("line-through");
         state.span.style.textDecoration = decorations.join(" ");
         state.lastUnderline = underline;
         state.lastStrike = strike;
@@ -1138,7 +1118,7 @@ class DOMRenderer {
       }
     }
   }
-}
+};
 
 // src/types.ts
 var XTERM_TO_HEX = {
@@ -1401,13 +1381,11 @@ var XTERM_TO_HEX = {
 };
 function xtermToHex(xterm) {
   const hex = XTERM_TO_HEX[xterm];
-  if (hex === undefined)
-    throw new Error(`Invalid XTerm-256 color code: ${xterm}`);
+  if (hex === void 0) throw new Error(`Invalid XTerm-256 color code: ${xterm}`);
   return hex;
 }
 function color(hex) {
-  if (typeof hex === "number")
-    return { rgbHex: xtermToHex(hex) };
+  if (typeof hex === "number") return { rgbHex: xtermToHex(hex) };
   return { rgbHex: hex.replace("#", "") };
 }
 function colorPair(fg, bg) {
@@ -1423,26 +1401,25 @@ function rgbInts(c) {
 }
 function adjustBrightness(c, factor) {
   const [r, g, b] = rgbInts(c);
-  const clamp = (v) => Math.min(255, Math.max(0, Math.round(v)));
-  const nr = clamp(r * factor);
-  const ng = clamp(g * factor);
-  const nb = clamp(b * factor);
-  return color(nr.toString(16).padStart(2, "0") + ng.toString(16).padStart(2, "0") + nb.toString(16).padStart(2, "0"));
+  const clamp2 = (v) => Math.min(255, Math.max(0, Math.round(v)));
+  const nr = clamp2(r * factor);
+  const ng = clamp2(g * factor);
+  const nb = clamp2(b * factor);
+  return color(
+    nr.toString(16).padStart(2, "0") + ng.toString(16).padStart(2, "0") + nb.toString(16).padStart(2, "0")
+  );
 }
 
 // src/gradient.ts
-class Gradient {
-  spectrum;
+var Gradient = class {
   constructor(stops, steps = 1, loop = false) {
     const effectiveStops = loop && stops.length > 0 ? [...stops, stops[0]] : stops;
     this.spectrum = this._generate(effectiveStops, Array.isArray(steps) ? steps : [steps]);
   }
   getColorAtFraction(fraction) {
-    if (fraction <= 0)
-      return this.spectrum[0];
-    if (fraction >= 1)
-      return this.spectrum[this.spectrum.length - 1];
-    for (let i = 1;i <= this.spectrum.length; i++) {
+    if (fraction <= 0) return this.spectrum[0];
+    if (fraction >= 1) return this.spectrum[this.spectrum.length - 1];
+    for (let i = 1; i <= this.spectrum.length; i++) {
       if (fraction <= i / this.spectrum.length) {
         return this.spectrum[i - 1];
       }
@@ -1450,21 +1427,19 @@ class Gradient {
     return this.spectrum[this.spectrum.length - 1];
   }
   _generate(stops, steps) {
-    if (stops.length === 0)
-      return [];
+    if (stops.length === 0) return [];
     if (stops.length === 1) {
       const result = [];
-      for (let i = 0;i < steps[0]; i++)
-        result.push(stops[0]);
+      for (let i = 0; i < steps[0]; i++) result.push(stops[0]);
       return result;
     }
     const pairs = [];
-    for (let i = 0;i < stops.length - 1; i++) {
+    for (let i = 0; i < stops.length - 1; i++) {
       pairs.push([stops[i], stops[i + 1]]);
     }
     const pairSteps = pairs.map((_, i) => steps[Math.min(i, steps.length - 1)]);
     const spectrum = [];
-    for (let pairIdx = 0;pairIdx < pairs.length; pairIdx++) {
+    for (let pairIdx = 0; pairIdx < pairs.length; pairIdx++) {
       const [start, end] = pairs[pairIdx];
       const stepCount = pairSteps[pairIdx];
       const startRgb = rgbInts(start);
@@ -1473,7 +1448,7 @@ class Gradient {
       const greenDelta = Math.floor((endRgb[1] - startRgb[1]) / stepCount);
       const blueDelta = Math.floor((endRgb[2] - startRgb[2]) / stepCount);
       const rangeStart = spectrum.length > 0 ? 1 : 0;
-      for (let i = rangeStart;i < stepCount; i++) {
+      for (let i = rangeStart; i < stepCount; i++) {
         const r = clamp(startRgb[0] + redDelta * i, 0, 255);
         const g = clamp(startRgb[1] + greenDelta * i, 0, 255);
         const b = clamp(startRgb[2] + blueDelta * i, 0, 255);
@@ -1484,35 +1459,35 @@ class Gradient {
     return spectrum;
   }
   buildCoordinateColorMapping(minRow, maxRow, minCol, maxCol, direction) {
-    const mapping = new Map;
+    const mapping = /* @__PURE__ */ new Map();
     const rowOffset = minRow - 1;
     const colOffset = minCol - 1;
     if (direction === "vertical") {
-      for (let row = minRow;row <= maxRow; row++) {
+      for (let row = minRow; row <= maxRow; row++) {
         const fraction = (row - rowOffset) / (maxRow - rowOffset);
         const c = this.getColorAtFraction(fraction);
-        for (let col = minCol;col <= maxCol; col++) {
+        for (let col = minCol; col <= maxCol; col++) {
           mapping.set(coordKey(col, row), c);
         }
       }
     } else if (direction === "horizontal") {
-      for (let col = minCol;col <= maxCol; col++) {
+      for (let col = minCol; col <= maxCol; col++) {
         const fraction = (col - colOffset) / (maxCol - colOffset);
         const c = this.getColorAtFraction(fraction);
-        for (let row = minRow;row <= maxRow; row++) {
+        for (let row = minRow; row <= maxRow; row++) {
           mapping.set(coordKey(col, row), c);
         }
       }
     } else if (direction === "diagonal") {
-      for (let row = minRow;row <= maxRow; row++) {
-        for (let col = minCol;col <= maxCol; col++) {
+      for (let row = minRow; row <= maxRow; row++) {
+        for (let col = minCol; col <= maxCol; col++) {
           const fraction = ((row - rowOffset) * 2 + (col - colOffset)) / ((maxRow - rowOffset) * 2 + (maxCol - colOffset));
           mapping.set(coordKey(col, row), this.getColorAtFraction(fraction));
         }
       }
     } else if (direction === "radial") {
-      for (let row = minRow;row <= maxRow; row++) {
-        for (let col = minCol;col <= maxCol; col++) {
+      for (let row = minRow; row <= maxRow; row++) {
+        for (let col = minCol; col <= maxCol; col++) {
           const dist = normalizedDistFromCenter(minRow, maxRow, minCol, maxCol, col, row);
           mapping.set(coordKey(col, row), this.getColorAtFraction(dist));
         }
@@ -1520,7 +1495,7 @@ class Gradient {
     }
     return mapping;
   }
-}
+};
 function coordKey(col, row) {
   return `${col},${row}`;
 }
@@ -1554,11 +1529,12 @@ var KEYBOARD = range(33, 127);
 var BLOCKS = range(9608, 9632);
 var BOX_DRAWING = range(9472, 9599);
 var MISC = range(174, 452);
-var ENCRYPTED_SYMBOLS = [...KEYBOARD, ...BLOCKS, ...BOX_DRAWING, ...MISC].map((n) => String.fromCharCode(n));
+var ENCRYPTED_SYMBOLS = [...KEYBOARD, ...BLOCKS, ...BOX_DRAWING, ...MISC].map(
+  (n) => String.fromCharCode(n)
+);
 function range(start, end) {
   const r = [];
-  for (let i = start;i < end; i++)
-    r.push(i);
+  for (let i = start; i < end; i++) r.push(i);
   return r;
 }
 function randChoice(arr) {
@@ -1567,16 +1543,13 @@ function randChoice(arr) {
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-class DecryptEffect {
-  canvas;
-  config;
-  typingPending = [];
-  decryptingChars = new Set;
-  activeChars = new Set;
-  phase = "typing";
-  characterFinalColorMap = new Map;
+var DecryptEffect = class {
   constructor(canvas, config) {
+    this.typingPending = [];
+    this.decryptingChars = /* @__PURE__ */ new Set();
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.phase = "typing";
+    this.characterFinalColorMap = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -1584,7 +1557,13 @@ class DecryptEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -1601,7 +1580,7 @@ class DecryptEffect {
   prepareTyping(chars) {
     for (const ch of chars) {
       const scene = ch.newScene("typing");
-      for (const block of ["▉", "▓", "▒", "░"]) {
+      for (const block of ["\u2589", "\u2593", "\u2592", "\u2591"]) {
         scene.addFrame(block, 2, randChoice(this.config.ciphertextColors).rgbHex);
       }
       scene.addFrame(randChoice(ENCRYPTED_SYMBOLS), 1, randChoice(this.config.ciphertextColors).rgbHex);
@@ -1612,12 +1591,12 @@ class DecryptEffect {
     for (const ch of chars) {
       const cipherColor = randChoice(this.config.ciphertextColors);
       const fastScene = ch.newScene("fast_decrypt");
-      for (let i = 0;i < 80; i++) {
+      for (let i = 0; i < 80; i++) {
         fastScene.addFrame(randChoice(ENCRYPTED_SYMBOLS), 2, cipherColor.rgbHex);
       }
       const slowScene = ch.newScene("slow_decrypt");
       const slowCount = randInt(1, 15);
-      for (let i = 0;i < slowCount; i++) {
+      for (let i = 0; i < slowCount; i++) {
         const duration = randInt(0, 100) <= 30 ? randInt(35, 59) : randInt(3, 5);
         slowScene.addFrame(randChoice(ENCRYPTED_SYMBOLS), duration, cipherColor.rgbHex);
       }
@@ -1634,10 +1613,9 @@ class DecryptEffect {
     if (this.phase === "typing") {
       if (this.typingPending.length > 0 || this.activeChars.size > 0) {
         if (this.typingPending.length > 0 && Math.random() <= 0.75) {
-          for (let i = 0;i < this.config.typingSpeed && this.typingPending.length > 0; i++) {
+          for (let i = 0; i < this.config.typingSpeed && this.typingPending.length > 0; i++) {
             const ch = this.typingPending.shift();
-            if (!ch)
-              break;
+            if (!ch) break;
             ch.isVisible = true;
             ch.activateScene("typing");
             this.activeChars.add(ch);
@@ -1671,45 +1649,45 @@ class DecryptEffect {
     }
     return false;
   }
-}
+};
 
 // src/easing.ts
-var exports_easing = {};
-__export(exports_easing, {
-  outSine: () => outSine,
-  outQuint: () => outQuint,
-  outQuart: () => outQuart,
-  outQuad: () => outQuad,
-  outExpo: () => outExpo,
-  outElastic: () => outElastic,
-  outCubic: () => outCubic,
-  outCirc: () => outCirc,
-  outBounce: () => outBounce,
-  outBack: () => outBack,
-  makeEasing: () => makeEasing,
-  linear: () => linear,
-  inSine: () => inSine,
-  inQuint: () => inQuint,
-  inQuart: () => inQuart,
-  inQuad: () => inQuad,
-  inOutSine: () => inOutSine,
-  inOutQuint: () => inOutQuint,
-  inOutQuart: () => inOutQuart,
-  inOutQuad: () => inOutQuad,
-  inOutExpo: () => inOutExpo,
-  inOutElastic: () => inOutElastic,
-  inOutCubic: () => inOutCubic,
-  inOutCirc: () => inOutCirc,
-  inOutBounce: () => inOutBounce,
-  inOutBack: () => inOutBack,
-  inExpo: () => inExpo,
-  inElastic: () => inElastic,
-  inCubic: () => inCubic,
-  inCirc: () => inCirc,
-  inBounce: () => inBounce,
-  inBack: () => inBack,
+var easing_exports = {};
+__export(easing_exports, {
+  EasingTracker: () => EasingTracker,
   SequenceEaser: () => SequenceEaser,
-  EasingTracker: () => EasingTracker
+  inBack: () => inBack,
+  inBounce: () => inBounce,
+  inCirc: () => inCirc,
+  inCubic: () => inCubic,
+  inElastic: () => inElastic,
+  inExpo: () => inExpo,
+  inOutBack: () => inOutBack,
+  inOutBounce: () => inOutBounce,
+  inOutCirc: () => inOutCirc,
+  inOutCubic: () => inOutCubic,
+  inOutElastic: () => inOutElastic,
+  inOutExpo: () => inOutExpo,
+  inOutQuad: () => inOutQuad,
+  inOutQuart: () => inOutQuart,
+  inOutQuint: () => inOutQuint,
+  inOutSine: () => inOutSine,
+  inQuad: () => inQuad,
+  inQuart: () => inQuart,
+  inQuint: () => inQuint,
+  inSine: () => inSine,
+  linear: () => linear,
+  makeEasing: () => makeEasing,
+  outBack: () => outBack,
+  outBounce: () => outBounce,
+  outCirc: () => outCirc,
+  outCubic: () => outCubic,
+  outElastic: () => outElastic,
+  outExpo: () => outExpo,
+  outQuad: () => outQuad,
+  outQuart: () => outQuart,
+  outQuint: () => outQuint,
+  outSine: () => outSine
 });
 var linear = (t) => t;
 var inQuad = (t) => t ** 2;
@@ -1724,10 +1702,8 @@ var inOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
 var inExpo = (t) => t === 0 ? 0 : 2 ** (10 * t - 10);
 var outExpo = (t) => t === 1 ? 1 : 1 - 2 ** (-10 * t);
 var inOutExpo = (t) => {
-  if (t === 0)
-    return 0;
-  if (t === 1)
-    return 1;
+  if (t === 0) return 0;
+  if (t === 1) return 1;
   return t < 0.5 ? 2 ** (20 * t - 10) / 2 : (2 - 2 ** (-20 * t + 10)) / 2;
 };
 var inBack = (t) => {
@@ -1749,12 +1725,9 @@ var inBounce = (t) => 1 - outBounce(1 - t);
 var outBounce = (t) => {
   const n1 = 7.5625;
   const d1 = 2.75;
-  if (t < 1 / d1)
-    return n1 * t ** 2;
-  if (t < 2 / d1)
-    return n1 * (t - 1.5 / d1) ** 2 + 0.75;
-  if (t < 2.5 / d1)
-    return n1 * (t - 2.25 / d1) ** 2 + 0.9375;
+  if (t < 1 / d1) return n1 * t ** 2;
+  if (t < 2 / d1) return n1 * (t - 1.5 / d1) ** 2 + 0.75;
+  if (t < 2.5 / d1) return n1 * (t - 2.25 / d1) ** 2 + 0.9375;
   return n1 * (t - 2.625 / d1) ** 2 + 0.984375;
 };
 var inOutBounce = (t) => t < 0.5 ? (1 - outBounce(1 - 2 * t)) / 2 : (1 + outBounce(2 * t - 1)) / 2;
@@ -1769,26 +1742,20 @@ var outCirc = (t) => Math.sqrt(1 - (t - 1) ** 2);
 var inOutCirc = (t) => t < 0.5 ? (1 - Math.sqrt(1 - (2 * t) ** 2)) / 2 : (Math.sqrt(1 - (-2 * t + 2) ** 2) + 1) / 2;
 var inElastic = (t) => {
   const c4 = 2 * Math.PI / 3;
-  if (t === 0)
-    return 0;
-  if (t === 1)
-    return 1;
+  if (t === 0) return 0;
+  if (t === 1) return 1;
   return -(2 ** (10 * t - 10)) * Math.sin((t * 10 - 10.75) * c4);
 };
 var outElastic = (t) => {
   const c4 = 2 * Math.PI / 3;
-  if (t === 0)
-    return 0;
-  if (t === 1)
-    return 1;
+  if (t === 0) return 0;
+  if (t === 1) return 1;
   return 2 ** (-10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
 };
 var inOutElastic = (t) => {
   const c5 = 2 * Math.PI / 4.5;
-  if (t === 0)
-    return 0;
-  if (t === 1)
-    return 1;
+  if (t === 0) return 0;
+  if (t === 1) return 1;
   if (t < 0.5) {
     return -(2 ** (20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2;
   }
@@ -1805,35 +1772,27 @@ function makeEasing(x1, y1, x2, y2) {
     return 3 * (1 - t) ** 2 * x1 + 6 * (1 - t) * t * (x2 - x1) + 3 * t ** 2 * (1 - x2);
   }
   return (progress) => {
-    if (progress <= 0)
-      return 0;
-    if (progress >= 1)
-      return 1;
+    if (progress <= 0) return 0;
+    if (progress >= 1) return 1;
     let t = progress;
-    for (let i = 0;i < 20; i++) {
+    for (let i = 0; i < 20; i++) {
       const xEst = sampleCurveX(t);
       const dx = xEst - progress;
-      if (Math.abs(dx) < 0.00001)
-        break;
+      if (Math.abs(dx) < 1e-5) break;
       const d = sampleCurveDerivativeX(t);
-      if (Math.abs(d) < 0.000001)
-        break;
+      if (Math.abs(d) < 1e-6) break;
       t -= dx / d;
     }
     return sampleCurveY(t);
   };
 }
-
-class EasingTracker {
-  easingFunction;
-  totalSteps;
-  currentStep = 0;
-  progressRatio = 0;
-  stepDelta = 0;
-  easedValue = 0;
-  _lastEasedValue = 0;
-  _clamp;
+var EasingTracker = class {
   constructor(easingFunction, totalSteps = 100, clamp2 = false) {
+    this.currentStep = 0;
+    this.progressRatio = 0;
+    this.stepDelta = 0;
+    this.easedValue = 0;
+    this._lastEasedValue = 0;
     this.easingFunction = easingFunction;
     this.totalSteps = totalSteps;
     this._clamp = clamp2;
@@ -1861,15 +1820,12 @@ class EasingTracker {
   isComplete() {
     return this.currentStep >= this.totalSteps;
   }
-}
-
-class SequenceEaser {
-  sequence;
-  easingTracker;
-  added = [];
-  removed = [];
-  total = [];
+};
+var SequenceEaser = class {
   constructor(sequence, easingFunction, totalSteps = 100) {
+    this.added = [];
+    this.removed = [];
+    this.total = [];
     this.sequence = sequence;
     this.easingTracker = new EasingTracker(easingFunction, totalSteps, true);
   }
@@ -1907,7 +1863,7 @@ class SequenceEaser {
     this.removed = [];
     this.total = [];
   }
-}
+};
 
 // src/effects/slide.ts
 var defaultSlideConfig = {
@@ -1922,15 +1878,12 @@ var defaultSlideConfig = {
   finalGradientFrames: 6,
   finalGradientDirection: "vertical"
 };
-
-class SlideEffect {
-  canvas;
-  config;
-  pendingGroups = [];
-  activeGroups = [];
-  activeChars = new Set;
-  currentGap = 0;
+var SlideEffect = class {
   constructor(canvas, config) {
+    this.pendingGroups = [];
+    this.activeGroups = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.currentGap = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -1938,8 +1891,14 @@ class SlideEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    const characterFinalColor = new Map;
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
+    const characterFinalColor = /* @__PURE__ */ new Map();
     for (const ch of this.canvas.getCharacters()) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       characterFinalColor.set(ch.id, colorMapping.get(key) || this.config.finalGradientStops[0]);
@@ -1956,7 +1915,7 @@ class SlideEffect {
         path.addWaypoint(ch.inputCoord);
       }
     }
-    for (let gi = 0;gi < groups.length; gi++) {
+    for (let gi = 0; gi < groups.length; gi++) {
       const group = groups[gi];
       if (this.config.grouping === "row") {
         let startingColumn;
@@ -2020,7 +1979,10 @@ class SlideEffect {
       for (const ch of group) {
         const charFinalColor = characterFinalColor.get(ch.id) || this.config.finalGradientStops[0];
         const scene = ch.newScene("gradient");
-        const charGradient = new Gradient([this.config.finalGradientStops[0], charFinalColor], 10);
+        const charGradient = new Gradient(
+          [this.config.finalGradientStops[0], charFinalColor],
+          10
+        );
         scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
         ch.activateScene(scene);
       }
@@ -2034,8 +1996,7 @@ class SlideEffect {
     if (this.pendingGroups.length > 0) {
       if (this.currentGap >= this.config.gap) {
         const group = this.pendingGroups.shift();
-        if (group)
-          this.activeGroups.push(group);
+        if (group) this.activeGroups.push(group);
         this.currentGap = 0;
       } else {
         this.currentGap++;
@@ -2044,8 +2005,7 @@ class SlideEffect {
     for (const group of this.activeGroups) {
       if (group.length > 0) {
         const ch = group.shift();
-        if (!ch)
-          continue;
+        if (!ch) continue;
         ch.isVisible = true;
         ch.motion.activatePath("input_path");
         this.activeChars.add(ch);
@@ -2060,7 +2020,7 @@ class SlideEffect {
     }
     return this.pendingGroups.length > 0 || this.activeChars.size > 0 || this.activeGroups.length > 0;
   }
-}
+};
 
 // src/effects/wipe.ts
 var defaultWipeConfig = {
@@ -2072,14 +2032,9 @@ var defaultWipeConfig = {
   finalGradientFrames: 3,
   finalGradientDirection: "vertical"
 };
-
-class WipeEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  easer;
-  delayCounter;
+var WipeEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.delayCounter = 0;
@@ -2088,10 +2043,15 @@ class WipeEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     const groups = this.canvas.getCharactersGrouped(this.config.wipeDirection, { includeSpaces: false });
     for (const group of groups) {
@@ -2099,7 +2059,10 @@ class WipeEffect {
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
         const scene = ch.newScene("wipe");
-        const wipeGradient = new Gradient([this.config.finalGradientStops[0], finalColor], this.config.finalGradientSteps);
+        const wipeGradient = new Gradient(
+          [this.config.finalGradientStops[0], finalColor],
+          this.config.finalGradientSteps
+        );
         scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, wipeGradient);
       }
     }
@@ -2126,8 +2089,7 @@ class WipeEffect {
               ch.activeScene = null;
             }
             const wipeScene = ch.scenes.get("wipe");
-            if (wipeScene)
-              wipeScene.reset();
+            if (wipeScene) wipeScene.reset();
             ch.isVisible = false;
             this.activeChars.delete(ch);
           }
@@ -2145,12 +2107,12 @@ class WipeEffect {
     }
     return !this.easer.isComplete() || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/randomsequence.ts
 var defaultRandomSequenceConfig = {
   startingColor: color("000000"),
-  speed: 0.007,
+  speed: 7e-3,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
   finalGradientFrames: 8,
@@ -2158,20 +2120,16 @@ var defaultRandomSequenceConfig = {
 };
 function shuffle(arr) {
   const a = [...arr];
-  for (let i = a.length - 1;i > 0; i--) {
+  for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
-
-class RandomSequenceEffect {
-  canvas;
-  config;
-  pending = [];
-  activeChars = new Set;
-  charsPerTick;
+var RandomSequenceEffect = class {
   constructor(canvas, config) {
+    this.pending = [];
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.charsPerTick = 1;
@@ -2180,10 +2138,15 @@ class RandomSequenceEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     const animChars = this.canvas.getNonSpaceCharacters();
     this.charsPerTick = Math.max(Math.floor(this.config.speed * animChars.length), 1);
@@ -2200,10 +2163,9 @@ class RandomSequenceEffect {
     if (this.pending.length === 0 && this.activeChars.size === 0) {
       return false;
     }
-    for (let i = 0;i < this.charsPerTick && this.pending.length > 0; i++) {
+    for (let i = 0; i < this.charsPerTick && this.pending.length > 0; i++) {
       const ch = this.pending.pop();
-      if (!ch)
-        break;
+      if (!ch) break;
       ch.isVisible = true;
       ch.activateScene("gradient");
       this.activeChars.add(ch);
@@ -2216,7 +2178,7 @@ class RandomSequenceEffect {
     }
     return this.pending.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/middleout.ts
 var defaultMiddleOutConfig = {
@@ -2230,15 +2192,12 @@ var defaultMiddleOutConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
 };
-
-class MiddleOutEffect {
-  canvas;
-  config;
-  animChars = [];
-  activeChars = new Set;
-  phase = "center";
-  characterFinalColorMap = new Map;
+var MiddleOutEffect = class {
   constructor(canvas, config) {
+    this.animChars = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.phase = "center";
+    this.characterFinalColorMap = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2246,10 +2205,15 @@ class MiddleOutEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     this.animChars = this.canvas.getNonSpaceCharacters();
     for (const ch of this.animChars) {
@@ -2282,8 +2246,7 @@ class MiddleOutEffect {
     }
   }
   step() {
-    if (this.phase === "done")
-      return false;
+    if (this.phase === "done") return false;
     if (this.phase === "center") {
       if (this.activeChars.size > 0) {
         for (const ch of this.activeChars) {
@@ -2313,7 +2276,7 @@ class MiddleOutEffect {
     }
     return false;
   }
-}
+};
 
 // src/effects/colorshift.ts
 var defaultColorShiftConfig = {
@@ -2327,17 +2290,15 @@ var defaultColorShiftConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
 };
-
-class ColorShiftEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  cyclesCompleted = new Map;
+var ColorShiftEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.cyclesCompleted = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.build();
   }
+  // Called via CALLBACK event when the gradient scene completes — matches Python's loop_tracker.
   loopTracker(character) {
     const count = (this.cyclesCompleted.get(character.id) || 0) + 1;
     this.cyclesCompleted.set(character.id, count);
@@ -2350,12 +2311,17 @@ class ColorShiftEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const finalColorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const finalColorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const waveGradient = new Gradient(this.config.gradientStops, this.config.gradientSteps, true);
     const spectrum = waveGradient.spectrum;
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     const maxCol = dims.textRight;
     const maxRow = dims.textTop;
@@ -2376,8 +2342,7 @@ class ColorShiftEffect {
       } else {
         offset = findNormalizedDistanceFromCenter(minRow, maxRow, minCol, maxCol, ch.inputCoord);
       }
-      if (this.config.reverseTravelDirection)
-        offset = 1 - offset;
+      if (this.config.reverseTravelDirection) offset = 1 - offset;
       const shift = Math.floor(offset * spectrum.length) % spectrum.length;
       const shifted = [...spectrum.slice(shift), ...spectrum.slice(0, shift)];
       const loopScene = ch.newScene("loop");
@@ -2390,14 +2355,18 @@ class ColorShiftEffect {
       const lastShiftedColor = shifted[shifted.length - 1] ?? shifted[0];
       const charGradient = new Gradient([lastShiftedColor, finalColor], 8);
       finalScene.applyGradientToSymbols(ch.inputSymbol, this.config.gradientFrames, charGradient);
-      ch.eventHandler.register("SCENE_COMPLETE", "loop", "CALLBACK", { callback: (c) => this.loopTracker(c), args: [] });
+      ch.eventHandler.register(
+        "SCENE_COMPLETE",
+        "loop",
+        "CALLBACK",
+        { callback: (c) => this.loopTracker(c), args: [] }
+      );
       ch.activateScene("loop");
       this.activeChars.add(ch);
     }
   }
   step() {
-    if (this.activeChars.size === 0)
-      return false;
+    if (this.activeChars.size === 0) return false;
     for (const ch of [...this.activeChars]) {
       ch.tick();
       if (!ch.isActive) {
@@ -2406,7 +2375,7 @@ class ColorShiftEffect {
     }
     return this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/scattered.ts
 var defaultScatteredConfig = {
@@ -2420,12 +2389,9 @@ var defaultScatteredConfig = {
 function randInt2(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-class ScatteredEffect {
-  canvas;
-  config;
-  activeChars = new Set;
+var ScatteredEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2433,7 +2399,13 @@ class ScatteredEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -2458,8 +2430,7 @@ class ScatteredEffect {
     }
   }
   step() {
-    if (this.activeChars.size === 0)
-      return false;
+    if (this.activeChars.size === 0) return false;
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
@@ -2468,7 +2439,7 @@ class ScatteredEffect {
     }
     return this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/pour.ts
 var defaultPourConfig = {
@@ -2483,15 +2454,12 @@ var defaultPourConfig = {
   finalGradientFrames: 6,
   finalGradientDirection: "vertical"
 };
-
-class PourEffect {
-  canvas;
-  config;
-  pendingGroups = [];
-  currentGroup = [];
-  activeChars = new Set;
-  currentGap = 0;
+var PourEffect = class {
   constructor(canvas, config) {
+    this.pendingGroups = [];
+    this.currentGroup = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.currentGap = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2499,18 +2467,22 @@ class PourEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     const nonSpace = this.canvas.getNonSpaceCharacters();
     const isVertical = this.config.pourDirection === "down" || this.config.pourDirection === "up";
-    const groupMap = new Map;
+    const groupMap = /* @__PURE__ */ new Map();
     for (const ch of nonSpace) {
       const key = isVertical ? ch.inputCoord.row : ch.inputCoord.column;
-      if (!groupMap.has(key))
-        groupMap.set(key, []);
+      if (!groupMap.has(key)) groupMap.set(key, []);
       groupMap.get(key)?.push(ch);
     }
     const sortedKeys = [...groupMap.keys()];
@@ -2524,7 +2496,7 @@ class PourEffect {
       sortedKeys.sort((a, b) => b - a);
     }
     const groups = [];
-    for (let i = 0;i < sortedKeys.length; i++) {
+    for (let i = 0; i < sortedKeys.length; i++) {
       let group = groupMap.get(sortedKeys[i]) ?? [];
       if (i % 2 === 1) {
         group = group.slice().reverse();
@@ -2563,16 +2535,14 @@ class PourEffect {
     }
     if (this.currentGroup.length === 0 && this.pendingGroups.length > 0) {
       const next = this.pendingGroups.shift();
-      if (next)
-        this.currentGroup = next;
+      if (next) this.currentGroup = next;
     }
     if (this.currentGroup.length > 0) {
       if (this.currentGap === 0) {
         let activated = 0;
         while (this.currentGroup.length > 0 && activated < this.config.pourSpeed) {
           const ch = this.currentGroup.shift();
-          if (!ch)
-            break;
+          if (!ch) break;
           ch.isVisible = true;
           ch.motion.activatePath("input_path");
           ch.activateScene("gradient");
@@ -2592,11 +2562,11 @@ class PourEffect {
     }
     return this.pendingGroups.length > 0 || this.currentGroup.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/sweep.ts
 var defaultSweepConfig = {
-  sweepSymbols: ["█", "▓", "▒", "░"],
+  sweepSymbols: ["\u2588", "\u2593", "\u2592", "\u2591"],
   firstSweepDirection: "right_to_left",
   secondSweepDirection: "left_to_right",
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
@@ -2607,19 +2577,15 @@ var SHADES_OF_GRAY = ["A0A0A0", "808080", "404040", "202020", "101010"];
 function randGray() {
   return SHADES_OF_GRAY[Math.floor(Math.random() * SHADES_OF_GRAY.length)];
 }
-
-class SweepEffect {
-  canvas;
-  config;
-  phase = "reveal";
-  groups = [];
-  currentStep = 0;
-  totalSteps = 0;
-  lastGroupIndex = -1;
-  activeChars = new Set;
-  colorMapping = new Map;
-  finalGradient;
+var SweepEffect = class {
   constructor(canvas, config) {
+    this.phase = "reveal";
+    this.groups = [];
+    this.currentStep = 0;
+    this.totalSteps = 0;
+    this.lastGroupIndex = -1;
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.colorMapping = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2627,21 +2593,27 @@ class SweepEffect {
   build() {
     const { dims } = this.canvas;
     this.finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = this.finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    this.colorMapping = this.finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     this.setupPhase1();
   }
   getColumnGroups(direction) {
-    const colMap = new Map;
+    const colMap = /* @__PURE__ */ new Map();
     for (const ch of this.canvas.getNonSpaceCharacters()) {
-      if (!colMap.has(ch.inputCoord.column))
-        colMap.set(ch.inputCoord.column, []);
+      if (!colMap.has(ch.inputCoord.column)) colMap.set(ch.inputCoord.column, []);
       colMap.get(ch.inputCoord.column)?.push(ch);
     }
-    const sortedKeys = [...colMap.keys()].sort((a, b) => direction === "left_to_right" ? a - b : b - a);
+    const sortedKeys = [...colMap.keys()].sort(
+      (a, b) => direction === "left_to_right" ? a - b : b - a
+    );
     return sortedKeys.map((k) => colMap.get(k) ?? []);
   }
   setupPhase1() {
@@ -2679,12 +2651,14 @@ class SweepEffect {
     }
   }
   step() {
-    if (this.phase === "done")
-      return false;
+    if (this.phase === "done") return false;
     this.currentStep++;
     const progress = inOutCirc(Math.min(this.currentStep / this.totalSteps, 1));
-    const targetGroupIndex = Math.min(Math.floor(progress * this.groups.length), this.groups.length - 1);
-    for (let i = this.lastGroupIndex + 1;i <= targetGroupIndex; i++) {
+    const targetGroupIndex = Math.min(
+      Math.floor(progress * this.groups.length),
+      this.groups.length - 1
+    );
+    for (let i = this.lastGroupIndex + 1; i <= targetGroupIndex; i++) {
       for (const ch of this.groups[i]) {
         if (this.phase === "reveal") {
           ch.isVisible = true;
@@ -2714,7 +2688,7 @@ class SweepEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/expand.ts
 var defaultExpandConfig = {
@@ -2725,12 +2699,9 @@ var defaultExpandConfig = {
   finalGradientFrames: 5,
   finalGradientDirection: "vertical"
 };
-
-class ExpandEffect {
-  canvas;
-  config;
-  activeChars = new Set;
+var ExpandEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2738,7 +2709,13 @@ class ExpandEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -2761,8 +2738,7 @@ class ExpandEffect {
     }
   }
   step() {
-    if (this.activeChars.size === 0)
-      return false;
+    if (this.activeChars.size === 0) return false;
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
@@ -2771,11 +2747,11 @@ class ExpandEffect {
     }
     return this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/waves.ts
 var defaultWavesConfig = {
-  waveSymbols: ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂", "▁"],
+  waveSymbols: ["\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588", "\u2587", "\u2586", "\u2585", "\u2584", "\u2583", "\u2582", "\u2581"],
   waveCount: 7,
   waveFrameDuration: 2,
   waveDirection: "column_left_to_right",
@@ -2786,13 +2762,10 @@ var defaultWavesConfig = {
   waveEasing: inOutSine,
   finalGradientDirection: "diagonal"
 };
-
-class WavesEffect {
-  canvas;
-  config;
-  pendingGroups = [];
-  activeChars = new Set;
+var WavesEffect = class {
   constructor(canvas, config) {
+    this.pendingGroups = [];
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2800,12 +2773,22 @@ class WavesEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const waveGradient = new Gradient(this.config.waveGradientStops, this.config.waveGradientSteps);
     for (const ch of this.canvas.getCharacters()) {
       const waveScene = ch.newScene("wave", false, { ease: this.config.waveEasing });
-      for (let i = 0;i < this.config.waveCount; i++) {
-        waveScene.applyGradientToSymbols(this.config.waveSymbols, this.config.waveFrameDuration, waveGradient);
+      for (let i = 0; i < this.config.waveCount; i++) {
+        waveScene.applyGradientToSymbols(
+          this.config.waveSymbols,
+          this.config.waveFrameDuration,
+          waveGradient
+        );
       }
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
@@ -2824,7 +2807,10 @@ class WavesEffect {
       center_to_outside: "centerToOutside",
       outside_to_center: "outsideToCenter"
     };
-    this.pendingGroups = this.canvas.getCharactersGrouped(directionGroupingMap[this.config.waveDirection], { includeSpaces: true });
+    this.pendingGroups = this.canvas.getCharactersGrouped(
+      directionGroupingMap[this.config.waveDirection],
+      { includeSpaces: true }
+    );
   }
   step() {
     if (this.pendingGroups.length === 0 && this.activeChars.size === 0) {
@@ -2845,7 +2831,7 @@ class WavesEffect {
     }
     return this.pendingGroups.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/rain.ts
 var defaultRainConfig = {
@@ -2865,18 +2851,17 @@ var defaultRainConfig = {
   charsPerTick: 2,
   finalGradientStops: [color("488bff"), color("b2e7de"), color("57eaf7")],
   finalGradientSteps: 12,
+  // frames per gradient symbol in fade scene (Python hardcodes 3)
   finalGradientFrames: 3,
   finalGradientDirection: "diagonal"
 };
-
-class RainEffect {
-  canvas;
-  config;
-  pendingByRow = new Map;
-  pendingRowQueue = [];
-  pendingCurrent = [];
-  activeChars = new Set;
+var RainEffect = class {
   constructor(canvas, config) {
+    // characters grouped by row (ascending row number = bottom row first)
+    this.pendingByRow = /* @__PURE__ */ new Map();
+    this.pendingRowQueue = [];
+    this.pendingCurrent = [];
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2884,10 +2869,15 @@ class RainEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       ch.motion.setCoordinate({ column: ch.inputCoord.column, row: dims.top });
@@ -2897,7 +2887,11 @@ class RainEffect {
       path.addWaypoint(ch.inputCoord);
       const raindropColor = this.config.rainColors[Math.floor(Math.random() * this.config.rainColors.length)];
       const rainScene = ch.newScene("rain");
-      rainScene.addFrame(this.config.rainSymbols[Math.floor(Math.random() * this.config.rainSymbols.length)], 1, raindropColor.rgbHex);
+      rainScene.addFrame(
+        this.config.rainSymbols[Math.floor(Math.random() * this.config.rainSymbols.length)],
+        1,
+        raindropColor.rgbHex
+      );
       ch.activateScene(rainScene);
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
@@ -2906,8 +2900,7 @@ class RainEffect {
       fadeScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, fadeGradient);
       ch.eventHandler.register("PATH_COMPLETE", "fall", "ACTIVATE_SCENE", "fade");
       const row = ch.inputCoord.row;
-      if (!this.pendingByRow.has(row))
-        this.pendingByRow.set(row, []);
+      if (!this.pendingByRow.has(row)) this.pendingByRow.set(row, []);
       this.pendingByRow.get(row)?.push(ch);
     }
     this.pendingRowQueue = [...this.pendingByRow.keys()].sort((a, b) => a - b);
@@ -2918,8 +2911,7 @@ class RainEffect {
     }
     if (this.pendingCurrent.length === 0 && this.pendingRowQueue.length > 0) {
       const nextRow = this.pendingRowQueue.shift();
-      if (nextRow === undefined)
-        return false;
+      if (nextRow === void 0) return false;
       this.pendingCurrent = this.pendingByRow.get(nextRow) ?? [];
       this.pendingByRow.delete(nextRow);
     }
@@ -2940,7 +2932,7 @@ class RainEffect {
     }
     return this.pendingRowQueue.length > 0 || this.pendingCurrent.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/print.ts
 var defaultPrintConfig = {
@@ -2951,18 +2943,14 @@ var defaultPrintConfig = {
   printHeadReturnSpeed: 1.5,
   printHeadEasing: inOutQuad
 };
-
-class PrintEffect {
-  canvas;
-  config;
-  pendingRows = [];
-  currentRow = [];
-  allTypedChars = [];
-  activeChars = new Set;
-  typingHead;
-  lastColumn = 0;
-  currentRowNum = 0;
+var PrintEffect = class {
   constructor(canvas, config) {
+    this.pendingRows = [];
+    this.currentRow = [];
+    this.allTypedChars = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.lastColumn = 0;
+    this.currentRowNum = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -2970,10 +2958,15 @@ class PrintEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.isSpace)
-        ch.isVisible = true;
+      if (ch.isSpace) ch.isVisible = true;
     }
     const rows = this.canvas.getCharactersGrouped("row", { includeSpaces: false });
     for (const row of rows) {
@@ -2985,13 +2978,13 @@ class PrintEffect {
         const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
         const charGradient = new Gradient([color("ffffff"), finalColor], 5);
         const typingScene = ch.newScene("typing");
-        typingScene.applyGradientToSymbols(["█", "▓", "▒", "░", ch.inputSymbol], 3, charGradient);
+        typingScene.applyGradientToSymbols(["\u2588", "\u2593", "\u2592", "\u2591", ch.inputSymbol], 3, charGradient);
         ch.motion.setCoordinate({ column: ch.inputCoord.column, row: 1 });
       }
     }
     this.pendingRows = rows;
     const headId = this.canvas.characters.length > 0 ? Math.max(...this.canvas.characters.map((c) => c.id)) + 1 : 0;
-    const typingHead = new EffectCharacter(headId, "█", 1, 1);
+    const typingHead = new EffectCharacter(headId, "\u2588", 1, 1);
     typingHead.isVisible = false;
     this.canvas.characters.push(typingHead);
     this.typingHead = typingHead;
@@ -3024,7 +3017,11 @@ class PrintEffect {
         const firstCol = this.currentRow[0]?.inputCoord.column ?? 1;
         this.typingHead.motion.setCoordinate({ column: this.lastColumn, row: 1 });
         this.typingHead.isVisible = true;
-        const crPath = this.typingHead.motion.newPath("carriage_return", this.config.printHeadReturnSpeed, this.config.printHeadEasing);
+        const crPath = this.typingHead.motion.newPath(
+          "carriage_return",
+          this.config.printHeadReturnSpeed,
+          this.config.printHeadEasing
+        );
         crPath.addWaypoint({ column: firstCol, row: 1 });
         this.typingHead.motion.activatePath("carriage_return");
         this.activeChars.add(this.typingHead);
@@ -3033,27 +3030,26 @@ class PrintEffect {
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
-        if (ch === this.typingHead)
-          ch.isVisible = false;
+        if (ch === this.typingHead) ch.isVisible = false;
         this.activeChars.delete(ch);
       }
     }
     return this.pendingRows.length > 0 || this.currentRow.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/graph.ts
-var exports_graph = {};
-__export(exports_graph, {
-  getNeighbors: () => getNeighbors,
-  buildSpanningTreeWaves: () => buildSpanningTreeWaves,
-  buildSpanningTreeSimple: () => buildSpanningTreeSimple,
-  buildSpanningTreeDFS: () => buildSpanningTreeDFS,
+var graph_exports = {};
+__export(graph_exports, {
+  buildCoordMap: () => buildCoordMap,
   buildSpanningTree: () => buildSpanningTree,
-  buildCoordMap: () => buildCoordMap
+  buildSpanningTreeDFS: () => buildSpanningTreeDFS,
+  buildSpanningTreeSimple: () => buildSpanningTreeSimple,
+  buildSpanningTreeWaves: () => buildSpanningTreeWaves,
+  getNeighbors: () => getNeighbors
 });
 function buildCoordMap(chars) {
-  const map = new Map;
+  const map = /* @__PURE__ */ new Map();
   for (const ch of chars) {
     map.set(coordKey(ch.inputCoord.column, ch.inputCoord.row), ch);
   }
@@ -3071,17 +3067,14 @@ function getNeighbors(ch, coordMap, mode = 8) {
     ];
     for (const [dc, dr] of offsets) {
       const n = coordMap.get(coordKey(column + dc, row + dr));
-      if (n)
-        neighbors.push(n);
+      if (n) neighbors.push(n);
     }
   } else {
-    for (let dc = -1;dc <= 1; dc++) {
-      for (let dr = -1;dr <= 1; dr++) {
-        if (dc === 0 && dr === 0)
-          continue;
+    for (let dc = -1; dc <= 1; dc++) {
+      for (let dr = -1; dr <= 1; dr++) {
+        if (dc === 0 && dr === 0) continue;
         const n = coordMap.get(coordKey(column + dc, row + dr));
-        if (n)
-          neighbors.push(n);
+        if (n) neighbors.push(n);
       }
     }
   }
@@ -3120,14 +3113,13 @@ function findStartChar(chars, strategy) {
 }
 var defaultWeightFn = (dc, dr) => Math.hypot(dc, dr * 2) + Math.random() * 2;
 function buildSpanningTreeSimple(chars, options) {
-  if (chars.length === 0)
-    return [];
+  if (chars.length === 0) return [];
   const connectivity = options?.connectivity ?? 8;
   const startStrategy = options?.startStrategy ?? "random";
   const includeDisconnected = options?.includeDisconnected ?? true;
   const coordMap = buildCoordMap(chars);
   const startChar = findStartChar(chars, startStrategy);
-  const linked = new Set;
+  const linked = /* @__PURE__ */ new Set();
   const linkOrder = [];
   function getUnlinkedNeighbors(ch) {
     return getNeighbors(ch, coordMap, connectivity).filter((n) => !linked.has(n.id));
@@ -3142,8 +3134,7 @@ function buildSpanningTreeSimple(chars, options) {
     const edgeIdx = Math.floor(Math.random() * edgeChars.length);
     const current = edgeChars.splice(edgeIdx, 1)[0];
     const unlinked = getUnlinkedNeighbors(current);
-    if (unlinked.length === 0)
-      continue;
+    if (unlinked.length === 0) continue;
     const nextIdx = Math.floor(Math.random() * unlinked.length);
     const next = unlinked.splice(nextIdx, 1)[0];
     linkChar(next);
@@ -3164,14 +3155,13 @@ function buildSpanningTreeSimple(chars, options) {
   return linkOrder;
 }
 function buildSpanningTreeDFS(chars, options) {
-  if (chars.length === 0)
-    return [];
+  if (chars.length === 0) return [];
   const connectivity = options?.connectivity ?? 8;
   const startStrategy = options?.startStrategy ?? "random";
   const includeDisconnected = options?.includeDisconnected ?? true;
   const coordMap = buildCoordMap(chars);
   const startChar = findStartChar(chars, startStrategy);
-  const linked = new Set;
+  const linked = /* @__PURE__ */ new Set();
   const linkOrder = [];
   const stack = [];
   linked.add(startChar.id);
@@ -3179,7 +3169,9 @@ function buildSpanningTreeDFS(chars, options) {
   stack.push(startChar);
   while (stack.length > 0) {
     const current = stack[stack.length - 1];
-    const unvisited = getNeighbors(current, coordMap, connectivity).filter((n) => !linked.has(n.id));
+    const unvisited = getNeighbors(current, coordMap, connectivity).filter(
+      (n) => !linked.has(n.id)
+    );
     if (unvisited.length > 0) {
       const next = unvisited[Math.floor(Math.random() * unvisited.length)];
       linked.add(next.id);
@@ -3199,8 +3191,7 @@ function buildSpanningTreeDFS(chars, options) {
   return linkOrder;
 }
 function buildSpanningTree(chars, options) {
-  if (chars.length === 0)
-    return [];
+  if (chars.length === 0) return [];
   const connectivity = options?.connectivity ?? 8;
   const startStrategy = options?.startStrategy ?? "bottomCenter";
   const weightFn = options?.weightFn ?? defaultWeightFn;
@@ -3208,16 +3199,15 @@ function buildSpanningTree(chars, options) {
   const traversal = options?.traversal ?? "insertion";
   const coordMap = buildCoordMap(chars);
   const startChar = findStartChar(chars, startStrategy);
-  const inTree = new Set;
+  const inTree = /* @__PURE__ */ new Set();
   const order = [];
-  const treeChildren = new Map;
+  const treeChildren = /* @__PURE__ */ new Map();
   const frontier = [];
   function addToTree(ch, parent) {
     inTree.add(ch.id);
     order.push(ch);
     if (parent) {
-      if (!treeChildren.has(parent.id))
-        treeChildren.set(parent.id, []);
+      if (!treeChildren.has(parent.id)) treeChildren.set(parent.id, []);
       treeChildren.get(parent.id)?.push(ch);
     }
     for (const neighbor of getNeighbors(ch, coordMap, connectivity)) {
@@ -3231,15 +3221,14 @@ function buildSpanningTree(chars, options) {
   addToTree(startChar, null);
   while (frontier.length > 0) {
     let minIdx = 0;
-    for (let i = 1;i < frontier.length; i++) {
+    for (let i = 1; i < frontier.length; i++) {
       if (frontier[i].weight < frontier[minIdx].weight) {
         minIdx = i;
       }
     }
     const entry = frontier[minIdx];
     frontier.splice(minIdx, 1);
-    if (inTree.has(entry.char.id))
-      continue;
+    if (inTree.has(entry.char.id)) continue;
     addToTree(entry.char, entry.parent);
   }
   const disconnected = [];
@@ -3255,8 +3244,7 @@ function buildSpanningTree(chars, options) {
     const queue = [startChar];
     while (queue.length > 0) {
       const ch = queue.shift();
-      if (!ch)
-        break;
+      if (!ch) break;
       bfsOrder.push(ch);
       const children = treeChildren.get(ch.id) ?? [];
       queue.push(...children);
@@ -3268,22 +3256,20 @@ function buildSpanningTree(chars, options) {
   return order;
 }
 function buildSpanningTreeWaves(chars, options) {
-  if (chars.length === 0)
-    return [];
+  if (chars.length === 0) return [];
   const connectivity = options?.connectivity ?? 8;
   const startStrategy = options?.startStrategy ?? "bottomCenter";
   const weightFn = options?.weightFn ?? defaultWeightFn;
   const includeDisconnected = options?.includeDisconnected ?? true;
   const coordMap = buildCoordMap(chars);
   const startChar = findStartChar(chars, startStrategy);
-  const inTree = new Set;
-  const treeChildren = new Map;
+  const inTree = /* @__PURE__ */ new Set();
+  const treeChildren = /* @__PURE__ */ new Map();
   const frontier = [];
   function addToTree(ch, parent) {
     inTree.add(ch.id);
     if (parent) {
-      if (!treeChildren.has(parent.id))
-        treeChildren.set(parent.id, []);
+      if (!treeChildren.has(parent.id)) treeChildren.set(parent.id, []);
       treeChildren.get(parent.id)?.push(ch);
     }
     for (const neighbor of getNeighbors(ch, coordMap, connectivity)) {
@@ -3297,14 +3283,12 @@ function buildSpanningTreeWaves(chars, options) {
   addToTree(startChar, null);
   while (frontier.length > 0) {
     let minIdx = 0;
-    for (let i = 1;i < frontier.length; i++) {
-      if (frontier[i].weight < frontier[minIdx].weight)
-        minIdx = i;
+    for (let i = 1; i < frontier.length; i++) {
+      if (frontier[i].weight < frontier[minIdx].weight) minIdx = i;
     }
     const entry = frontier[minIdx];
     frontier.splice(minIdx, 1);
-    if (inTree.has(entry.char.id))
-      continue;
+    if (inTree.has(entry.char.id)) continue;
     addToTree(entry.char, entry.parent);
   }
   const waves = [];
@@ -3320,18 +3304,16 @@ function buildSpanningTreeWaves(chars, options) {
   if (includeDisconnected) {
     const disconnected = [];
     for (const ch of chars) {
-      if (!inTree.has(ch.id))
-        disconnected.push(ch);
+      if (!inTree.has(ch.id)) disconnected.push(ch);
     }
-    if (disconnected.length > 0)
-      waves.push(disconnected);
+    if (disconnected.length > 0) waves.push(disconnected);
   }
   return waves;
 }
 
 // src/effects/burn.ts
 var defaultBurnConfig = {
-  burnSymbols: ["'", ".", "▖", "▙", "█", "▜", "▀", "▝", "."],
+  burnSymbols: ["'", ".", "\u2596", "\u2599", "\u2588", "\u259C", "\u2580", "\u259D", "."],
   burnFrameDuration: 4,
   burnColors: [color("ffffff"), color("fff75d"), color("fe650d"), color("8A003C"), color("510100")],
   startingColor: color("837373"),
@@ -3342,18 +3324,15 @@ var defaultBurnConfig = {
   finalGradientDirection: "vertical"
 };
 var SMOKE_SYMBOLS = [".", ",", "'", "`", "#", "*"];
-var SMOKE_POOL_SIZE = 2000;
-
-class BurnEffect {
-  canvas;
-  config;
-  pendingChars = [];
-  activeChars = new Set;
-  smokeParticles = [];
-  smokeParticleIds = new Set;
-  smokeIndex = 0;
-  pendingSmoke = new Set;
+var SMOKE_POOL_SIZE = 2e3;
+var BurnEffect = class {
   constructor(canvas, config) {
+    this.pendingChars = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.smokeParticles = [];
+    this.smokeParticleIds = /* @__PURE__ */ new Set();
+    this.smokeIndex = 0;
+    this.pendingSmoke = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.makeSmoke();
@@ -3363,7 +3342,7 @@ class BurnEffect {
     const smokeGradient = new Gradient([color("504F4F"), color("C7C7C7")], 9);
     const smokeColors = smokeGradient.spectrum;
     let nextId = this.canvas.characters.length > 0 ? Math.max(...this.canvas.characters.map((c) => c.id)) + 1 : 0;
-    for (let i = 0;i < SMOKE_POOL_SIZE; i++) {
+    for (let i = 0; i < SMOKE_POOL_SIZE; i++) {
       const symbol = SMOKE_SYMBOLS[Math.floor(Math.random() * SMOKE_SYMBOLS.length)];
       const ch = new EffectCharacter(nextId++, symbol, 0, 0);
       ch.layer = 2;
@@ -3383,14 +3362,12 @@ class BurnEffect {
     }
   }
   emitSmoke(origin) {
-    if (Math.random() > this.config.smokeChance)
-      return;
+    if (Math.random() > this.config.smokeChance) return;
     const particle = this.smokeParticles[this.smokeIndex];
     this.smokeIndex = (this.smokeIndex + 1) % this.smokeParticles.length;
     particle.motion.setCoordinate(origin);
     const smokeScene = particle.scenes.get("smoke");
-    if (smokeScene)
-      smokeScene.reset();
+    if (smokeScene) smokeScene.reset();
     particle.isVisible = true;
     const smokePath = particle.motion.newPath("smoke_rise", { speed: 0.5 });
     const riseCol = origin.column + Math.floor(Math.random() * 9) - 4;
@@ -3403,14 +3380,24 @@ class BurnEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const fireGradient = new Gradient(this.config.burnColors, 10);
     const allChars = this.canvas.getCharacters().filter((ch) => !this.smokeParticleIds.has(ch.id));
     for (const ch of allChars) {
       ch.isVisible = true;
       ch.currentVisual = { symbol: ch.inputSymbol, fgColor: this.config.startingColor.rgbHex };
       const burnScene = ch.newScene("burn");
-      burnScene.applyGradientToSymbols(this.config.burnSymbols, this.config.burnFrameDuration, fireGradient);
+      burnScene.applyGradientToSymbols(
+        this.config.burnSymbols,
+        this.config.burnFrameDuration,
+        fireGradient
+      );
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
       const lastBurnColor = this.config.burnColors[this.config.burnColors.length - 1];
@@ -3436,12 +3423,10 @@ class BurnEffect {
     }
     this.pendingSmoke.clear();
     const activateCount = Math.floor(Math.random() * 3) + 2;
-    for (let i = 0;i < activateCount; i++) {
-      if (this.pendingChars.length === 0)
-        break;
+    for (let i = 0; i < activateCount; i++) {
+      if (this.pendingChars.length === 0) break;
       const ch = this.pendingChars.shift();
-      if (ch.inputSymbol === " ")
-        continue;
+      if (ch.inputSymbol === " ") continue;
       ch.activateScene("burn");
       this.activeChars.add(ch);
     }
@@ -3453,45 +3438,45 @@ class BurnEffect {
     }
     return this.pendingChars.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/matrix.ts
-var RAIN_SYMBOLS_COMMON = ["2", "5", "9", "8", "Z", "*", ")", ":", ".", '"', "=", "+", "-", "¦", "|", "_"];
+var RAIN_SYMBOLS_COMMON = ["2", "5", "9", "8", "Z", "*", ")", ":", ".", '"', "=", "+", "-", "\xA6", "|", "_"];
 var RAIN_SYMBOLS_KATA = [
-  "ｦ",
-  "ｱ",
-  "ｳ",
-  "ｴ",
-  "ｵ",
-  "ｶ",
-  "ｷ",
-  "ｹ",
-  "ｺ",
-  "ｻ",
-  "ｼ",
-  "ｽ",
-  "ｾ",
-  "ｿ",
-  "ﾀ",
-  "ﾂ",
-  "ﾃ",
-  "ﾅ",
-  "ﾆ",
-  "ﾇ",
-  "ﾈ",
-  "ﾊ",
-  "ﾋ",
-  "ﾎ",
-  "ﾏ",
-  "ﾐ",
-  "ﾑ",
-  "ﾒ",
-  "ﾓ",
-  "ﾔ",
-  "ﾕ",
-  "ﾗ",
-  "ﾘ",
-  "ﾜ"
+  "\uFF66",
+  "\uFF71",
+  "\uFF73",
+  "\uFF74",
+  "\uFF75",
+  "\uFF76",
+  "\uFF77",
+  "\uFF79",
+  "\uFF7A",
+  "\uFF7B",
+  "\uFF7C",
+  "\uFF7D",
+  "\uFF7E",
+  "\uFF7F",
+  "\uFF80",
+  "\uFF82",
+  "\uFF83",
+  "\uFF85",
+  "\uFF86",
+  "\uFF87",
+  "\uFF88",
+  "\uFF8A",
+  "\uFF8B",
+  "\uFF8E",
+  "\uFF8F",
+  "\uFF90",
+  "\uFF91",
+  "\uFF92",
+  "\uFF93",
+  "\uFF94",
+  "\uFF95",
+  "\uFF97",
+  "\uFF98",
+  "\uFF9C"
 ];
 var defaultMatrixConfig = {
   rainSymbols: [...RAIN_SYMBOLS_COMMON, ...RAIN_SYMBOLS_KATA],
@@ -3500,8 +3485,8 @@ var defaultMatrixConfig = {
   rainTime: 900,
   columnDelayRange: [3, 9],
   rainFallDelayRange: [2, 15],
-  symbolSwapChance: 0.005,
-  colorSwapChance: 0.001,
+  symbolSwapChance: 5e-3,
+  colorSwapChance: 1e-3,
   resolveDelay: 3,
   finalGradientStops: [color("92be92"), color("336b33")],
   finalGradientSteps: 12,
@@ -3514,22 +3499,13 @@ function randChoice2(arr) {
 function randInt3(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-class RainColumn {
-  pendingChars;
-  visibleChars = [];
-  allChars;
-  length;
-  fallDelay;
-  fallTimer;
-  exhausted = false;
-  config;
-  rainGradientColors;
-  canvasBottom;
-  phase = "rain";
-  holdTime = 0;
-  columnDropChance = 0.08;
+var RainColumn = class {
   constructor(chars, config, rainGradientColors, canvasBottom) {
+    this.visibleChars = [];
+    this.exhausted = false;
+    this.phase = "rain";
+    this.holdTime = 0;
+    this.columnDropChance = 0.08;
     this.allChars = chars;
     this.config = config;
     this.rainGradientColors = rainGradientColors;
@@ -3560,7 +3536,10 @@ class RainColumn {
     this.exhausted = false;
     this.columnDropChance = 0.08;
     if (phase === "fill") {
-      this.fallDelay = randInt3(Math.max(1, Math.floor(this.config.rainFallDelayRange[0] / 3)), Math.max(1, Math.floor(this.config.rainFallDelayRange[1] / 3)));
+      this.fallDelay = randInt3(
+        Math.max(1, Math.floor(this.config.rainFallDelayRange[0] / 3)),
+        Math.max(1, Math.floor(this.config.rainFallDelayRange[1] / 3))
+      );
       this.length = this.allChars.length;
     } else {
       this.fallDelay = randInt3(this.config.rainFallDelayRange[0], this.config.rainFallDelayRange[1]);
@@ -3589,8 +3568,7 @@ class RainColumn {
     }
   }
   trimColumn() {
-    if (this.visibleChars.length === 0)
-      return;
+    if (this.visibleChars.length === 0) return;
     const tail = this.visibleChars.shift();
     tail.isVisible = false;
     if (this.visibleChars.length > 1) {
@@ -3607,14 +3585,12 @@ class RainColumn {
     };
   }
   tick() {
-    if (this.exhausted)
-      return;
+    if (this.exhausted) return;
     if (this.fallTimer === 0) {
       this.fallTimer = this.fallDelay;
       if (this.pendingChars.length > 0) {
         const ch = this.pendingChars.shift();
-        if (!ch)
-          return;
+        if (!ch) return;
         ch.isVisible = true;
         ch.currentVisual = {
           symbol: randChoice2(this.config.rainSymbols),
@@ -3666,22 +3642,19 @@ class RainColumn {
       }
     }
   }
-}
-
-class MatrixEffect {
-  canvas;
-  config;
-  pendingColumns = [];
-  activeColumns = [];
-  columnDelay = 0;
-  columnChars = [];
-  phase = "rain";
-  rainTicks = 0;
-  resolvingChars = new Set;
-  rainGradientColors = [];
-  fullColumnState = [];
-  resolveTimer = 0;
+};
+var MatrixEffect = class {
   constructor(canvas, config) {
+    this.pendingColumns = [];
+    this.activeColumns = [];
+    this.columnDelay = 0;
+    this.columnChars = [];
+    this.phase = "rain";
+    this.rainTicks = 0;
+    this.resolvingChars = /* @__PURE__ */ new Set();
+    this.rainGradientColors = [];
+    this.fullColumnState = [];
+    this.resolveTimer = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -3691,7 +3664,13 @@ class MatrixEffect {
     const rainGradient = new Gradient(this.config.rainGradientStops, 6);
     this.rainGradientColors = rainGradient.spectrum;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -3704,19 +3683,24 @@ class MatrixEffect {
     }
     for (const group of this.columnChars) {
       for (const ch of group) {
-        if (ch.isSpace)
-          continue;
+        if (ch.isSpace) continue;
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const finalColor = colorMapping.get(key) || this.config.finalGradientStops[0];
         const resolveScene = ch.newScene("resolve");
-        const resolveGradient = new Gradient([this.config.highlightColor, finalColor], 8);
+        const resolveGradient = new Gradient(
+          [this.config.highlightColor, finalColor],
+          8
+          // Python hardcodes steps=8
+        );
         resolveScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, resolveGradient);
       }
     }
     for (const group of this.columnChars) {
-      this.pendingColumns.push(new RainColumn(group, this.config, this.rainGradientColors, dims.bottom));
+      this.pendingColumns.push(
+        new RainColumn(group, this.config, this.rainGradientColors, dims.bottom)
+      );
     }
-    for (let i = this.pendingColumns.length - 1;i > 0; i--) {
+    for (let i = this.pendingColumns.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [this.pendingColumns[i], this.pendingColumns[j]] = [this.pendingColumns[j], this.pendingColumns[i]];
     }
@@ -3726,7 +3710,7 @@ class MatrixEffect {
       if (this.columnDelay === 0) {
         if (this.phase === "rain") {
           const count = randInt3(1, 3);
-          for (let i = 0;i < count && this.pendingColumns.length > 0; i++) {
+          for (let i = 0; i < count && this.pendingColumns.length > 0; i++) {
             this.activeColumns.push(this.pendingColumns.shift());
           }
         } else {
@@ -3795,7 +3779,7 @@ class MatrixEffect {
         if (state.chars.length > 0) {
           if (this.resolveTimer === 0) {
             const count = randInt3(1, 4);
-            for (let i = 0;i < count && state.chars.length > 0; i++) {
+            for (let i = 0; i < count && state.chars.length > 0; i++) {
               const idx = randInt3(0, state.chars.length - 1);
               const ch = state.chars.splice(idx, 1)[0];
               if (ch.isSpace) {
@@ -3825,7 +3809,7 @@ class MatrixEffect {
     }
     return false;
   }
-}
+};
 
 // src/effects/highlight.ts
 var defaultHighlightConfig = {
@@ -3836,14 +3820,10 @@ var defaultHighlightConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
 };
-
-class HighlightEffect {
-  canvas;
-  config;
-  colorMapping = new Map;
-  easer;
-  activeChars = new Set;
+var HighlightEffect = class {
   constructor(canvas, config) {
+    this.colorMapping = /* @__PURE__ */ new Map();
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -3851,7 +3831,13 @@ class HighlightEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const baseColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
@@ -3865,7 +3851,10 @@ class HighlightEffect {
         const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
         const baseColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
         const brightColor = adjustBrightness(baseColor, this.config.highlightBrightness);
-        const highlightGradient = new Gradient([baseColor, brightColor, brightColor, baseColor], [3, this.config.highlightWidth, 3]);
+        const highlightGradient = new Gradient(
+          [baseColor, brightColor, brightColor, baseColor],
+          [3, this.config.highlightWidth, 3]
+        );
         const scene = ch.newScene("highlight");
         for (const c of highlightGradient.spectrum) {
           scene.addFrame(ch.inputSymbol, 2, c.rgbHex);
@@ -3892,7 +3881,7 @@ class HighlightEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/rings.ts
 var defaultRingsConfig = {
@@ -3907,7 +3896,7 @@ var defaultRingsConfig = {
   finalGradientDirection: "vertical"
 };
 function shuffle2(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -3915,24 +3904,20 @@ function shuffle2(arr) {
 function randRange(min, max) {
   return min + Math.random() * (max - min);
 }
-
-class RingsEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  rings = [];
-  center = { column: 1, row: 1 };
-  charFinalColorMap = new Map;
-  charRingMap = new Map;
-  nonRingChars = [];
-  initialDisperseComplete = false;
-  gapPixels = 1;
-  phase = "start";
-  phaseFrames = 0;
-  cyclesRemaining;
-  pathCounter = 0;
-  charLastRingCoord = new Map;
+var RingsEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.rings = [];
+    this.center = { column: 1, row: 1 };
+    this.charFinalColorMap = /* @__PURE__ */ new Map();
+    this.charRingMap = /* @__PURE__ */ new Map();
+    this.nonRingChars = [];
+    this.initialDisperseComplete = false;
+    this.gapPixels = 1;
+    this.phase = "start";
+    this.phaseFrames = 0;
+    this.pathCounter = 0;
+    this.charLastRingCoord = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.cyclesRemaining = config.spinDisperseCycles;
@@ -3949,8 +3934,7 @@ class RingsEffect {
     while (radius < maxRadius) {
       const coords = findCoordsOnCircle(this.center, radius, 7 * radius);
       const inCanvas = coords.length === 0 ? 0 : coords.filter((c) => this.canvas.coordIsInCanvas(c)).length;
-      if (coords.length === 0 || inCanvas / coords.length < 0.25)
-        break;
+      if (coords.length === 0 || inCanvas / coords.length < 0.25) break;
       if (coords.length >= 3) {
         const speed = randRange(this.config.spinSpeed[0], this.config.spinSpeed[1]);
         this.rings.push({
@@ -3961,17 +3945,22 @@ class RingsEffect {
           speed,
           characters: [],
           clockwise: ringIdx % 2 === 0,
-          charRingPathId: new Map,
-          charRingStartCoord: new Map
+          charRingPathId: /* @__PURE__ */ new Map(),
+          charRingStartCoord: /* @__PURE__ */ new Map()
         });
         ringIdx++;
       }
       radius += this.gapPixels;
     }
-    if (this.rings.length === 0)
-      return;
+    if (this.rings.length === 0) return;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       this.charFinalColorMap.set(ch.id, colorMapping.get(key) ?? this.config.finalGradientStops[0]);
@@ -3991,7 +3980,7 @@ class RingsEffect {
     for (const ring of this.rings) {
       const ringColor = this.config.ringColors[ring.index % this.config.ringColors.length];
       const coords = ring.clockwise ? ring.coords : ring.coordsReversed;
-      for (let i = 0;i < ring.coords.length && charIdx < nonSpaceChars.length; i++, charIdx++) {
+      for (let i = 0; i < ring.coords.length && charIdx < nonSpaceChars.length; i++, charIdx++) {
         const ch = nonSpaceChars[charIdx];
         ring.characters.push(ch);
         this.charRingMap.set(ch.id, ring);
@@ -4000,7 +3989,7 @@ class RingsEffect {
         const pathId = `ring_${ch.id}`;
         const ringPath = ch.motion.newPath(pathId, { speed: ring.speed, loop: true });
         const startIdx = charIndex % coords.length;
-        for (let j = 0;j < coords.length; j++) {
+        for (let j = 0; j < coords.length; j++) {
           ringPath.addWaypoint(coords[(startIdx + j) % coords.length]);
         }
         ring.charRingPathId.set(ch.id, pathId);
@@ -4012,12 +4001,10 @@ class RingsEffect {
         const disperseGrad = new Gradient([ringColor, finalColor], 8);
         disperseScene.applyGradientToSymbols(ch.inputSymbol, 10, disperseGrad);
       }
-      if (charIdx >= nonSpaceChars.length)
-        break;
+      if (charIdx >= nonSpaceChars.length) break;
     }
     for (const ch of this.canvas.getCharacters()) {
-      if (this.charRingMap.has(ch.id))
-        continue;
+      if (this.charRingMap.has(ch.id)) continue;
       const externalPath = ch.motion.newPath("external", { speed: 0.8, ease: outSine });
       externalPath.addWaypoint(this.canvas.randomCoord({ outsideScope: true }));
       this.nonRingChars.push(ch);
@@ -4047,11 +4034,10 @@ class RingsEffect {
           this.activeChars.add(ch);
         }
         const disperseCoords = findCoordsInRect(origin, this.gapPixels);
-        if (disperseCoords.length === 0)
-          continue;
+        if (disperseCoords.length === 0) continue;
         const dispersePathId = `disp_${ch.id}`;
         const dispersePath = ch.motion.newPath(dispersePathId, { speed: 0.14, loop: true });
-        for (let i = 0;i < 5; i++) {
+        for (let i = 0; i < 5; i++) {
           dispersePath.addWaypoint(disperseCoords[Math.floor(Math.random() * disperseCoords.length)]);
         }
         if (isFirstDisperse) {
@@ -4099,8 +4085,7 @@ class RingsEffect {
     }
   }
   step() {
-    if (this.phase === "complete")
-      return false;
+    if (this.phase === "complete") return false;
     this.phaseFrames++;
     switch (this.phase) {
       case "start":
@@ -4112,8 +4097,7 @@ class RingsEffect {
         for (const ch of this.activeChars) {
           ch.tick();
           if (!ch.isActive) {
-            if (this.nonRingChars.includes(ch))
-              ch.isVisible = false;
+            if (this.nonRingChars.includes(ch)) ch.isVisible = false;
             this.activeChars.delete(ch);
           }
         }
@@ -4125,8 +4109,7 @@ class RingsEffect {
         for (const ch of this.activeChars) {
           ch.tick();
           if (!ch.isActive) {
-            if (this.nonRingChars.includes(ch))
-              ch.isVisible = false;
+            if (this.nonRingChars.includes(ch)) ch.isVisible = false;
             this.activeChars.delete(ch);
           }
         }
@@ -4154,7 +4137,7 @@ class RingsEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/errorcorrect.ts
 var defaultErrorCorrectConfig = {
@@ -4167,16 +4150,13 @@ var defaultErrorCorrectConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
 };
-
-class ErrorCorrectEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  pairs = [];
-  pairIndex = 0;
-  delayCounter = 0;
-  allPairsActivated = false;
+var ErrorCorrectEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.pairs = [];
+    this.pairIndex = 0;
+    this.delayCounter = 0;
+    this.allPairsActivated = false;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -4184,7 +4164,13 @@ class ErrorCorrectEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const nonSpaceChars = [];
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
@@ -4195,12 +4181,12 @@ class ErrorCorrectEffect {
     }
     const numPairs = Math.max(1, Math.floor(nonSpaceChars.length * this.config.errorPairs));
     const shuffled = [...nonSpaceChars];
-    for (let i = shuffled.length - 1;i > 0; i--) {
+    for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    const pairedSet = new Set;
-    for (let i = 0;i < numPairs * 2 && i + 1 < shuffled.length; i += 2) {
+    const pairedSet = /* @__PURE__ */ new Set();
+    for (let i = 0; i < numPairs * 2 && i + 1 < shuffled.length; i += 2) {
       this.pairs.push({ a: shuffled[i], b: shuffled[i + 1], activated: false });
       pairedSet.add(shuffled[i]);
       pairedSet.add(shuffled[i + 1]);
@@ -4221,24 +4207,24 @@ class ErrorCorrectEffect {
   buildSwappedChar(ch, finalColor) {
     const errorColor = this.config.errorColor.rgbHex;
     const correctColor = this.config.correctColor.rgbHex;
-    const blockWipeUp = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
-    const blockWipeDown = ["▇", "▆", "▅", "▄", "▃", "▂", "▁"];
+    const blockWipeUp = ["\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588"];
+    const blockWipeDown = ["\u2587", "\u2586", "\u2585", "\u2584", "\u2583", "\u2582", "\u2581"];
     const spawnScene = ch.newScene("spawn");
     spawnScene.addFrame(ch.inputSymbol, 1, errorColor);
     ch.activateScene(spawnScene);
     ch.isVisible = true;
     const errorScene = ch.newScene("error");
-    for (let i = 0;i < 10; i++) {
-      errorScene.addFrame("▓", 3, errorColor);
+    for (let i = 0; i < 10; i++) {
+      errorScene.addFrame("\u2593", 3, errorColor);
       errorScene.addFrame(ch.inputSymbol, 3, "ffffff");
     }
     const firstWipe = ch.newScene("first_block_wipe");
     for (const block of blockWipeUp) {
       firstWipe.addFrame(block, 3, errorColor);
     }
-    const correctingScene = ch.newScene("correcting", { sync: "DISTANCE" });
+    const correctingScene = ch.newScene("correcting", false, { sync: "DISTANCE" });
     const correctGrad = new Gradient([this.config.errorColor, this.config.correctColor], 10);
-    correctingScene.applyGradientToSymbols("█", 3, correctGrad);
+    correctingScene.applyGradientToSymbols("\u2588", 3, correctGrad);
     const lastWipe = ch.newScene("last_block_wipe");
     for (const block of blockWipeDown) {
       lastWipe.addFrame(block, 3, correctColor);
@@ -4287,7 +4273,7 @@ class ErrorCorrectEffect {
     }
     return this.activeChars.size > 0 || this.pairIndex < this.pairs.length;
   }
-}
+};
 
 // src/effects/unstable.ts
 var defaultUnstableConfig = {
@@ -4304,24 +4290,21 @@ function randInt4(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 function shuffle3(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
-
-class UnstableEffect {
-  canvas;
-  config;
-  nonSpaceChars = [];
-  jumbledCoords = new Map;
-  phase = "rumble";
-  rumbleStep = 0;
-  rumbleModDelay = 18;
-  holdTicks = 0;
-  explosionStarted = false;
-  reassemblyStarted = false;
+var UnstableEffect = class {
   constructor(canvas, config) {
+    this.nonSpaceChars = [];
+    this.jumbledCoords = /* @__PURE__ */ new Map();
+    this.phase = "rumble";
+    this.rumbleStep = 0;
+    this.rumbleModDelay = 18;
+    this.holdTicks = 0;
+    this.explosionStarted = false;
+    this.reassemblyStarted = false;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -4329,12 +4312,18 @@ class UnstableEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const nonSpace = this.canvas.getNonSpaceCharacters();
     this.nonSpaceChars = nonSpace;
     const inputCoords = nonSpace.map((ch) => ({ ...ch.inputCoord }));
     shuffle3(inputCoords);
-    for (let i = 0;i < nonSpace.length; i++) {
+    for (let i = 0; i < nonSpace.length; i++) {
       const ch = nonSpace[i];
       const jumbledCoord = inputCoords[i];
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
@@ -4389,8 +4378,7 @@ class UnstableEffect {
     this.rumbleStep++;
     for (const ch of this.nonSpaceChars) {
       const coord = this.jumbledCoords.get(ch);
-      if (!coord)
-        continue;
+      if (!coord) continue;
       ch.motion.setCoordinate(coord);
     }
     if (this.rumbleStep > 30 && this.rumbleStep % this.rumbleModDelay === 0) {
@@ -4398,8 +4386,7 @@ class UnstableEffect {
       const colOffset = randInt4(-1, 1);
       for (const ch of this.nonSpaceChars) {
         const base = this.jumbledCoords.get(ch);
-        if (!base)
-          continue;
+        if (!base) continue;
         ch.motion.setCoordinate({ column: base.column + colOffset, row: base.row + rowOffset });
       }
       this.rumbleModDelay = Math.max(this.rumbleModDelay - 1, 1);
@@ -4451,7 +4438,7 @@ class UnstableEffect {
     }
     return anyActive;
   }
-}
+};
 
 // src/effects/overflow.ts
 var defaultOverflowConfig = {
@@ -4467,39 +4454,40 @@ function randInt5(min, max) {
 }
 function shuffle4(arr) {
   const copy = [...arr];
-  for (let i = copy.length - 1;i > 0; i--) {
+  for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
 }
 var nextCopyId = 1e5;
-
-class OverflowEffect {
-  canvas;
-  config;
-  pendingRows = [];
-  activeRows = [];
-  delay = 0;
-  overflowGradient;
-  finalColorMapping;
+var OverflowEffect = class {
   constructor(canvas, config) {
+    this.pendingRows = [];
+    this.activeRows = [];
+    this.delay = 0;
     this.canvas = canvas;
     this.config = config;
     this.overflowGradient = new Gradient(this.config.overflowGradientStops, Math.max(1, this.canvas.dims.top));
-    this.finalColorMapping = new Map;
+    this.finalColorMapping = /* @__PURE__ */ new Map();
     this.build();
   }
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.finalColorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    this.finalColorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const rowGroups = this.canvas.getCharactersGrouped("row");
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = false;
     }
     const numCycles = randInt5(this.config.overflowCyclesRange[0], this.config.overflowCyclesRange[1]);
-    for (let cycle = 0;cycle < numCycles; cycle++) {
+    for (let cycle = 0; cycle < numCycles; cycle++) {
       const shuffled = shuffle4(rowGroups);
       for (const rowChars of shuffled) {
         const copyChars = [];
@@ -4534,7 +4522,7 @@ class OverflowEffect {
       return true;
     }
     const rowsToProcess = randInt5(1, this.config.overflowSpeed);
-    for (let i = 0;i < rowsToProcess && this.pendingRows.length > 0; i++) {
+    for (let i = 0; i < rowsToProcess && this.pendingRows.length > 0; i++) {
       for (const active of this.activeRows) {
         active.currentRow++;
         for (const ch of active.chars) {
@@ -4545,8 +4533,7 @@ class OverflowEffect {
         }
       }
       const pending = this.pendingRows.shift();
-      if (!pending)
-        break;
+      if (!pending) break;
       const startRow = 1;
       for (const ch of pending.chars) {
         ch.motion.setCoordinate({ column: ch.inputCoord.column, row: startRow });
@@ -4591,7 +4578,9 @@ class OverflowEffect {
         }
         return true;
       });
-      const allSettled = this.activeRows.every((active) => active.currentRow === active.targetRow);
+      const allSettled = this.activeRows.every(
+        (active) => active.currentRow === active.targetRow
+      );
       if (allSettled) {
         for (const active of this.activeRows) {
           for (const ch of active.chars) {
@@ -4605,8 +4594,7 @@ class OverflowEffect {
   }
   colorRowByPosition(active) {
     const spectrum = this.overflowGradient.spectrum;
-    if (spectrum.length === 0)
-      return;
+    if (spectrum.length === 0) return;
     const fraction = Math.min(active.currentRow / Math.max(1, this.canvas.dims.top), 1);
     const colorIdx = Math.min(Math.floor(fraction * spectrum.length), spectrum.length - 1);
     const rowColor = spectrum[colorIdx];
@@ -4616,7 +4604,7 @@ class OverflowEffect {
       }
     }
   }
-}
+};
 
 // src/effects/bouncyballs.ts
 var defaultBouncyBallsConfig = {
@@ -4636,15 +4624,13 @@ function randInt6(min, max) {
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-
-class BouncyBallsEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  pendingRowGroups = [];
-  currentRowGroup = [];
-  ticksSinceLastDrop;
+var BouncyBallsEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
+    // Row groups sorted ascending (min row = bottom first), matching Python's group_by_row approach.
+    // Within each group, characters are released in random order matching Python's random pop.
+    this.pendingRowGroups = [];
+    this.currentRowGroup = [];
     this.canvas = canvas;
     this.config = config;
     this.ticksSinceLastDrop = config.ballDelay;
@@ -4653,8 +4639,14 @@ class BouncyBallsEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    const rowMap = new Map;
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
+    const rowMap = /* @__PURE__ */ new Map();
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -4679,8 +4671,7 @@ class BouncyBallsEffect {
       landScene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
       ch.eventHandler.register("PATH_COMPLETE", "bounce", "ACTIVATE_SCENE", "land");
       const row = ch.inputCoord.row;
-      if (!rowMap.has(row))
-        rowMap.set(row, []);
+      if (!rowMap.has(row)) rowMap.set(row, []);
       rowMap.get(row)?.push(ch);
     }
     const sortedRows = [...rowMap.keys()].sort((a, b) => a - b);
@@ -4690,17 +4681,15 @@ class BouncyBallsEffect {
     this.ticksSinceLastDrop++;
     if (this.currentRowGroup.length === 0 && this.pendingRowGroups.length > 0) {
       const next = this.pendingRowGroups.shift();
-      if (next)
-        this.currentRowGroup = next;
+      if (next) this.currentRowGroup = next;
     }
     if (this.currentRowGroup.length > 0 && this.ticksSinceLastDrop > this.config.ballDelay) {
       this.ticksSinceLastDrop = 0;
       const dropCount = randInt6(2, 6);
-      for (let i = 0;i < dropCount && this.currentRowGroup.length > 0; i++) {
+      for (let i = 0; i < dropCount && this.currentRowGroup.length > 0; i++) {
         const idx = Math.floor(Math.random() * this.currentRowGroup.length);
         const [ch] = this.currentRowGroup.splice(idx, 1);
-        if (!ch)
-          continue;
+        if (!ch) continue;
         ch.isVisible = true;
         ch.motion.activatePath("bounce");
         ch.activateScene("ball");
@@ -4715,7 +4704,7 @@ class BouncyBallsEffect {
     }
     return this.activeChars.size > 0 || this.currentRowGroup.length > 0 || this.pendingRowGroups.length > 0;
   }
-}
+};
 
 // src/effects/fireworks.ts
 var defaultFireworksConfig = {
@@ -4738,18 +4727,15 @@ var defaultFireworksConfig = {
 function randInt7(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-class FireworksEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  shells = [];
-  shellQueue = [];
-  frameCount = 0;
-  nextLaunchFrame = 0;
-  colorMapping = new Map;
-  pathCounter = 0;
+var FireworksEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.shells = [];
+    this.shellQueue = [];
+    this.frameCount = 0;
+    this.nextLaunchFrame = 0;
+    this.colorMapping = /* @__PURE__ */ new Map();
+    this.pathCounter = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -4757,12 +4743,18 @@ class FireworksEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
     nonSpaceChars.sort((a, b) => a.inputCoord.row - b.inputCoord.row);
     const charsPerShell = Math.max(1, Math.round(nonSpaceChars.length * this.config.fireworkVolume));
     const explodeRadius = Math.min(15, Math.max(1, Math.round(dims.right * this.config.explodeDistance)));
-    for (let i = 0;i < nonSpaceChars.length; i += charsPerShell) {
+    for (let i = 0; i < nonSpaceChars.length; i += charsPerShell) {
       const chars = nonSpaceChars.slice(i, i + charsPerShell);
       const shellColor = this.config.fireworkColors[Math.floor(Math.random() * this.config.fireworkColors.length)];
       const apexCol = randInt7(dims.left, dims.right - 1);
@@ -4775,16 +4767,14 @@ class FireworksEffect {
     this.shellQueue = [...this.shells];
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = true;
-      if (ch.isSpace)
-        continue;
+      if (ch.isSpace) continue;
       ch.currentVisual = { symbol: " ", fgColor: null };
     }
     for (const shell of this.shells) {
       shell.pathCounterBase = this.pathCounter;
       const circleCoords = findCoordsInCircle(shell.apex, explodeRadius);
-      if (circleCoords.length === 0)
-        continue;
-      for (let ci = 0;ci < shell.characters.length; ci++) {
+      if (circleCoords.length === 0) continue;
+      for (let ci = 0; ci < shell.characters.length; ci++) {
         const ch = shell.characters[ci];
         const targetOnCircle = circleCoords[ci % circleCoords.length];
         const launchScene = ch.newScene("launch", true);
@@ -4802,7 +4792,10 @@ class FireworksEffect {
         const launchPath = ch.motion.newPath(`launch_${this.pathCounter}`, 0.35, outExpo);
         launchPath.addWaypoint(launchStart);
         launchPath.addWaypoint(shell.apex);
-        const explodePath = ch.motion.newPath(`explode_${this.pathCounter}`, { speed: 0.2 + Math.random() * 0.2, ease: outCirc });
+        const explodePath = ch.motion.newPath(
+          `explode_${this.pathCounter}`,
+          { speed: 0.2 + Math.random() * 0.2, ease: outCirc }
+        );
         explodePath.addWaypoint(targetOnCircle);
         const bloomControlPoint = extrapolateAlongRay(shell.apex, targetOnCircle, Math.floor(explodeRadius / 2));
         const bloomCoord = {
@@ -4825,7 +4818,7 @@ class FireworksEffect {
     }
   }
   launchShell(shell) {
-    for (let ci = 0;ci < shell.characters.length; ci++) {
+    for (let ci = 0; ci < shell.characters.length; ci++) {
       const ch = shell.characters[ci];
       const launchStart = { column: shell.launchColumn, row: this.canvas.dims.bottom };
       ch.motion.setCoordinate(launchStart);
@@ -4855,7 +4848,7 @@ class FireworksEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/spotlights.ts
 var defaultSpotlightsConfig = {
@@ -4890,22 +4883,16 @@ function randomControl(start, end, dims) {
     row: Math.round(midRow + randRange2(-spread, spread))
   };
 }
-
-class SpotlightsEffect {
-  canvas;
-  config;
-  spotlights = [];
-  center;
-  beamWidth;
-  phase = "search";
-  phaseFrames = 0;
-  expandRadius = 0;
-  maxExpandRadius;
-  activeChars = new Set;
-  colorMapping = new Map;
-  charBaseColors = new Map;
-  charDarkColors = new Map;
+var SpotlightsEffect = class {
   constructor(canvas, config) {
+    this.spotlights = [];
+    this.phase = "search";
+    this.phaseFrames = 0;
+    this.expandRadius = 0;
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.colorMapping = /* @__PURE__ */ new Map();
+    this.charBaseColors = /* @__PURE__ */ new Map();
+    this.charDarkColors = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     const { dims } = canvas;
@@ -4919,14 +4906,20 @@ class SpotlightsEffect {
     const { dims } = this.canvas;
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const targetColor = this.colorMapping.get(key) || config.finalGradientStops[0];
       this.charBaseColors.set(ch.id, targetColor);
       this.charDarkColors.set(ch.id, adjustBrightness(targetColor, 0.2));
     }
-    for (let i = 0;i < config.spotlightCount; i++) {
+    for (let i = 0; i < config.spotlightCount; i++) {
       const startCoord = randomCoord(dims);
       const endCoord = randomCoord(dims);
       const control = randomControl(startCoord, endCoord, dims);
@@ -4986,13 +4979,11 @@ class SpotlightsEffect {
   illuminateCharacters() {
     for (const ch of this.activeChars) {
       const baseColor = this.charBaseColors.get(ch.id);
-      if (!baseColor)
-        continue;
+      if (!baseColor) continue;
       let minDist = Infinity;
       for (const sl of this.spotlights) {
         const dist = findLengthOfLine(ch.inputCoord, sl.coord, true);
-        if (dist < minDist)
-          minDist = dist;
+        if (dist < minDist) minDist = dist;
       }
       if (minDist <= this.beamWidth) {
         const normalizedDist = minDist / this.beamWidth;
@@ -5014,8 +5005,7 @@ class SpotlightsEffect {
     for (const ch of this.activeChars) {
       const dist = findLengthOfLine(ch.inputCoord, this.center, true);
       const baseColor = this.charBaseColors.get(ch.id);
-      if (!baseColor)
-        continue;
+      if (!baseColor) continue;
       if (dist <= this.expandRadius) {
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: baseColor.rgbHex };
       } else if (dist <= this.expandRadius + this.beamWidth) {
@@ -5047,8 +5037,7 @@ class SpotlightsEffect {
     this.phaseFrames = 0;
     for (const ch of this.activeChars) {
       const baseColor = this.charBaseColors.get(ch.id);
-      if (!baseColor)
-        continue;
+      if (!baseColor) continue;
       const scene = ch.newScene("final_gradient");
       const charGradient = new Gradient([this.config.finalGradientStops[0], baseColor], 10);
       scene.applyGradientToSymbols(ch.inputSymbol, this.config.finalGradientFrames, charGradient);
@@ -5056,8 +5045,7 @@ class SpotlightsEffect {
     }
   }
   step() {
-    if (this.phase === "complete")
-      return false;
+    if (this.phase === "complete") return false;
     this.phaseFrames++;
     switch (this.phase) {
       case "search":
@@ -5098,7 +5086,7 @@ class SpotlightsEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/vhstape.ts
 var defaultVhstapeConfig = {
@@ -5125,7 +5113,7 @@ var defaultVhstapeConfig = {
     color("ffffff")
   ],
   glitchLineChance: 0.05,
-  noiseChance: 0.004,
+  noiseChance: 4e-3,
   totalGlitchTime: 600,
   finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientSteps: 12,
@@ -5137,11 +5125,7 @@ function randInt9(min, max) {
 function randChoice3(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-
-class Line {
-  characters;
-  config;
-  characterFinalColorMap;
+var Line = class {
   constructor(characters, config, characterFinalColorMap) {
     this.characters = characters;
     this.config = config;
@@ -5182,16 +5166,16 @@ class Line {
         glitchScnBwd.addFrame(character.inputSymbol, 1, c.rgbHex);
       }
       const snowScn = character.newScene("snow");
-      for (let i = 0;i < 25; i++) {
+      for (let i = 0; i < 25; i++) {
         snowScn.addFrame(randChoice3(snowChars), 2, randChoice3(noiseColors).rgbHex);
       }
       snowScn.addFrame(character.inputSymbol, 1, finalColor.rgbHex);
       const finalSnowScn = character.newScene("final_snow");
-      for (let i = 0;i < 30; i++) {
+      for (let i = 0; i < 30; i++) {
         finalSnowScn.addFrame(randChoice3(snowChars), 2, randChoice3(noiseColors).rgbHex);
       }
       const finalRedrawScn = character.newScene("final_redraw");
-      finalRedrawScn.addFrame("█", 6, "ffffff");
+      finalRedrawScn.addFrame("\u2588", 6, "ffffff");
       finalRedrawScn.addFrame(character.inputSymbol, 1, finalColor.rgbHex);
       character.eventHandler.register("PATH_COMPLETE", "glitch", "ACTIVATE_PATH", "restore");
       character.eventHandler.register("PATH_ACTIVATED", "glitch", "ACTIVATE_SCENE", "rgb_glitch_fwd");
@@ -5240,21 +5224,18 @@ class Line {
   lineMovementComplete() {
     return this.characters.every((ch) => ch.motion.movementIsComplete());
   }
-}
-
-class VhstapeEffect {
-  canvas;
-  config;
-  lines = new Map;
-  activeGlitchWaveTop = null;
-  activeGlitchWaveLines = [];
-  activeGlitchLines = [];
-  activeCharacters = new Set;
-  _phase = "glitching";
-  _glitchingStepsElapsed = 0;
-  _toRedraw = [];
-  _redrawing = false;
+};
+var VhstapeEffect = class {
   constructor(canvas, config) {
+    this.lines = /* @__PURE__ */ new Map();
+    this.activeGlitchWaveTop = null;
+    this.activeGlitchWaveLines = [];
+    this.activeGlitchLines = [];
+    this.activeCharacters = /* @__PURE__ */ new Set();
+    this._phase = "glitching";
+    this._glitchingStepsElapsed = 0;
+    this._toRedraw = [];
+    this._redrawing = false;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -5262,14 +5243,20 @@ class VhstapeEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
-    const characterFinalColorMap = new Map;
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
+    const characterFinalColorMap = /* @__PURE__ */ new Map();
     for (const ch of this.canvas.getCharacters()) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       characterFinalColorMap.set(ch, colorMapping.get(key) || this.config.finalGradientStops[0]);
     }
     const rowGroups = this.canvas.getCharactersGrouped("rowBottomToTop");
-    for (let rowIndex = 0;rowIndex < rowGroups.length; rowIndex++) {
+    for (let rowIndex = 0; rowIndex < rowGroups.length; rowIndex++) {
       this.lines.set(rowIndex, new Line(rowGroups[rowIndex], this.config, characterFinalColorMap));
     }
     for (const ch of this.canvas.getCharacters()) {
@@ -5284,7 +5271,10 @@ class VhstapeEffect {
   glitchWave() {
     if (!this.activeGlitchWaveTop) {
       if (this.canvas.dims.textHeight >= 3) {
-        this.activeGlitchWaveTop = this.canvas.dims.textBottom + randInt9(Math.max(3, Math.round(this.canvas.dims.textHeight * 0.5)), this.canvas.dims.textHeight);
+        this.activeGlitchWaveTop = this.canvas.dims.textBottom + randInt9(
+          Math.max(3, Math.round(this.canvas.dims.textHeight * 0.5)),
+          this.canvas.dims.textHeight
+        );
       } else {
         return;
       }
@@ -5296,7 +5286,7 @@ class VhstapeEffect {
         this.activeGlitchWaveTop = Math.max(2, Math.min(this.activeGlitchWaveTop, this.canvas.dims.textTop));
       }
       const newWaveLines = [];
-      for (let lineIndex = this.activeGlitchWaveTop - 2;lineIndex <= this.activeGlitchWaveTop; lineIndex++) {
+      for (let lineIndex = this.activeGlitchWaveTop - 2; lineIndex <= this.activeGlitchWaveTop; lineIndex++) {
         const adjustedLineIndex = lineIndex - (this.canvas.dims.textBottom - 1);
         const line = this.lines.get(adjustedLineIndex);
         if (line) {
@@ -5306,22 +5296,20 @@ class VhstapeEffect {
       for (const line of this.activeGlitchWaveLines) {
         if (!newWaveLines.includes(line)) {
           line.restore();
-          for (const ch of line.characters)
-            this.activeCharacters.add(ch);
+          for (const ch of line.characters) this.activeCharacters.add(ch);
         }
       }
       this.activeGlitchWaveLines = newWaveLines;
       if (this.activeGlitchWaveTop < this.canvas.dims.textBottom + 2) {
         for (const line of this.activeGlitchWaveLines) {
           line.restore();
-          for (const ch of line.characters)
-            this.activeCharacters.add(ch);
+          for (const ch of line.characters) this.activeCharacters.add(ch);
         }
         this.activeGlitchWaveTop = null;
         this.activeGlitchWaveLines = [];
       } else {
         const pathIds = ["glitch_wave_mid", "glitch_wave_end", "glitch_wave_mid"];
-        for (let i = 0;i < this.activeGlitchWaveLines.length; i++) {
+        for (let i = 0; i < this.activeGlitchWaveLines.length; i++) {
           this.activeGlitchWaveLines[i].activatePath(pathIds[i]);
           for (const ch of this.activeGlitchWaveLines[i].characters) {
             this.activeCharacters.add(ch);
@@ -5336,7 +5324,9 @@ class VhstapeEffect {
         if (this.activeGlitchWaveLines.length === 0 || this.activeGlitchWaveLines.every((line) => line.lineMovementComplete())) {
           this.glitchWave();
         }
-        this.activeGlitchLines = this.activeGlitchLines.filter((line) => !line.lineMovementComplete());
+        this.activeGlitchLines = this.activeGlitchLines.filter(
+          (line) => !line.lineMovementComplete()
+        );
         if (Math.random() < this.config.glitchLineChance && this.activeGlitchLines.length < 3) {
           const allLines = [...this.lines.values()];
           const glitchLine = randChoice3(allLines);
@@ -5344,16 +5334,14 @@ class VhstapeEffect {
             glitchLine.setHoldTime(randInt9(20, 75));
             this.activeGlitchLines.push(glitchLine);
             glitchLine.glitch();
-            for (const ch of glitchLine.characters)
-              this.activeCharacters.add(ch);
+            for (const ch of glitchLine.characters) this.activeCharacters.add(ch);
           }
         }
         if (Math.random() < this.config.noiseChance) {
           for (const line of this.lines.values()) {
             line.snow();
             if (!this.activeGlitchWaveLines.includes(line) && !this.activeGlitchLines.includes(line)) {
-              for (const ch of line.characters)
-                this.activeCharacters.add(ch);
+              for (const ch of line.characters) this.activeCharacters.add(ch);
             }
           }
         }
@@ -5399,7 +5387,7 @@ class VhstapeEffect {
     }
     return false;
   }
-}
+};
 
 // src/effects/blackhole.ts
 var defaultBlackholeConfig = {
@@ -5417,10 +5405,10 @@ var defaultBlackholeConfig = {
   finalGradientFrames: 10,
   finalGradientDirection: "diagonal"
 };
-var STAR_SYMBOLS = ["*", "'", "`", "¤", "•", "°", "·"];
-var UNSTABLE_SYMBOLS = ["◦", "◎", "◉", "●", "◉", "◎", "◦"];
+var STAR_SYMBOLS = ["*", "'", "`", "\xA4", "\u2022", "\xB0", "\xB7"];
+var UNSTABLE_SYMBOLS = ["\u25E6", "\u25CE", "\u25C9", "\u25CF", "\u25C9", "\u25CE", "\u25E6"];
 function shuffle5(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -5431,27 +5419,26 @@ function randRange3(min, max) {
 function randInt10(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
-class BlackholeEffect {
-  canvas;
-  config;
-  ringChars = [];
-  starfieldChars = [];
-  activeRingChars = new Set;
-  activeStarChars = new Set;
-  activeChars = new Set;
-  center = { column: 1, row: 1 };
-  blackholeRadius = 3;
-  ringCoords = [];
-  phase = "forming";
-  phaseFrames = 0;
-  ringActivationDelays = [];
-  colorMapping = new Map;
-  pathCounter = 0;
-  starfieldColors = [];
-  consumedGradientMap = new Map;
-  charStarColor = new Map;
+var BlackholeEffect = class {
   constructor(canvas, config) {
+    this.ringChars = [];
+    this.starfieldChars = [];
+    this.activeRingChars = /* @__PURE__ */ new Set();
+    this.activeStarChars = /* @__PURE__ */ new Set();
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.center = { column: 1, row: 1 };
+    this.blackholeRadius = 3;
+    this.ringCoords = [];
+    this.phase = "forming";
+    this.phaseFrames = 0;
+    this.ringActivationDelays = [];
+    this.colorMapping = /* @__PURE__ */ new Map();
+    this.pathCounter = 0;
+    // Starfield palette (gray-to-white) and consumed gradient map
+    this.starfieldColors = [];
+    this.consumedGradientMap = /* @__PURE__ */ new Map();
+    // Track which starfield color each char was assigned
+    this.charStarColor = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -5464,7 +5451,10 @@ class BlackholeEffect {
     };
     const canvasWidth = dims.right - dims.left + 1;
     const canvasHeight = dims.top - dims.bottom + 1;
-    this.blackholeRadius = Math.max(3, Math.min(Math.round(canvasWidth * 0.3), Math.round(canvasHeight * 0.2)));
+    this.blackholeRadius = Math.max(
+      3,
+      Math.min(Math.round(canvasWidth * 0.3), Math.round(canvasHeight * 0.2))
+    );
     const starfieldGradient = new Gradient([color("4a4a4d"), color("ffffff")], 6);
     this.starfieldColors = starfieldGradient.spectrum;
     for (const sc of this.starfieldColors) {
@@ -5474,10 +5464,19 @@ class BlackholeEffect {
       }
     }
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
     shuffle5(nonSpaceChars);
-    const ringCount = Math.min(Math.max(3, Math.round(this.blackholeRadius * 3)), nonSpaceChars.length);
+    const ringCount = Math.min(
+      Math.max(3, Math.round(this.blackholeRadius * 3)),
+      nonSpaceChars.length
+    );
     this.ringChars = nonSpaceChars.slice(0, ringCount);
     this.starfieldChars = nonSpaceChars.slice(ringCount);
     this.ringCoords = findCoordsOnCircle(this.center, this.blackholeRadius, ringCount);
@@ -5501,7 +5500,7 @@ class BlackholeEffect {
       ch.motion.setCoordinate(randomCoord2);
     }
     const staggerStep = Math.max(Math.floor(100 / ringCount), 6);
-    for (let i = 0;i < this.ringChars.length; i++) {
+    for (let i = 0; i < this.ringChars.length; i++) {
       const ch = this.ringChars[i];
       this.ringActivationDelays.push(i * staggerStep);
       const ringScene = ch.newScene("ring_color", true);
@@ -5517,7 +5516,7 @@ class BlackholeEffect {
         loop: true,
         totalLoops: 0
       });
-      for (let j = 0;j < this.ringCoords.length; j++) {
+      for (let j = 0; j < this.ringCoords.length; j++) {
         const idx = (startIdx + j) % this.ringCoords.length;
         orbitPath.addWaypoint(this.ringCoords[idx]);
       }
@@ -5526,7 +5525,7 @@ class BlackholeEffect {
   transitionToConsuming() {
     this.phase = "consuming";
     this.phaseFrames = 0;
-    for (let i = 0;i < this.ringChars.length; i++) {
+    for (let i = 0; i < this.ringChars.length; i++) {
       const ch = this.ringChars[i];
       ch.motion.activatePath(`orbit_${i}`);
     }
@@ -5552,9 +5551,13 @@ class BlackholeEffect {
   transitionToCollapsing() {
     this.phase = "collapsing";
     this.phaseFrames = 0;
-    const expandRingCoords = findCoordsOnCircle(this.center, this.blackholeRadius + 3, this.ringChars.length);
+    const expandRingCoords = findCoordsOnCircle(
+      this.center,
+      this.blackholeRadius + 3,
+      this.ringChars.length
+    );
     let pointCharMade = false;
-    for (let i = 0;i < this.ringChars.length; i++) {
+    for (let i = 0; i < this.ringChars.length; i++) {
       const ch = this.ringChars[i];
       ch.motion.activePath = null;
       const expandId = `expand_${this.pathCounter}`;
@@ -5566,7 +5569,7 @@ class BlackholeEffect {
       ch.eventHandler.register("PATH_COMPLETE", expandId, "ACTIVATE_PATH", collapseId);
       if (!pointCharMade) {
         const unstableScene = ch.newScene("unstable");
-        for (let rep = 0;rep < 3; rep++) {
+        for (let rep = 0; rep < 3; rep++) {
           for (const sym of UNSTABLE_SYMBOLS) {
             const col = this.config.starColors[Math.floor(Math.random() * this.config.starColors.length)];
             unstableScene.addFrame(sym, 3, col.rgbHex);
@@ -5592,7 +5595,10 @@ class BlackholeEffect {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = this.colorMapping.get(key) || this.config.finalGradientStops[0];
       const explosionScene = ch.newScene("explosion");
-      const explosionGrad = new Gradient([explosionColor, finalColor], this.config.finalGradientFrames);
+      const explosionGrad = new Gradient(
+        [explosionColor, finalColor],
+        this.config.finalGradientFrames
+      );
       explosionScene.applyGradientToSymbols(ch.inputSymbol, 20, explosionGrad);
       const scatterCoords = findCoordsInCircle(ch.inputCoord, 3);
       const scatterTarget = scatterCoords.length > 0 ? scatterCoords[Math.floor(Math.random() * scatterCoords.length)] : { ...ch.inputCoord };
@@ -5617,12 +5623,11 @@ class BlackholeEffect {
     }
   }
   step() {
-    if (this.phase === "complete")
-      return false;
+    if (this.phase === "complete") return false;
     this.phaseFrames++;
     switch (this.phase) {
       case "forming": {
-        for (let i = 0;i < this.ringChars.length; i++) {
+        for (let i = 0; i < this.ringChars.length; i++) {
           const ch = this.ringChars[i];
           if (this.phaseFrames >= this.ringActivationDelays[i] && !this.activeRingChars.has(ch)) {
             ch.activateScene("ring_color");
@@ -5636,7 +5641,9 @@ class BlackholeEffect {
         for (const ch of this.starfieldChars) {
           ch.tick();
         }
-        if (this.activeRingChars.size === this.ringChars.length && [...this.activeRingChars].every((ch) => ch.motion.movementIsComplete())) {
+        if (this.activeRingChars.size === this.ringChars.length && [...this.activeRingChars].every(
+          (ch) => ch.motion.movementIsComplete()
+        )) {
           this.transitionToConsuming();
         }
         break;
@@ -5683,31 +5690,35 @@ class BlackholeEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/smoke.ts
 var defaultSmokeConfig = {
   startingColor: color("7A7A7A"),
-  smokeSymbols: ["░", "▒", "▓", "▒", "░"],
+  smokeSymbols: ["\u2591", "\u2592", "\u2593", "\u2592", "\u2591"],
   smokeGradientStops: [color("242424"), color("FFFFFF")],
   useWholeCanvas: false,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientSteps: 12,
   finalGradientDirection: "vertical"
 };
-
-class SmokeEffect {
-  canvas;
-  pendingWaves = [];
-  activeChars = new Set;
+var SmokeEffect = class {
   constructor(canvas, config) {
+    this.pendingWaves = [];
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.build(config);
   }
   build(config) {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     const smokeGradientStops = [
       ...config.smokeGradientStops,
       ...[...config.finalGradientStops].reverse()
@@ -5748,7 +5759,7 @@ class SmokeEffect {
     }
     return this.pendingWaves.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/bubbles.ts
 var defaultBubblesConfig = {
@@ -5764,7 +5775,7 @@ var defaultBubblesConfig = {
 function setCharCoordinates(bubble) {
   const anchor = { column: Math.round(bubble.anchorCol), row: Math.round(bubble.anchorRow) };
   const points = findCoordsOnCircle(anchor, bubble.radius, bubble.characters.length, false);
-  for (let i = 0;i < bubble.characters.length; i++) {
+  for (let i = 0; i < bubble.characters.length; i++) {
     const point = points[i] ?? anchor;
     bubble.characters[i].motion.setCoordinate(point);
     if (point.row === bubble.lowestRow) {
@@ -5784,19 +5795,16 @@ function moveBubble(bubble, speed, popCondition) {
     bubble.anchorRow += dy / dist * speed;
   }
   setCharCoordinates(bubble);
-  if (popCondition === "anywhere" && Math.random() < 0.002) {
+  if (popCondition === "anywhere" && Math.random() < 2e-3) {
     bubble.landed = true;
   }
 }
-
-class BubblesEffect {
-  canvas;
-  config;
-  pendingBubbles = [];
-  animatingBubbles = [];
-  activeChars = new Set;
-  stepsSinceLastBubble = 0;
+var BubblesEffect = class {
   constructor(canvas, config) {
+    this.pendingBubbles = [];
+    this.animatingBubbles = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.stepsSinceLastBubble = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -5805,7 +5813,13 @@ class BubblesEffect {
     const { dims } = this.canvas;
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    const colorMap = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const colorMap = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     const popColorHex = config.popColor.rgbHex;
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       ch.isVisible = false;
@@ -5858,7 +5872,7 @@ class BubblesEffect {
   popBubble(bubble) {
     const anchor = { column: Math.round(bubble.anchorCol), row: Math.round(bubble.anchorRow) };
     const outPoints = findCoordsOnCircle(anchor, bubble.radius + 3, bubble.characters.length);
-    for (let i = 0;i < bubble.characters.length; i++) {
+    for (let i = 0; i < bubble.characters.length; i++) {
       const ch = bubble.characters[i];
       const point = outPoints[i] ?? anchor;
       const popOutPath = ch.motion.newPath("pop_out", 0.3, outExpo);
@@ -5873,8 +5887,7 @@ class BubblesEffect {
   step() {
     if (this.pendingBubbles.length > 0 && this.stepsSinceLastBubble >= this.config.bubbleDelay) {
       const bubble = this.pendingBubbles.shift();
-      if (!bubble)
-        return true;
+      if (!bubble) return true;
       for (const ch of bubble.characters) {
         ch.isVisible = true;
       }
@@ -5902,17 +5915,17 @@ class BubblesEffect {
     }
     return this.pendingBubbles.length > 0 || this.animatingBubbles.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/spray.ts
 var defaultSprayConfig = {
   sprayColors: [color("8A008A"), color("00D1FF"), color("ffffff")],
-  spraySymbols: ["*", "·", ".", "+"],
+  spraySymbols: ["*", "\xB7", ".", "+"],
   sourcePosition: "e",
   arcHeight: 4,
   flightSpeedRange: [0.6, 1.4],
   flightEasing: outExpo,
-  sprayVolume: 0.005,
+  sprayVolume: 5e-3,
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
   finalGradientFrames: 8,
@@ -5925,22 +5938,18 @@ function randRange4(min, max) {
   return Math.random() * (max - min) + min;
 }
 function shuffle6(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
-
-class SprayEffect {
-  canvas;
-  config;
-  queue = [];
-  activeChars = new Set;
-  source;
-  pathCounter = 0;
-  releasedCount = 0;
-  _volume = 1;
+var SprayEffect = class {
   constructor(canvas, config) {
+    this.queue = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.pathCounter = 0;
+    this.releasedCount = 0;
+    this._volume = 1;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -5974,7 +5983,13 @@ class SprayEffect {
     const { dims } = this.canvas;
     this.source = this.resolveSource();
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = false;
       if (ch.isSpace) {
@@ -6006,7 +6021,7 @@ class SprayEffect {
       const pathId = `arc_${this.pathCounter}`;
       const speed = randRange4(this.config.flightSpeedRange[0], this.config.flightSpeedRange[1]);
       const arcPath = ch.motion.newPath(pathId, speed, this.config.flightEasing);
-      for (let s = 1;s <= 4; s++) {
+      for (let s = 1; s <= 4; s++) {
         const t = s / 5;
         const pt = findCoordOnBezierCurve(S, [controlPoint], T, t);
         arcPath.addWaypoint(pt);
@@ -6019,7 +6034,7 @@ class SprayEffect {
   }
   step() {
     const toRelease = randInt11(1, this._volume);
-    for (let i = 0;i < toRelease && this.queue.length > 0; i++) {
+    for (let i = 0; i < toRelease && this.queue.length > 0; i++) {
       const ch = this.queue.shift();
       ch.motion.setCoordinate(this.source);
       ch.isVisible = true;
@@ -6037,12 +6052,12 @@ class SprayEffect {
     }
     return this.queue.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/beams.ts
 var defaultBeamsConfig = {
-  beamRowSymbols: ["▂", "▁", "_"],
-  beamColumnSymbols: ["▌", "▍", "▎", "▏"],
+  beamRowSymbols: ["\u2582", "\u2581", "_"],
+  beamColumnSymbols: ["\u258C", "\u258D", "\u258E", "\u258F"],
   beamDelay: 6,
   beamRowSpeed: [1.5, 6],
   beamColumnSpeed: [0.9, 1.5],
@@ -6056,7 +6071,7 @@ var defaultBeamsConfig = {
   finalWipeSpeed: 3
 };
 function shuffle7(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -6067,18 +6082,16 @@ function randInt12(min, max) {
 function randRange5(min, max) {
   return min + Math.random() * (max - min);
 }
-
-class BeamsEffect {
-  canvas;
-  config;
-  phase = "beams";
-  beamDelay = 0;
-  pendingGroups = [];
-  activeGroups = [];
-  activeChars = new Set;
-  wipeGroups = [];
-  wipeIdx = 0;
+var BeamsEffect = class {
   constructor(canvas, config) {
+    this.phase = "beams";
+    this.beamDelay = 0;
+    // counts down; launch when 0
+    this.pendingGroups = [];
+    this.activeGroups = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.wipeGroups = [];
+    this.wipeIdx = 0;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -6088,7 +6101,13 @@ class BeamsEffect {
     const { config } = this;
     const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps);
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       const { column, row } = ch.inputCoord;
       const finalColor = colorMapping.get(coordKey(column, row)) ?? config.finalGradientStops[0];
@@ -6107,8 +6126,7 @@ class BeamsEffect {
     const allBeamGroups = [];
     for (const chars of this.canvas.getCharactersGrouped("row", { includeSpaces: false })) {
       const sorted = [...chars].sort((a, b) => a.inputCoord.column - b.inputCoord.column);
-      if (Math.random() < 0.5)
-        sorted.reverse();
+      if (Math.random() < 0.5) sorted.reverse();
       allBeamGroups.push({
         chars: sorted,
         sceneId: "beam_row",
@@ -6119,8 +6137,7 @@ class BeamsEffect {
     }
     for (const chars of this.canvas.getCharactersGrouped("column", { includeSpaces: false })) {
       const sorted = [...chars].sort((a, b) => a.inputCoord.row - b.inputCoord.row);
-      if (Math.random() < 0.5)
-        sorted.reverse();
+      if (Math.random() < 0.5) sorted.reverse();
       allBeamGroups.push({
         chars: sorted,
         sceneId: "beam_column",
@@ -6131,11 +6148,10 @@ class BeamsEffect {
     }
     shuffle7(allBeamGroups);
     this.pendingGroups = allBeamGroups;
-    const diagMap = new Map;
+    const diagMap = /* @__PURE__ */ new Map();
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       const key = ch.inputCoord.column - ch.inputCoord.row;
-      if (!diagMap.has(key))
-        diagMap.set(key, []);
+      if (!diagMap.has(key)) diagMap.set(key, []);
       diagMap.get(key)?.push(ch);
     }
     const sortedKeys = [...diagMap.keys()].sort((a, b) => a - b);
@@ -6146,10 +6162,9 @@ class BeamsEffect {
       if (this.beamDelay === 0) {
         if (this.pendingGroups.length > 0) {
           const batchSize = randInt12(1, 5);
-          for (let i = 0;i < batchSize && this.pendingGroups.length > 0; i++) {
+          for (let i = 0; i < batchSize && this.pendingGroups.length > 0; i++) {
             const group = this.pendingGroups.shift();
-            if (group)
-              this.activeGroups.push(group);
+            if (group) this.activeGroups.push(group);
           }
           this.beamDelay = this.config.beamDelay;
         }
@@ -6160,7 +6175,7 @@ class BeamsEffect {
         group.counter += group.speed;
         const steps = Math.floor(group.counter);
         if (steps > 1) {
-          for (let s = 0;s < steps && group.nextIdx < group.chars.length; s++) {
+          for (let s = 0; s < steps && group.nextIdx < group.chars.length; s++) {
             const ch = group.chars[group.nextIdx++];
             ch.isVisible = true;
             ch.activateScene(group.sceneId);
@@ -6176,7 +6191,7 @@ class BeamsEffect {
     }
     if (this.phase === "wipe") {
       const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
-      for (let i = this.wipeIdx;i < end; i++) {
+      for (let i = this.wipeIdx; i < end; i++) {
         for (const ch of this.wipeGroups[i]) {
           ch.isVisible = true;
           ch.activateScene("brighten");
@@ -6187,12 +6202,11 @@ class BeamsEffect {
     }
     for (const ch of this.activeChars) {
       ch.tick();
-      if (!ch.isActive)
-        this.activeChars.delete(ch);
+      if (!ch.isActive) this.activeChars.delete(ch);
     }
     return this.pendingGroups.length > 0 || this.activeGroups.length > 0 || this.activeChars.size > 0 || this.wipeIdx < this.wipeGroups.length;
   }
-}
+};
 
 // src/effects/slice.ts
 var defaultSliceConfig = {
@@ -6203,12 +6217,9 @@ var defaultSliceConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "diagonal"
 };
-
-class SliceEffect {
-  canvas;
-  config;
-  activeChars = new Set;
+var SliceEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -6216,7 +6227,13 @@ class SliceEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const { sliceDirection } = this.config;
     const charsToActivate = [];
     if (sliceDirection === "vertical") {
@@ -6278,8 +6295,7 @@ class SliceEffect {
     ch.activateScene("static");
   }
   step() {
-    if (this.activeChars.size === 0)
-      return false;
+    if (this.activeChars.size === 0) return false;
     for (const ch of this.activeChars) {
       ch.tick();
       if (!ch.isActive) {
@@ -6288,50 +6304,47 @@ class SliceEffect {
     }
     return this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/synthgrid.ts
 var defaultSynthGridConfig = {
-  gridRowSymbol: "─",
-  gridColumnSymbol: "│",
+  gridRowSymbol: "\u2500",
+  gridColumnSymbol: "\u2502",
   gridGradientStops: [color("CC00CC"), color("ffffff")],
+  // Python default: CC00CC
   gridGradientSteps: 12,
   gridGradientDirection: "diagonal",
   textGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   textGradientSteps: 12,
   textGradientDirection: "vertical",
-  textGenerationSymbols: ["░", "▒", "▓"],
+  textGenerationSymbols: ["\u2591", "\u2592", "\u2593"],
   maxActiveBlocks: 0.1
 };
 function randInt13(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 function shuffle8(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
 function findEvenGap(dimension) {
   const d = dimension - 2;
-  if (d <= 0)
-    return 0;
+  if (d <= 0) return 0;
   const potential = [];
-  for (let i = d;i > 4; i--) {
-    if (d % i <= 1)
-      potential.push(i);
+  for (let i = d; i > 4; i--) {
+    if (d % i <= 1) potential.push(i);
   }
-  if (potential.length === 0)
-    return 4;
+  if (potential.length === 0) return 4;
   const target = Math.floor(d / 5);
   return potential.reduce((best, g) => Math.abs(g - target) < Math.abs(best - target) ? g : best);
 }
 var LINE_HEIGHT = 1.2;
-
-class GridLine {
-  spans = [];
-  visibleCount = 0;
+var GridLine = class {
   constructor(container, positions, symbol, colorMapping, cellWidth, cellHeight, totalRows) {
+    this.spans = [];
+    this.visibleCount = 0;
     for (const { col, row } of positions) {
       const span = document.createElement("span");
       span.style.position = "absolute";
@@ -6340,8 +6353,7 @@ class GridLine {
       span.style.lineHeight = `${Math.round(cellHeight)}px`;
       span.textContent = symbol;
       const c = colorMapping.get(coordKey(col, row));
-      if (c)
-        span.style.color = `#${c.rgbHex}`;
+      if (c) span.style.color = `#${c.rgbHex}`;
       span.style.left = `${Math.round((col - 1) * cellWidth)}px`;
       span.style.top = `${Math.round((totalRows - row) * cellHeight)}px`;
       container.appendChild(span);
@@ -6350,14 +6362,14 @@ class GridLine {
   }
   extend(n) {
     const target = Math.min(this.visibleCount + n, this.spans.length);
-    for (let i = this.visibleCount;i < target; i++) {
+    for (let i = this.visibleCount; i < target; i++) {
       this.spans[i].style.visibility = "visible";
     }
     this.visibleCount = target;
   }
   collapse(n) {
     const target = Math.max(this.visibleCount - n, 0);
-    for (let i = target;i < this.visibleCount; i++) {
+    for (let i = target; i < this.visibleCount; i++) {
       this.spans[i].style.visibility = "hidden";
     }
     this.visibleCount = target;
@@ -6374,24 +6386,20 @@ class GridLine {
     }
     this.spans = [];
   }
-}
-
-class SynthGridEffect {
-  canvas;
-  config;
-  container;
-  phase = "grid_expand";
-  hLines = [];
-  vLines = [];
-  pendingBlocks = [];
-  activeChars = new Set;
-  activeBlockCount = 0;
-  totalBlocks = 0;
-  textColorMapping = new Map;
-  textGradientSpectrum = [];
-  cellWidth = 0;
-  cellHeight = 0;
+};
+var SynthGridEffect = class {
   constructor(canvas, config, container) {
+    this.phase = "grid_expand";
+    this.hLines = [];
+    this.vLines = [];
+    this.pendingBlocks = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.activeBlockCount = 0;
+    this.totalBlocks = 0;
+    this.textColorMapping = /* @__PURE__ */ new Map();
+    this.textGradientSpectrum = [];
+    this.cellWidth = 0;
+    this.cellHeight = 0;
     this.canvas = canvas;
     this.config = config;
     this.container = container;
@@ -6426,50 +6434,77 @@ class SynthGridEffect {
     const { dims } = this.canvas;
     const { config } = this;
     const gridGradient = new Gradient(config.gridGradientStops, config.gridGradientSteps);
-    const gridColorMapping = gridGradient.buildCoordinateColorMapping(dims.bottom, dims.top, dims.left, dims.right, config.gridGradientDirection);
+    const gridColorMapping = gridGradient.buildCoordinateColorMapping(
+      dims.bottom,
+      dims.top,
+      dims.left,
+      dims.right,
+      config.gridGradientDirection
+    );
     const textGradient = new Gradient(config.textGradientStops, config.textGradientSteps);
-    this.textColorMapping = textGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.textGradientDirection);
+    this.textColorMapping = textGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.textGradientDirection
+    );
     this.textGradientSpectrum = textGradient.spectrum;
     const { rowGap, colGap } = this._computeGaps(dims);
     const internalRowLines = [];
-    for (let r = dims.bottom + rowGap;r < dims.top; r += rowGap) {
-      if (dims.top - r < 2)
-        continue;
+    for (let r = dims.bottom + rowGap; r < dims.top; r += rowGap) {
+      if (dims.top - r < 2) continue;
       internalRowLines.push(r);
     }
     const internalColLines = [];
-    for (let c = dims.left + colGap;c < dims.right; c += colGap) {
-      if (dims.right - c < 2)
-        continue;
+    for (let c = dims.left + colGap; c < dims.right; c += colGap) {
+      if (dims.right - c < 2) continue;
       internalColLines.push(c);
     }
     for (const row of [dims.bottom, dims.top, ...internalRowLines]) {
       const positions = [];
-      for (let col = dims.left;col <= dims.right; col++) {
+      for (let col = dims.left; col <= dims.right; col++) {
         positions.push({ col, row });
       }
-      this.hLines.push(new GridLine(this.container, positions, config.gridRowSymbol, gridColorMapping, this.cellWidth, this.cellHeight, dims.top));
+      this.hLines.push(new GridLine(
+        this.container,
+        positions,
+        config.gridRowSymbol,
+        gridColorMapping,
+        this.cellWidth,
+        this.cellHeight,
+        dims.top
+      ));
     }
     for (const col of [dims.left, dims.right, ...internalColLines]) {
       const positions = [];
-      for (let row = dims.bottom;row < dims.top; row++) {
+      for (let row = dims.bottom; row < dims.top; row++) {
         positions.push({ col, row });
       }
-      this.vLines.push(new GridLine(this.container, positions, config.gridColumnSymbol, gridColorMapping, this.cellWidth, this.cellHeight, dims.top));
+      this.vLines.push(new GridLine(
+        this.container,
+        positions,
+        config.gridColumnSymbol,
+        gridColorMapping,
+        this.cellWidth,
+        this.cellHeight,
+        dims.top
+      ));
     }
     const rowBounds = [dims.bottom, ...internalRowLines, dims.top + 1];
     const colBounds = [dims.left, ...internalColLines, dims.right + 1];
     const allChars = [...this.canvas.getCharacters()];
     const blocks = [];
-    for (let ri = 0;ri < rowBounds.length - 1; ri++) {
+    for (let ri = 0; ri < rowBounds.length - 1; ri++) {
       const r1 = rowBounds[ri];
       const r2 = rowBounds[ri + 1];
-      for (let ci = 0;ci < colBounds.length - 1; ci++) {
+      for (let ci = 0; ci < colBounds.length - 1; ci++) {
         const c1 = colBounds[ci];
         const c2 = colBounds[ci + 1];
-        const block = allChars.filter((ch) => ch.inputCoord.row >= r1 && ch.inputCoord.row < r2 && ch.inputCoord.column >= c1 && ch.inputCoord.column < c2);
-        if (block.length > 0)
-          blocks.push(block);
+        const block = allChars.filter(
+          (ch) => ch.inputCoord.row >= r1 && ch.inputCoord.row < r2 && ch.inputCoord.column >= c1 && ch.inputCoord.column < c2
+        );
+        if (block.length > 0) blocks.push(block);
       }
     }
     shuffle8(blocks);
@@ -6478,7 +6513,7 @@ class SynthGridEffect {
     for (const ch of allChars) {
       const dissolveScene = ch.newScene("dissolve");
       const frameCount = randInt13(15, 30);
-      for (let i = 0;i < frameCount; i++) {
+      for (let i = 0; i < frameCount; i++) {
         const sym = config.textGenerationSymbols[Math.floor(Math.random() * config.textGenerationSymbols.length)];
         const paletteColor = this.textGradientSpectrum[Math.floor(Math.random() * this.textGradientSpectrum.length)];
         dissolveScene.addFrame(sym, 2, paletteColor.rgbHex);
@@ -6495,8 +6530,7 @@ class SynthGridEffect {
       ch.eventHandler.register("SCENE_COMPLETE", "dissolve", "CALLBACK", {
         callback: (_char) => {
           remaining--;
-          if (remaining === 0)
-            this.activeBlockCount--;
+          if (remaining === 0) this.activeBlockCount--;
         },
         args: []
       });
@@ -6507,10 +6541,8 @@ class SynthGridEffect {
   step() {
     switch (this.phase) {
       case "grid_expand": {
-        for (const line of this.hLines)
-          line.extend(3);
-        for (const line of this.vLines)
-          line.extend(1);
+        for (const line of this.hLines) line.extend(3);
+        for (const line of this.vLines) line.extend(1);
         if (this.hLines.every((l) => l.fullyExtended) && this.vLines.every((l) => l.fullyExtended)) {
           this.phase = "add_chars";
         }
@@ -6526,8 +6558,7 @@ class SynthGridEffect {
         const threshold = this.totalBlocks * this.config.maxActiveBlocks;
         if (this.activeBlockCount < threshold && this.pendingBlocks.length > 0) {
           const block = this.pendingBlocks.shift();
-          if (block)
-            this.activateBlock(block);
+          if (block) this.activateBlock(block);
         }
         if (this.pendingBlocks.length === 0 && this.activeChars.size === 0 && this.activeBlockCount === 0) {
           this._revealGridLineChars();
@@ -6536,13 +6567,10 @@ class SynthGridEffect {
         break;
       }
       case "collapse": {
-        for (const line of this.hLines)
-          line.collapse(3);
-        for (const line of this.vLines)
-          line.collapse(1);
+        for (const line of this.hLines) line.collapse(3);
+        for (const line of this.vLines) line.collapse(1);
         if (this.hLines.every((l) => l.fullyCollapsed) && this.vLines.every((l) => l.fullyCollapsed)) {
-          for (const line of [...this.hLines, ...this.vLines])
-            line.dispose();
+          for (const line of [...this.hLines, ...this.vLines]) line.dispose();
           this.hLines = [];
           this.vLines = [];
           this.phase = "complete";
@@ -6554,16 +6582,19 @@ class SynthGridEffect {
     }
     return true;
   }
+  // Reveal any non-space characters that were excluded from blocks (safety net)
   _revealGridLineChars() {
     for (const ch of this.canvas.getNonSpaceCharacters()) {
       if (!ch.isVisible) {
         ch.isVisible = true;
-        const finalColor = this.textColorMapping.get(coordKey(ch.inputCoord.column, ch.inputCoord.row));
+        const finalColor = this.textColorMapping.get(
+          coordKey(ch.inputCoord.column, ch.inputCoord.row)
+        );
         ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor?.rgbHex ?? null };
       }
     }
   }
-}
+};
 
 // src/effects/binarypath.ts
 function randInt14(min, max) {
@@ -6579,26 +6610,21 @@ var defaultBinaryPathConfig = {
   finalGradientDirection: "radial",
   finalWipeSpeed: 2
 };
-var nextDigitId = 3000000;
-
-class BinaryPathEffect {
-  canvas;
-  config;
-  container;
-  cellWidthPx = 0;
-  cellHeightPx = 0;
-  totalRows;
-  pendingGroups = [];
-  activeGroups = new Set;
-  collapsingChars = new Set;
-  collapsedCount = 0;
-  totalNonSpaceChars = 0;
-  activeChars = new Set;
-  wipeGroups = [];
-  wipeIdx = 0;
-  phase = "traveling";
-  colorMapping = new Map;
+var nextDigitId = 3e6;
+var BinaryPathEffect = class {
   constructor(canvas, config, container) {
+    this.cellWidthPx = 0;
+    this.cellHeightPx = 0;
+    this.pendingGroups = [];
+    this.activeGroups = /* @__PURE__ */ new Set();
+    this.collapsingChars = /* @__PURE__ */ new Set();
+    this.collapsedCount = 0;
+    this.totalNonSpaceChars = 0;
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.wipeGroups = [];
+    this.wipeIdx = 0;
+    this.phase = "traveling";
+    this.colorMapping = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.container = container;
@@ -6625,7 +6651,13 @@ class BinaryPathEffect {
     const { dims } = this.canvas;
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
     this.totalNonSpaceChars = nonSpaceChars.length;
     for (const ch of this.canvas.getCharacters()) {
@@ -6652,7 +6684,7 @@ class BinaryPathEffect {
       const pathCoords = this._buildZigzagPath(startCoord, ch.inputCoord, dims.right);
       const binaryStr = ((ch.inputSymbol.codePointAt(0) ?? 0) & 255).toString(2).padStart(8, "0");
       const pendingDigits = [];
-      for (let i = 0;i < 8; i++) {
+      for (let i = 0; i < 8; i++) {
         const digit = binaryStr[i];
         const digitColor = config.binaryColors[Math.floor(Math.random() * config.binaryColors.length)].rgbHex;
         const id = nextDigitId++;
@@ -6679,20 +6711,23 @@ class BinaryPathEffect {
         isComplete: false
       });
     }
-    for (let i = this.pendingGroups.length - 1;i > 0; i--) {
+    for (let i = this.pendingGroups.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [this.pendingGroups[i], this.pendingGroups[j]] = [this.pendingGroups[j], this.pendingGroups[i]];
     }
-    const diagMap = new Map;
+    const diagMap = /* @__PURE__ */ new Map();
     for (const ch of nonSpaceChars) {
       const key = ch.inputCoord.row + ch.inputCoord.column;
-      if (!diagMap.has(key))
-        diagMap.set(key, []);
+      if (!diagMap.has(key)) diagMap.set(key, []);
       diagMap.get(key)?.push(ch);
     }
     const sortedKeys = [...diagMap.keys()].sort((a, b) => b - a);
     this.wipeGroups = sortedKeys.map((k) => diagMap.get(k) ?? []);
   }
+  /**
+   * Generate a zigzag path from startCoord toward targetCoord, alternating between
+   * vertical and horizontal segments with random step sizes. Matches Python's algorithm.
+   */
   _buildZigzagPath(startCoord, targetCoord, canvasRight) {
     const path = [startCoord];
     let lastOrientation = Math.random() < 0.5 ? "col" : "row";
@@ -6740,14 +6775,12 @@ class BinaryPathEffect {
       const maxActive = Math.max(1, Math.floor(this.totalNonSpaceChars * this.config.activeBinaryGroups));
       while (this.pendingGroups.length > 0 && this.activeGroups.size < maxActive) {
         const group = this.pendingGroups.shift();
-        if (group)
-          this.activeGroups.add(group);
+        if (group) this.activeGroups.add(group);
       }
       for (const group of this.activeGroups) {
         if (group.pendingDigits.length > 0) {
           const digit = group.pendingDigits.shift();
-          if (!digit)
-            continue;
+          if (!digit) continue;
           digit.span.style.display = "";
           group.activeDigits.push(digit);
         }
@@ -6760,8 +6793,7 @@ class BinaryPathEffect {
           if (!digit.ch.isActive) {
             digit.span.remove();
             const idx = group.activeDigits.indexOf(digit);
-            if (idx !== -1)
-              group.activeDigits.splice(idx, 1);
+            if (idx !== -1) group.activeDigits.splice(idx, 1);
           }
         }
         if (group.pendingDigits.length === 0 && group.activeDigits.length === 0 && !group.isComplete) {
@@ -6771,8 +6803,7 @@ class BinaryPathEffect {
           ch.activateScene("collapse");
           this.collapsingChars.add(ch);
         }
-        if (group.isComplete)
-          this.activeGroups.delete(group);
+        if (group.isComplete) this.activeGroups.delete(group);
       }
       for (const ch of this.collapsingChars) {
         ch.tick();
@@ -6783,7 +6814,7 @@ class BinaryPathEffect {
     }
     if (this.phase === "wipe") {
       const end = Math.min(this.wipeIdx + this.config.finalWipeSpeed, this.wipeGroups.length);
-      for (let i = this.wipeIdx;i < end; i++) {
+      for (let i = this.wipeIdx; i < end; i++) {
         for (const ch of this.wipeGroups[i]) {
           ch.isVisible = true;
           ch.activateScene("brighten");
@@ -6794,24 +6825,19 @@ class BinaryPathEffect {
     }
     for (const ch of this.activeChars) {
       ch.tick();
-      if (!ch.isActive)
-        this.activeChars.delete(ch);
+      if (!ch.isActive) this.activeChars.delete(ch);
     }
     return !(this.phase === "wipe" && this.wipeIdx >= this.wipeGroups.length && this.activeChars.size === 0);
   }
-}
+};
 
 // src/particles.ts
-var nextParticleId = 2000000;
-
-class ParticleSystem {
-  container;
-  particles = new Set;
-  cellWidthPx = 0;
-  cellHeightPx = 0;
-  totalRows;
-  lineHeight;
+var nextParticleId = 2e6;
+var ParticleSystem = class {
   constructor(container, canvasDims, lineHeight = 1.2) {
+    this.particles = /* @__PURE__ */ new Set();
+    this.cellWidthPx = 0;
+    this.cellHeightPx = 0;
     this.container = container;
     this.totalRows = canvasDims.top;
     this.lineHeight = lineHeight;
@@ -6882,7 +6908,7 @@ class ParticleSystem {
   get count() {
     return this.particles.size;
   }
-}
+};
 
 // src/effects/thunderstorm.ts
 var defaultThunderstormConfig = {
@@ -6899,33 +6925,32 @@ var defaultThunderstormConfig = {
   finalGradientFrames: 3,
   finalGradientDirection: "vertical"
 };
-var nextOverlayId = 4000000;
-
-class ThunderstormEffect {
-  canvas;
-  config;
-  container;
-  cellWidthPx = 0;
-  cellHeightPx = 0;
-  totalRows;
-  allNonSpaceChars = [];
-  activeTextChars = new Set;
-  coordToChar = new Map;
-  idleRainDrops = [];
-  activeRainDrops = [];
-  rainDelay = 0;
-  particles;
-  availableStrikeChars = [];
-  pendingStrikeChars = [];
-  activeStrikeChars = [];
-  strikeInProgress = false;
-  strikeProgressionDelay = 0;
-  pendingGlowChars = [];
-  pendingSparkSetups = [];
-  phase = "pre-storm";
-  stormTick = 0;
-  strikeBranchChance = 0.05;
+var nextOverlayId = 4e6;
+var ThunderstormEffect = class {
   constructor(canvas, config, container) {
+    this.cellWidthPx = 0;
+    this.cellHeightPx = 0;
+    // Text characters (canvas EffectCharacters)
+    this.allNonSpaceChars = [];
+    this.activeTextChars = /* @__PURE__ */ new Set();
+    this.coordToChar = /* @__PURE__ */ new Map();
+    // Rain overlay
+    this.idleRainDrops = [];
+    this.activeRainDrops = [];
+    this.rainDelay = 0;
+    this.availableStrikeChars = [];
+    this.pendingStrikeChars = [];
+    // queued to be revealed
+    this.activeStrikeChars = [];
+    // revealed, animating
+    this.strikeInProgress = false;
+    this.strikeProgressionDelay = 0;
+    this.pendingGlowChars = [];
+    this.pendingSparkSetups = [];
+    // Phase state machine
+    this.phase = "pre-storm";
+    this.stormTick = 0;
+    this.strikeBranchChance = 0.05;
     this.canvas = canvas;
     this.config = config;
     this.container = container;
@@ -6954,7 +6979,13 @@ class ThunderstormEffect {
     const { dims } = this.canvas;
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -7002,7 +7033,7 @@ class ThunderstormEffect {
     this._buildStrikePool(200);
   }
   _buildRainDrops(count) {
-    for (let i = 0;i < count; i++) {
+    for (let i = 0; i < count; i++) {
       const span = document.createElement("span");
       span.style.position = "absolute";
       span.style.width = `${Math.ceil(this.cellWidthPx)}px`;
@@ -7014,7 +7045,7 @@ class ThunderstormEffect {
     }
   }
   _buildStrikePool(count) {
-    for (let i = 0;i < count; i++) {
+    for (let i = 0; i < count; i++) {
       const id = nextOverlayId++;
       const ch = new EffectCharacter(id, "|", 1, 1);
       const span = document.createElement("span");
@@ -7033,9 +7064,14 @@ class ThunderstormEffect {
     const oc = this.availableStrikeChars.pop();
     oc.ch.scenes.clear();
     oc.ch.activeScene = null;
-    oc.ch.eventHandler = new EventHandler;
+    oc.ch.eventHandler = new EventHandler();
     return oc;
   }
+  /**
+   * Build a zigzag lightning bolt from the top of the canvas downward, matching Python's
+   * `setup_lightning_strike()`. Places bolt segments and sets up sparks — scene creation
+   * is deferred to `_lightningStrike()` so all segments share the same per-strike easing.
+   */
   _setupLightningStrike(branchNeighbor = null) {
     const { dims } = this.canvas;
     let col = branchNeighbor ? branchNeighbor.col : randInt15(1, dims.right);
@@ -7057,10 +7093,8 @@ class ThunderstormEffect {
       oc.row = row;
       oc.sym = sym;
       row -= 1;
-      if (sym === "\\")
-        col += 1;
-      else if (sym === "/")
-        col -= 1;
+      if (sym === "\\") col += 1;
+      else if (sym === "/") col -= 1;
       this.pendingStrikeChars.push(oc);
       if (!isFirstBranchSegment && Math.random() < this.strikeBranchChance && this.pendingStrikeChars.length < 100) {
         this.strikeBranchChance -= 0.01;
@@ -7072,7 +7106,7 @@ class ThunderstormEffect {
     if (this.pendingStrikeChars.length > 0) {
       const lastOc = this.pendingStrikeChars[this.pendingStrikeChars.length - 1];
       const sparkCount = randInt15(6, 10);
-      for (let i = 0;i < sparkCount; i++) {
+      for (let i = 0; i < sparkCount; i++) {
         const dir = Math.random() < 0.5 ? 1 : -1;
         this.pendingSparkSetups.push({
           spawnCol: Math.round(lastOc.col),
@@ -7082,6 +7116,10 @@ class ThunderstormEffect {
       }
     }
   }
+  /**
+   * Trigger a lightning strike: place bolt segments, then create scenes with a shared
+   * per-strike flash easing (matching Python's `lightning_strike()`).
+   */
   _lightningStrike() {
     const { config } = this;
     this._setupLightningStrike();
@@ -7110,11 +7148,10 @@ class ThunderstormEffect {
           }
           oc.ch.scenes.clear();
           oc.ch.activeScene = null;
-          oc.ch.eventHandler = new EventHandler;
+          oc.ch.eventHandler = new EventHandler();
           this.availableStrikeChars.push(oc);
           const idx = this.activeStrikeChars.indexOf(oc);
-          if (idx !== -1)
-            this.activeStrikeChars.splice(idx, 1);
+          if (idx !== -1) this.activeStrikeChars.splice(idx, 1);
         },
         args: []
       });
@@ -7126,6 +7163,7 @@ class ThunderstormEffect {
       }
     }
   }
+  /** Emit sparks from pendingSparkSetups (called when the last bolt segment is revealed). */
   _emitSparks() {
     const { dims } = this.canvas;
     const { config } = this;
@@ -7157,20 +7195,22 @@ class ThunderstormEffect {
     }
     this.pendingSparkSetups = [];
   }
+  /**
+   * Reveal pending bolt segments progressively: 1–3 per call, with a 1-tick gap between reveals.
+   * When the last segment is revealed: emit sparks, activate flash on all bolt chars + all text chars.
+   * Matching Python's `step_lightning_strike()`.
+   */
   _stepLightningStrike() {
     if (this.strikeProgressionDelay > 0) {
       this.strikeProgressionDelay--;
       return;
     }
-    if (this.pendingStrikeChars.length === 0)
-      return;
+    if (this.pendingStrikeChars.length === 0) return;
     const count = randInt15(1, 3);
-    for (let i = 0;i < count; i++) {
-      if (this.pendingStrikeChars.length === 0)
-        break;
+    for (let i = 0; i < count; i++) {
+      if (this.pendingStrikeChars.length === 0) break;
       const oc = this.pendingStrikeChars.shift();
-      if (!oc)
-        break;
+      if (!oc) break;
       this._positionSpan(oc.span, oc.col, oc.row);
       oc.span.textContent = oc.sym;
       oc.span.style.color = `#${this.config.lightningColor.rgbHex}`;
@@ -7196,9 +7236,10 @@ class ThunderstormEffect {
       }
     }
   }
+  /** Move active rain drops diagonally; spawn new batches of 1–6 with a 1–7 tick delay between bursts. */
   _rainTick() {
     const { dims } = this.canvas;
-    for (let i = this.activeRainDrops.length - 1;i >= 0; i--) {
+    for (let i = this.activeRainDrops.length - 1; i >= 0; i--) {
       const drop = this.activeRainDrops[i];
       drop.col += drop.speed;
       drop.row -= drop.speed;
@@ -7220,12 +7261,10 @@ class ThunderstormEffect {
     if (this.rainDelay > 0) {
       this.rainDelay--;
     } else {
-      if (this.idleRainDrops.length === 0)
-        this._buildRainDrops(20);
+      if (this.idleRainDrops.length === 0) this._buildRainDrops(20);
       const count = randInt15(1, 6);
-      for (let i = 0;i < count; i++) {
-        if (this.idleRainDrops.length === 0)
-          break;
+      for (let i = 0; i < count; i++) {
+        if (this.idleRainDrops.length === 0) break;
         const drop = this.idleRainDrops.pop();
         drop.col = randInt15(1 - dims.top, dims.right);
         drop.row = dims.top + 1;
@@ -7249,14 +7288,13 @@ class ThunderstormEffect {
       case "waiting":
         for (const ch of [...this.activeTextChars]) {
           ch.tick();
-          if (!ch.isActive)
-            this.activeTextChars.delete(ch);
+          if (!ch.isActive) this.activeTextChars.delete(ch);
         }
         break;
       case "storm":
         this.stormTick++;
         this._rainTick();
-        if (!this.strikeInProgress && Math.random() < 0.008) {
+        if (!this.strikeInProgress && Math.random() < 8e-3) {
           this.strikeInProgress = true;
           this._lightningStrike();
         }
@@ -7268,8 +7306,7 @@ class ThunderstormEffect {
         }
         this.pendingGlowChars = [];
         if (this.stormTick >= this.config.stormDuration && !this.strikeInProgress) {
-          for (const drop of this.activeRainDrops)
-            drop.span.style.display = "none";
+          for (const drop of this.activeRainDrops) drop.span.style.display = "none";
           for (const ch of this.allNonSpaceChars) {
             ch.activateScene("unfade");
             this.activeTextChars.add(ch);
@@ -7278,30 +7315,27 @@ class ThunderstormEffect {
         }
         for (const ch of [...this.activeTextChars]) {
           ch.tick();
-          if (!ch.isActive)
-            this.activeTextChars.delete(ch);
+          if (!ch.isActive) this.activeTextChars.delete(ch);
         }
         for (const oc of [...this.activeStrikeChars]) {
           oc.ch.tick();
           const vis = oc.ch.currentVisual;
           oc.span.textContent = vis.symbol;
-          if (vis.fgColor)
-            oc.span.style.color = `#${vis.fgColor}`;
+          if (vis.fgColor) oc.span.style.color = `#${vis.fgColor}`;
         }
         this.particles.tick();
         break;
       case "complete":
         for (const ch of [...this.activeTextChars]) {
           ch.tick();
-          if (!ch.isActive)
-            this.activeTextChars.delete(ch);
+          if (!ch.isActive) this.activeTextChars.delete(ch);
         }
         this.particles.tick();
         break;
     }
     return this.phase !== "complete" || this.activeTextChars.size > 0 || this.particles.count > 0;
   }
-}
+};
 function randInt15(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -7319,7 +7353,7 @@ var defaultCrumbleConfig = {
   finalGradientDirection: "diagonal"
 };
 function shuffle9(arr) {
-  for (let i = arr.length - 1;i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -7328,22 +7362,21 @@ function randInt16(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 var DUST_SYMBOLS = ["*", ".", ","];
-
-class CrumbleEffect {
-  canvas;
-  config;
-  nonSpaceChars = [];
-  phase = "falling";
-  pendingChars = [];
-  activeChars = new Set;
-  unvacuumedChars = [];
-  fallDelay = 12;
-  maxFallDelay = 12;
-  minFallDelay = 9;
-  fallGroupMaxsize = 1;
-  vacuumingStarted = false;
-  resettingStarted = false;
+var CrumbleEffect = class {
   constructor(canvas, config) {
+    this.nonSpaceChars = [];
+    this.phase = "falling";
+    this.pendingChars = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.unvacuumedChars = [];
+    // Falling phase timing
+    this.fallDelay = 12;
+    this.maxFallDelay = 12;
+    this.minFallDelay = 9;
+    this.fallGroupMaxsize = 1;
+    // Phase entry flags
+    this.vacuumingStarted = false;
+    this.resettingStarted = false;
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -7351,7 +7384,13 @@ class CrumbleEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       if (ch.isSpace) {
         ch.isVisible = true;
@@ -7367,7 +7406,7 @@ class CrumbleEffect {
       const weakenScn = ch.newScene("weaken");
       weakenScn.applyGradientToSymbols(ch.inputSymbol, 4, weakenGradient);
       const dustScn = ch.newScene("dust", true);
-      for (let i = 0;i < 5; i++) {
+      for (let i = 0; i < 5; i++) {
         dustScn.addFrame(DUST_SYMBOLS[i % DUST_SYMBOLS.length], 1, dustColor.rgbHex);
       }
       const fallPath = ch.motion.newPath("fall", 0.65, outBounce);
@@ -7407,10 +7446,9 @@ class CrumbleEffect {
     if (this.pendingChars.length > 0) {
       if (this.fallDelay === 0) {
         const groupSize = randInt16(1, this.fallGroupMaxsize);
-        for (let i = 0;i < groupSize && this.pendingChars.length > 0; i++) {
+        for (let i = 0; i < groupSize && this.pendingChars.length > 0; i++) {
           const ch = this.pendingChars.shift();
-          if (!ch)
-            break;
+          if (!ch) break;
           ch.activateScene("weaken");
           this.activeChars.add(ch);
         }
@@ -7442,10 +7480,9 @@ class CrumbleEffect {
       this.vacuumingStarted = true;
     }
     const batchSize = randInt16(3, 10);
-    for (let i = 0;i < batchSize && this.unvacuumedChars.length > 0; i++) {
+    for (let i = 0; i < batchSize && this.unvacuumedChars.length > 0; i++) {
       const ch = this.unvacuumedChars.shift();
-      if (!ch)
-        break;
+      if (!ch) break;
       ch.motion.activatePath("top");
       this.activeChars.add(ch);
     }
@@ -7476,7 +7513,7 @@ class CrumbleEffect {
     }
     return this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/swarm.ts
 var defaultSwarmConfig = {
@@ -7494,23 +7531,22 @@ function randItem(arr) {
 }
 function shuffle10(arr) {
   const out = [...arr];
-  for (let i = out.length - 1;i > 0; i--) {
+  for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
 }
-
-class SwarmEffect {
-  canvas;
-  config;
-  activeChars = new Set;
-  pendingSwarms = [];
-  currentSwarm = null;
-  callNext = true;
-  currentGroupAreaIndex = 0;
-  colorMapping = new Map;
+var SwarmEffect = class {
   constructor(canvas, config) {
+    this.activeChars = /* @__PURE__ */ new Set();
+    this.pendingSwarms = [];
+    this.currentSwarm = null;
+    /** When true, pop the next swarm on the next step() call (matches Python call_next). */
+    this.callNext = true;
+    /** Highest area index any char in currentSwarm has reached (for coordination). */
+    this.currentGroupAreaIndex = 0;
+    this.colorMapping = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.build();
@@ -7518,24 +7554,31 @@ class SwarmEffect {
   build() {
     const { dims } = this.canvas;
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    this.colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    this.colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()].sort((a, b) => {
-      if (a.inputCoord.row !== b.inputCoord.row)
-        return a.inputCoord.row - b.inputCoord.row;
+      if (a.inputCoord.row !== b.inputCoord.row) return a.inputCoord.row - b.inputCoord.row;
       return b.inputCoord.column - a.inputCoord.column;
     });
     const swarmSize = Math.max(1, Math.round(nonSpaceChars.length * this.config.swarmSize));
     const swarms = this.makeSwarms(nonSpaceChars, swarmSize);
     const canvasRadius = Math.max(Math.floor(Math.min(dims.right, dims.top) / 2), 1);
     const localRadius = Math.max(Math.floor(Math.min(dims.right, dims.top) / 6), 1) * 2;
-    for (let swarmIdx = 0;swarmIdx < swarms.length; swarmIdx++) {
+    for (let swarmIdx = 0; swarmIdx < swarms.length; swarmIdx++) {
       const groupChars = swarms[swarmIdx];
       const baseColor = randItem(this.config.baseColors);
       const swarmSpawn = this.canvas.randomCoord({ outsideScope: true });
       const areaCoordMap = [];
       const areaPathIds = [];
       let lastFocus = swarmSpawn;
-      const areaCount = Math.floor(Math.random() * (this.config.swarmAreaCountRange[1] - this.config.swarmAreaCountRange[0] + 1)) + this.config.swarmAreaCountRange[0];
+      const areaCount = Math.floor(
+        Math.random() * (this.config.swarmAreaCountRange[1] - this.config.swarmAreaCountRange[0] + 1)
+      ) + this.config.swarmAreaCountRange[0];
       while (areaCoordMap.length < areaCount) {
         const candidates = shuffle10(findCoordsOnCircle(lastFocus, canvasRadius));
         let nextFocus = this.canvas.randomCoord();
@@ -7569,7 +7612,7 @@ class SwarmEffect {
         for (const c of landGrad.spectrum) {
           landScene.addFrame(ch.inputSymbol, 3, c.rgbHex);
         }
-        for (let areaIdx = 0;areaIdx < areaCoordMap.length; areaIdx++) {
+        for (let areaIdx = 0; areaIdx < areaCoordMap.length; areaIdx++) {
           const localCoords = areaCoordMap[areaIdx];
           const areaPathId = areaPathIds[areaIdx];
           const outerPath = ch.motion.newPath(areaPathId, { speed: 0.4, ease: outSine });
@@ -7600,15 +7643,18 @@ class SwarmEffect {
       ch.isVisible = false;
     }
   }
+  /**
+   * Chunk characters into swarms and merge a small final swarm into the previous one.
+   * Matches Python SwarmIterator.make_swarms().
+   */
   makeSwarms(chars, swarmSize) {
     const remaining = [...chars];
     const swarms = [];
     while (remaining.length > 0) {
       const newSwarm = [];
-      for (let i = 0;i < swarmSize && remaining.length > 0; i++) {
+      for (let i = 0; i < swarmSize && remaining.length > 0; i++) {
         const ch = remaining.pop();
-        if (ch)
-          newSwarm.push(ch);
+        if (ch) newSwarm.push(ch);
       }
       swarms.push(newSwarm);
     }
@@ -7652,8 +7698,7 @@ class SwarmEffect {
             for (const other of this.currentSwarm.chars) {
               if (other !== ch && Math.random() < this.config.swarmCoordination) {
                 const path = other.motion.paths.get(pathId);
-                if (path)
-                  other.motion.activatePath(path);
+                if (path) other.motion.activatePath(path);
               }
             }
             break;
@@ -7669,7 +7714,7 @@ class SwarmEffect {
     }
     return this.pendingSwarms.length > 0 || this.activeChars.size > 0;
   }
-}
+};
 
 // src/effects/laseretch.ts
 var defaultLaserEtchConfig = {
@@ -7687,16 +7732,15 @@ var defaultLaserEtchConfig = {
   finalGradientFrames: 4,
   finalGradientDirection: "vertical"
 };
-var nextLaserId = 900000;
-var SPARK_POOL_SIZE = 2000;
-
-class Laser {
-  beamChars = [];
-  isHidden = false;
+var nextLaserId = 9e5;
+var SPARK_POOL_SIZE = 2e3;
+var Laser = class {
   constructor(canvas, config) {
+    this.beamChars = [];
+    this.isHidden = false;
     const beamGradient = new Gradient(config.beamGradientStops, config.beamGradientSteps, true);
     const beamLength = canvas.dims.top + 1;
-    for (let i = 0;i < beamLength; i++) {
+    for (let i = 0; i < beamLength; i++) {
       const id = nextLaserId++;
       const sym = i === 0 ? "*" : "/";
       const ch = new EffectCharacter(id, sym, 0, 0);
@@ -7704,7 +7748,7 @@ class Laser {
       ch.layer = 2;
       const scene = ch.newScene("laser", true);
       const spectrum = beamGradient.spectrum;
-      for (let f = 0;f < spectrum.length; f++) {
+      for (let f = 0; f < spectrum.length; f++) {
         const colorIdx = (f + i) % spectrum.length;
         scene.addFrame(sym, config.beamFrameDuration, spectrum[colorIdx].rgbHex);
       }
@@ -7713,7 +7757,7 @@ class Laser {
     }
   }
   reposition(target) {
-    for (let i = 0;i < this.beamChars.length; i++) {
+    for (let i = 0; i < this.beamChars.length; i++) {
       const ch = this.beamChars[i];
       ch.motion.setCoordinate({
         column: target.column + i,
@@ -7733,27 +7777,22 @@ class Laser {
     }
   }
   tick() {
-    if (this.isHidden)
-      return;
+    if (this.isHidden) return;
     for (const ch of this.beamChars) {
       if (ch.isVisible) {
         ch.tick();
       }
     }
   }
-}
-
-class LaserEtchEffect {
-  canvas;
-  config;
-  pendingChars = [];
-  activeChars = new Set;
-  frameCount;
-  laser;
-  sparkPool = [];
-  sparkIndex = 0;
-  activeSparks = new Set;
+};
+var LaserEtchEffect = class {
   constructor(canvas, config) {
+    this.pendingChars = [];
+    this.activeChars = /* @__PURE__ */ new Set();
+    // Spark pool
+    this.sparkPool = [];
+    this.sparkIndex = 0;
+    this.activeSparks = /* @__PURE__ */ new Set();
     this.canvas = canvas;
     this.config = config;
     this.frameCount = config.etchDelay;
@@ -7764,7 +7803,7 @@ class LaserEtchEffect {
   buildSparkPool() {
     const { config, canvas } = this;
     const sparkGradient = new Gradient(config.sparkGradientStops, [3, 8]);
-    for (let i = 0;i < SPARK_POOL_SIZE; i++) {
+    for (let i = 0; i < SPARK_POOL_SIZE; i++) {
       const id = nextLaserId++;
       const sym = config.sparkSymbols[Math.floor(Math.random() * config.sparkSymbols.length)];
       const ch = new EffectCharacter(id, sym, 0, 0);
@@ -7789,10 +7828,15 @@ class LaserEtchEffect {
     const { dims } = this.canvas;
     const { config } = this;
     const finalGradient = new Gradient(config.finalGradientStops, config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
-      if (ch.layer === 2)
-        continue;
+      if (ch.layer === 2) continue;
       ch.isVisible = false;
     }
     const nonSpace = this.canvas.getNonSpaceCharacters();
@@ -7815,7 +7859,7 @@ class LaserEtchEffect {
   emitSparks(coord) {
     const { canvas } = this;
     const sparkCount = 1;
-    for (let i = 0;i < sparkCount; i++) {
+    for (let i = 0; i < sparkCount; i++) {
       const spark = this.sparkPool[this.sparkIndex % SPARK_POOL_SIZE];
       this.sparkIndex++;
       if (spark.isVisible) {
@@ -7845,11 +7889,10 @@ class LaserEtchEffect {
     this.frameCount++;
     if (this.frameCount > this.config.etchDelay) {
       this.frameCount = 0;
-      for (let i = 0;i < this.config.etchSpeed; i++) {
+      for (let i = 0; i < this.config.etchSpeed; i++) {
         if (this.pendingChars.length > 0) {
           const ch = this.pendingChars.shift();
-          if (!ch)
-            break;
+          if (!ch) break;
           ch.isVisible = true;
           ch.activateScene("spawn");
           this.activeChars.add(ch);
@@ -7873,11 +7916,11 @@ class LaserEtchEffect {
     }
     return true;
   }
-}
+};
 
 // src/effects/orbittingvolley.ts
 var defaultOrbittingVolleyConfig = {
-  launcherSymbols: ["█", "█", "█", "█"],
+  launcherSymbols: ["\u2588", "\u2588", "\u2588", "\u2588"],
   launcherMovementSpeed: 0.8,
   characterMovementSpeed: 1.5,
   characterEasing: outSine,
@@ -7887,36 +7930,31 @@ var defaultOrbittingVolleyConfig = {
   finalGradientSteps: 12,
   finalGradientDirection: "radial"
 };
-var nextLauncherId = 200000;
+var nextLauncherId = 2e5;
 function buildPerimeter(dims) {
   const { left, right, top, bottom } = dims;
   const coords = [];
-  for (let col = left;col < right; col++) {
+  for (let col = left; col < right; col++) {
     coords.push({ column: col, row: top });
   }
-  for (let row = top;row > bottom; row--) {
+  for (let row = top; row > bottom; row--) {
     coords.push({ column: right, row });
   }
-  for (let col = right;col > left; col--) {
+  for (let col = right; col > left; col--) {
     coords.push({ column: col, row: bottom });
   }
-  for (let row = bottom;row < top; row++) {
+  for (let row = bottom; row < top; row++) {
     coords.push({ column: left, row });
   }
   return coords;
 }
-
-class OrbittingVolleyEffect {
-  canvas;
-  config;
-  launchers = [];
-  perimeter = [];
-  activeContentChars = new Set;
-  delayCounter;
-  totalInputChars;
-  pathCounter = 0;
-  launcherColorMap = new Map;
+var OrbittingVolleyEffect = class {
   constructor(canvas, config) {
+    this.launchers = [];
+    this.perimeter = [];
+    this.activeContentChars = /* @__PURE__ */ new Set();
+    this.pathCounter = 0;
+    this.launcherColorMap = /* @__PURE__ */ new Map();
     this.canvas = canvas;
     this.config = config;
     this.totalInputChars = 0;
@@ -7929,21 +7967,32 @@ class OrbittingVolleyEffect {
     const centerRow = Math.round((dims.top + dims.bottom) / 2);
     const nonSpaceChars = [...this.canvas.getNonSpaceCharacters()];
     this.totalInputChars = this.canvas.getCharacters().length;
-    if (nonSpaceChars.length === 0)
-      return;
+    if (nonSpaceChars.length === 0) return;
     nonSpaceChars.sort((a, b) => {
       const da = Math.hypot(a.inputCoord.column - centerCol, a.inputCoord.row - centerRow);
       const db = Math.hypot(b.inputCoord.column - centerCol, b.inputCoord.row - centerRow);
       return da - db;
     });
     const finalGradient = new Gradient(this.config.finalGradientStops, this.config.finalGradientSteps);
-    const colorMapping = finalGradient.buildCoordinateColorMapping(dims.textBottom, dims.textTop, dims.textLeft, dims.textRight, this.config.finalGradientDirection);
+    const colorMapping = finalGradient.buildCoordinateColorMapping(
+      dims.textBottom,
+      dims.textTop,
+      dims.textLeft,
+      dims.textRight,
+      this.config.finalGradientDirection
+    );
     for (const ch of nonSpaceChars) {
       const key = coordKey(ch.inputCoord.column, ch.inputCoord.row);
       const finalColor = colorMapping.get(key) ?? this.config.finalGradientStops[this.config.finalGradientStops.length - 1];
       ch.currentVisual = { symbol: ch.inputSymbol, fgColor: finalColor.rgbHex };
     }
-    this.launcherColorMap = finalGradient.buildCoordinateColorMapping(dims.bottom, dims.top, dims.left, dims.right, this.config.finalGradientDirection);
+    this.launcherColorMap = finalGradient.buildCoordinateColorMapping(
+      dims.bottom,
+      dims.top,
+      dims.left,
+      dims.right,
+      this.config.finalGradientDirection
+    );
     for (const ch of this.canvas.getCharacters()) {
       ch.isVisible = false;
     }
@@ -7951,10 +8000,10 @@ class OrbittingVolleyEffect {
     const perimLen = this.perimeter.length;
     const baseId = nextLauncherId;
     nextLauncherId += 4;
-    for (let i = 0;i < 4; i++) {
+    for (let i = 0; i < 4; i++) {
       const startIdx = Math.floor(i * perimLen / 4);
       const coord = this.perimeter[startIdx];
-      const sym = this.config.launcherSymbols[i] ?? "█";
+      const sym = this.config.launcherSymbols[i] ?? "\u2588";
       const launcherChar = new EffectCharacter(baseId + i, sym, coord.column, coord.row);
       launcherChar.isVisible = true;
       const initColor = this.launcherColorMap.get(coordKey(coord.column, coord.row));
@@ -7966,7 +8015,7 @@ class OrbittingVolleyEffect {
         magazine: []
       });
     }
-    for (let i = 0;i < nonSpaceChars.length; i++) {
+    for (let i = 0; i < nonSpaceChars.length; i++) {
       this.launchers[i % 4].magazine.push(nonSpaceChars[i]);
     }
   }
@@ -7976,13 +8025,11 @@ class OrbittingVolleyEffect {
     const perimLen = this.perimeter.length;
     for (const launcher of this.launchers) {
       const count = Math.min(volleyCount, launcher.magazine.length);
-      if (count === 0)
-        continue;
+      if (count === 0) continue;
       const launchCoord = { ...this.perimeter[Math.round(launcher.perimIdx) % perimLen] };
-      for (let i = 0;i < count; i++) {
+      for (let i = 0; i < count; i++) {
         const ch = launcher.magazine.shift();
-        if (!ch)
-          break;
+        if (!ch) break;
         const pathId = `fly_${this.pathCounter++}`;
         ch.motion.setCoordinate(launchCoord);
         const path = ch.motion.newPath(pathId, { speed: characterMovementSpeed, ease: characterEasing });
@@ -7994,8 +8041,7 @@ class OrbittingVolleyEffect {
     }
   }
   step() {
-    if (this.launchers.length === 0)
-      return false;
+    if (this.launchers.length === 0) return false;
     const perimLen = this.perimeter.length;
     for (const launcher of this.launchers) {
       launcher.perimIdx = (launcher.perimIdx + this.config.launcherMovementSpeed) % perimLen;
@@ -8030,7 +8076,7 @@ class OrbittingVolleyEffect {
     }
     return true;
   }
-}
+};
 
 // src/index.ts
 function createEffect(container, text, effectName, config) {
@@ -8061,7 +8107,8 @@ function createEffect(container, text, effectName, config) {
   } else {
     renderer = new DOMRenderer(container, canvas, config?.lineHeight);
   }
-  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn" || effectName === "print") {} else if (effectName === "decrypt") {
+  if (effectName === "overflow" || effectName === "orbittingvolley" || effectName === "laseretch" || effectName === "burn" || effectName === "print") {
+  } else if (effectName === "decrypt") {
     const cfg = { ...defaultDecryptConfig, ...config };
     effect = new DecryptEffect(canvas, cfg);
   } else if (effectName === "slide") {
@@ -8166,14 +8213,12 @@ function createEffect(container, text, effectName, config) {
       animId = requestAnimationFrame(tick);
     } else {
       animId = null;
-      if (onComplete)
-        onComplete();
+      if (onComplete) onComplete();
     }
   }
   return {
     start() {
-      if (animId !== null)
-        return;
+      if (animId !== null) return;
       animId = requestAnimationFrame(tick);
     },
     stop() {
@@ -8186,68 +8231,71 @@ function createEffect(container, text, effectName, config) {
 }
 function createEffectOnScroll(container, text, effectName, config) {
   const handle = createEffect(container, text, effectName, config);
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        handle.start();
-        observer.disconnect();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          handle.start();
+          observer.disconnect();
+        }
       }
-    }
-  }, { threshold: 0.1 });
+    },
+    { threshold: 0.1 }
+  );
   observer.observe(container);
   return handle;
 }
 export {
-  xtermToHex,
-  rgbInts,
-  makeEasing,
-  exports_graph as graph,
-  exports_geometry as geometry,
-  exports_easing as easing,
-  defaultWipeConfig,
-  defaultWavesConfig,
-  defaultVhstapeConfig,
-  defaultUnstableConfig,
-  defaultThunderstormConfig,
-  defaultSynthGridConfig,
-  defaultSweepConfig,
-  defaultSwarmConfig,
-  defaultSprayConfig,
-  defaultSpotlightsConfig,
-  defaultSmokeConfig,
-  defaultSlideConfig,
-  defaultSliceConfig,
-  defaultScatteredConfig,
-  defaultRingsConfig,
-  defaultRandomSequenceConfig,
-  defaultRainConfig,
-  defaultPrintConfig,
-  defaultPourConfig,
-  defaultOverflowConfig,
-  defaultOrbittingVolleyConfig,
-  defaultMiddleOutConfig,
-  defaultMatrixConfig,
-  defaultLaserEtchConfig,
-  defaultHighlightConfig,
-  defaultFireworksConfig,
-  defaultExpandConfig,
-  defaultErrorCorrectConfig,
-  defaultDecryptConfig,
-  defaultCrumbleConfig,
-  defaultColorShiftConfig,
-  defaultBurnConfig,
-  defaultBubblesConfig,
-  defaultBouncyBallsConfig,
-  defaultBlackholeConfig,
-  defaultBinaryPathConfig,
-  defaultBeamsConfig,
-  createEffectOnScroll,
-  createEffect,
-  colorPair,
-  color,
-  adjustBrightness,
-  SequenceEaser,
-  ParticleSystem,
+  EasingTracker,
   EventHandler,
-  EasingTracker
+  ParticleSystem,
+  SequenceEaser,
+  adjustBrightness,
+  color,
+  colorPair,
+  createEffect,
+  createEffectOnScroll,
+  defaultBeamsConfig,
+  defaultBinaryPathConfig,
+  defaultBlackholeConfig,
+  defaultBouncyBallsConfig,
+  defaultBubblesConfig,
+  defaultBurnConfig,
+  defaultColorShiftConfig,
+  defaultCrumbleConfig,
+  defaultDecryptConfig,
+  defaultErrorCorrectConfig,
+  defaultExpandConfig,
+  defaultFireworksConfig,
+  defaultHighlightConfig,
+  defaultLaserEtchConfig,
+  defaultMatrixConfig,
+  defaultMiddleOutConfig,
+  defaultOrbittingVolleyConfig,
+  defaultOverflowConfig,
+  defaultPourConfig,
+  defaultPrintConfig,
+  defaultRainConfig,
+  defaultRandomSequenceConfig,
+  defaultRingsConfig,
+  defaultScatteredConfig,
+  defaultSliceConfig,
+  defaultSlideConfig,
+  defaultSmokeConfig,
+  defaultSpotlightsConfig,
+  defaultSprayConfig,
+  defaultSwarmConfig,
+  defaultSweepConfig,
+  defaultSynthGridConfig,
+  defaultThunderstormConfig,
+  defaultUnstableConfig,
+  defaultVhstapeConfig,
+  defaultWavesConfig,
+  defaultWipeConfig,
+  easing_exports as easing,
+  geometry_exports as geometry,
+  graph_exports as graph,
+  makeEasing,
+  rgbInts,
+  xtermToHex
 };
