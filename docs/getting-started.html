@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — BrowserTextEffects</title>
+  <meta name="description" content="Install BrowserTextEffects and add animated text effects to your web page in minutes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/shared.css">
+  <link rel="stylesheet" href="./css/nav.css">
+  <link rel="stylesheet" href="./css/docs.css">
+  <script type="module" src="./js/nav.js"></script>
+  <script type="module">
+    import { createDemo } from './js/effect-demo.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+
+      // Basic usage demo
+      createDemo(document.getElementById('demo-basic'), {
+        text: 'Hello, World!',
+        effect: 'beams',
+      });
+
+      // Custom config demo — slide with column grouping and reversed direction
+      createDemo(document.getElementById('demo-config'), {
+        text: 'Custom Config',
+        effect: 'slide',
+        config: { grouping: 'column', reverseDirection: true },
+      });
+
+      // Scroll-triggered demo — uses createDemo which already has IntersectionObserver
+      createDemo(document.getElementById('demo-scroll'), {
+        text: 'Scroll triggered!',
+        effect: 'decrypt',
+      });
+
+      // Copy buttons
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const code = btn.closest('.code-block')?.querySelector('code')?.textContent ?? '';
+          navigator.clipboard.writeText(code).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = 'Copy';
+              btn.classList.remove('copied');
+            }, 2000);
+          });
+        });
+      });
+
+      // TOC active-section tracking
+      const sections = document.querySelectorAll('.docs-section[id]');
+      const tocLinks = document.querySelectorAll('.docs-toc-list a');
+      const observer = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            tocLinks.forEach(a => {
+              a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+            });
+          }
+        }
+      }, { rootMargin: '-10% 0px -60% 0px' });
+      sections.forEach(s => observer.observe(s));
+
+    });
+  </script>
+</head>
+<body>
+  <!-- nav injected by nav.js -->
+
+  <div class="docs-layout">
+
+    <!-- === TOC Sidebar === -->
+    <aside class="docs-toc">
+      <div class="docs-toc-title">On this page</div>
+      <ul class="docs-toc-list">
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#basic-usage">Basic Usage</a></li>
+        <li><a href="#custom-config">Custom Config</a></li>
+        <li><a href="#scroll-triggered">Scroll-Triggered</a></li>
+      </ul>
+    </aside>
+
+    <!-- === Main Content === -->
+    <article class="docs-content">
+
+      <header class="docs-header">
+        <h1 class="docs-page-title">Getting Started</h1>
+        <p class="docs-page-subtitle">Add animated text effects to any web page in minutes. BrowserTextEffects works with any framework — or plain HTML.</p>
+      </header>
+
+      <!-- ========== Installation ========== -->
+      <section id="installation" class="docs-section">
+        <h2 class="docs-section-title">
+          Installation
+          <a href="#installation" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Install from npm:</p>
+
+        <div class="code-block">
+          <pre><code>npm install browsertexteffects</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <p>Then import in your JavaScript or TypeScript:</p>
+
+        <div class="code-block">
+          <pre><code>import { createEffect } from "browsertexteffects";</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <div class="docs-note">
+          <strong>Note:</strong> BrowserTextEffects requires a browser environment. It uses
+          <code>requestAnimationFrame</code> and DOM APIs and is not compatible with server-side rendering.
+        </div>
+      </section>
+
+      <!-- ========== Basic Usage ========== -->
+      <section id="basic-usage" class="docs-section">
+        <h2 class="docs-section-title">
+          Basic Usage
+          <a href="#basic-usage" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Pass a container element, the text to animate, and an effect name. Call <code>start()</code> on the returned handle.</p>
+
+        <div class="docs-split">
+          <div class="code-block">
+            <pre><code>import { createEffect } from "browsertexteffects";
+
+const el = document.getElementById("my-text");
+const handle = createEffect(el, "Hello, World!", "beams");
+handle.start();
+
+// Stop at any time:
+handle.stop();</code></pre>
+            <button class="copy-btn" type="button">Copy</button>
+          </div>
+          <div class="docs-demo" id="demo-basic"></div>
+        </div>
+
+        <p>The <code>createEffect</code> function returns an <a href="./api.html#effect-handle">EffectHandle</a> with two methods:</p>
+
+        <ul class="docs-list">
+          <li><code>start()</code> — begins the animation. Calling again while already running is a no-op.</li>
+          <li><code>stop()</code> — cancels the animation at the current frame.</li>
+        </ul>
+
+        <div class="docs-note">
+          <strong>Tip:</strong> Try any of the <a href="./api.html#effect-names">37 built-in effect names</a> as the third argument.
+          Browse them all live in the <a href="./showroom.html">Showroom</a>.
+        </div>
+      </section>
+
+      <!-- ========== Custom Config ========== -->
+      <section id="custom-config" class="docs-section">
+        <h2 class="docs-section-title">
+          Custom Config
+          <a href="#custom-config" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Every effect accepts an optional config object as the fourth argument. Pass only the properties you want to override — everything else falls back to the effect's defaults.</p>
+
+        <div class="docs-split">
+          <div class="code-block">
+            <pre><code>import { createEffect } from "browsertexteffects";
+
+const el = document.getElementById("my-text");
+const handle = createEffect(el, "Custom Config", "slide", {
+  grouping: "column",
+  reverseDirection: true,
+});
+handle.start();</code></pre>
+            <button class="copy-btn" type="button">Copy</button>
+          </div>
+          <div class="docs-demo" id="demo-config"></div>
+        </div>
+
+        <p>For TypeScript autocompletion over all available config properties, import and spread the matching <code>default*Config</code> export:</p>
+
+        <div class="code-block">
+          <pre><code>import {
+  createEffect,
+  defaultSlideConfig,
+} from "browsertexteffects";
+
+const handle = createEffect(el, "Custom Config", "slide", {
+  ...defaultSlideConfig,   // spreads all defaults — IDE shows every property
+  grouping: "column",
+  reverseDirection: true,
+});</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <div class="docs-note">
+          <strong>See also:</strong> The <a href="./api.html">API Reference</a> documents every config property.
+          Each <a href="./effect.html?name=beams">effect page</a> has a full config table with types, defaults, and descriptions.
+        </div>
+      </section>
+
+      <!-- ========== Scroll-Triggered ========== -->
+      <section id="scroll-triggered" class="docs-section">
+        <h2 class="docs-section-title">
+          Scroll-Triggered Effects
+          <a href="#scroll-triggered" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Use <code>createEffectOnScroll</code> to automatically start the animation when the container enters the viewport. The effect fires once, when at least 10% of the element becomes visible.</p>
+
+        <div class="docs-split">
+          <div class="code-block">
+            <pre><code>import { createEffectOnScroll } from "browsertexteffects";
+
+const el = document.getElementById("my-text");
+
+// Starts automatically when el scrolls into view
+const handle = createEffectOnScroll(
+  el,
+  "Scroll triggered!",
+  "decrypt"
+);
+
+// You can still stop it manually:
+handle.stop();</code></pre>
+            <button class="copy-btn" type="button">Copy</button>
+          </div>
+          <div class="docs-demo" id="demo-scroll"></div>
+        </div>
+
+        <p><code>createEffectOnScroll</code> returns the same <a href="./api.html#effect-handle">EffectHandle</a> as <code>createEffect</code>. It uses <code>IntersectionObserver</code> internally and disconnects after the first trigger, so the animation plays once per page load.</p>
+
+        <div class="docs-note">
+          <strong>Note:</strong> The demo above plays when it scrolls into view — the same behaviour as
+          <code>createEffectOnScroll</code> on a real page. Use the Replay button to re-run it.
+        </div>
+      </section>
+
+      <!-- Pagination -->
+      <nav class="docs-pagination" aria-label="Page navigation">
+        <div></div>
+        <a href="./api.html" class="next-link">
+          <span class="pag-label">Next →</span>
+          <span class="pag-title">API Reference</span>
+        </a>
+      </nav>
+
+    </article>
+  </div>
+
+  <footer class="docs-footer">
+    <div class="docs-footer-inner">
+      <div class="docs-footer-brand">▓ BTE</div>
+      <nav class="docs-footer-links" aria-label="Footer navigation">
+        <a href="./getting-started.html">Getting Started</a>
+        <a href="./api.html">API Reference</a>
+        <a href="./showroom.html">Showroom</a>
+        <a href="https://github.com/donlair/browsertexteffects" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/browsertexteffects" target="_blank" rel="noopener">npm</a>
+      </nav>
+      <div>MIT License</div>
+    </div>
+  </footer>
+
+</body>
+</html>

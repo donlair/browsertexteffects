@@ -1,0 +1,334 @@
+/* ============================================================
+   docs.css — Prose documentation page styles
+   Used by: getting-started.html, api.html
+   ============================================================ */
+
+/* === Page Layout === */
+.docs-layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 56px;
+  align-items: start;
+}
+
+/* === TOC Sidebar === */
+.docs-toc {
+  position: sticky;
+  top: 72px; /* 52px nav + 20px gap */
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+.docs-toc-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.docs-toc-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.docs-toc-list a {
+  display: block;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: color 0.1s, background 0.1s;
+  line-height: 1.4;
+}
+.docs-toc-list a:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  text-decoration: none;
+}
+.docs-toc-list a.active {
+  color: var(--accent-blue);
+  background: var(--bg-tertiary);
+  text-decoration: none;
+}
+
+/* === Main Content === */
+.docs-content {
+  min-width: 0;
+}
+
+.docs-header {
+  margin-bottom: 40px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.docs-page-title {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.docs-page-subtitle {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* === Sections === */
+.docs-section {
+  margin-bottom: 56px;
+}
+
+.docs-section-title {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.3;
+}
+
+.docs-section-title .anchor {
+  color: var(--text-muted);
+  font-size: 15px;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+.docs-section-title:hover .anchor {
+  opacity: 1;
+}
+
+.docs-section > p,
+.docs-step-body > p {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+/* === Lists === */
+.docs-list {
+  padding-left: 20px;
+  margin-bottom: 16px;
+}
+.docs-list li {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* === Code blocks with copy button === */
+.code-block {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.code-block pre {
+  margin: 0;
+  padding-right: 52px;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+}
+.copy-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  background: var(--border-default);
+}
+.copy-btn.copied {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+/* === Live demo wrapper === */
+.docs-demo {
+  margin-bottom: 20px;
+}
+
+/* === Side-by-side code + demo === */
+.docs-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+.docs-split .code-block {
+  margin-bottom: 0;
+}
+.docs-split .docs-demo {
+  margin-bottom: 0;
+}
+
+/* === Note / tip callouts === */
+.docs-note {
+  background: rgba(88, 166, 255, 0.04);
+  border: 1px solid rgba(88, 166, 255, 0.18);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+.docs-note strong {
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+/* === Pagination nav (prev / next) === */
+.docs-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 16px;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-default);
+}
+
+.docs-pagination a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  text-decoration: none;
+  transition: border-color 0.15s;
+  min-width: 140px;
+  max-width: 240px;
+}
+.docs-pagination a:hover {
+  border-color: var(--accent-blue);
+  text-decoration: none;
+}
+.docs-pagination .next-link {
+  text-align: right;
+  margin-left: auto;
+}
+.pag-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.pag-title {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+/* === Footer === */
+.docs-footer {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-default);
+  padding: 20px 24px;
+}
+
+.docs-footer-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.docs-footer-brand {
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+  font-size: 13px;
+}
+
+.docs-footer-links {
+  display: flex;
+  gap: 16px;
+}
+.docs-footer-links a {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.docs-footer-links a:hover {
+  color: var(--text-primary);
+}
+
+/* === Responsive: tablet === */
+@media (max-width: 900px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding: 32px 16px 64px;
+  }
+
+  .docs-toc {
+    position: static;
+  }
+
+  .docs-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === Responsive: mobile === */
+@media (max-width: 600px) {
+  .docs-page-title {
+    font-size: 21px;
+  }
+
+  .docs-section-title {
+    font-size: 16px;
+  }
+
+  .docs-footer-links {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}

@@ -1,0 +1,347 @@
+/* ============================================================
+   showroom.css — Styles specific to showroom.html
+   Requires shared.css and nav.css to be loaded first.
+   ============================================================ */
+
+/* === Body: full-screen app layout === */
+body {
+  font-family: var(--font-mono);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* === Showroom app-bar (below the shared nav) === */
+.showroom-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.showroom-header-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* === Layout: sidebar + main + settings === */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* === Sidebar === */
+.sidebar {
+  width: 190px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-default);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-label {
+  padding: 10px 14px 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.sidebar-item {
+  padding: 7px 14px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  border-left: 2px solid transparent;
+  transition: background 0.1s, color 0.1s;
+}
+.sidebar-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.sidebar-item.active {
+  color: var(--accent-blue);
+  background: var(--bg-tertiary);
+  border-left-color: var(--accent-blue);
+}
+
+/* === Main content area === */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.effect-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.effect-desc {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.preview-area {
+  background: #010409;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.preview-pane {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 16px;
+  overflow: auto;
+  flex-shrink: 0;
+}
+
+.art-pane {
+  flex: 0 0 auto;
+  max-width: 58%;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.text-pane {
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+}
+
+#preview-art {
+  font-family: monospace;
+  font-size: 9px;
+  line-height: 1.0;
+  white-space: pre;
+}
+
+#preview-text {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.controls {
+  padding: 12px 0 0;
+  display: flex;
+  gap: 8px;
+}
+
+/* === Settings panel === */
+.settings-panel {
+  width: 250px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-default);
+  overflow-y: auto;
+  flex-shrink: 0;
+  padding: 14px;
+}
+
+.settings-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.field-group {
+  margin-bottom: 14px;
+}
+
+.field-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field-input:focus {
+  border-color: var(--accent-blue);
+}
+select.field-input {
+  cursor: pointer;
+}
+textarea.field-input {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.color-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-row input[type="color"] {
+  width: 32px;
+  height: 26px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  cursor: pointer;
+  padding: 1px;
+}
+
+.color-row .color-hex {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 6px;
+  width: 0;
+}
+
+.settings-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--bg-tertiary);
+  margin: 12px 0;
+}
+
+/* === Mobile toggle buttons === */
+.mobile-toggle {
+  display: none;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  min-width: 36px;
+}
+.mobile-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+}
+
+/* === Overlay backdrop (mobile) === */
+.panel-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10;
+}
+.panel-overlay.active {
+  display: block;
+}
+
+/* === Mobile breakpoint === */
+@media (max-width: 767px) {
+  /* Show showroom mobile toggles */
+  .mobile-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Showroom header: 3-col grid for toggles flanking title */
+  .showroom-header {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    height: 44px;
+    padding: 0 8px;
+  }
+  .showroom-header-title {
+    text-align: center;
+  }
+
+  /* Sidebar slides in from left */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 240px;
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Settings panel slides in from right */
+  .settings-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 280px;
+    z-index: 20;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+  }
+  .settings-panel.open {
+    transform: translateX(0);
+  }
+
+  .main {
+    padding: 12px;
+  }
+
+  /* Hide art pane on mobile */
+  .art-pane {
+    display: none;
+  }
+  .text-pane {
+    flex: 1 1 100%;
+  }
+}

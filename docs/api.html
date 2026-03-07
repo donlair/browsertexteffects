@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference — BrowserTextEffects</title>
+  <meta name="description" content="Complete API reference for BrowserTextEffects — functions, types, effect names, and config exports.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/shared.css">
+  <link rel="stylesheet" href="./css/nav.css">
+  <link rel="stylesheet" href="./css/docs.css">
+  <style>
+    /* === API-specific styles === */
+
+    /* Function / type signature box */
+    .api-sig {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    .api-sig .kw   { color: #ff7b72; }  /* keyword: function, type, interface */
+    .api-sig .fn   { color: #d2a8ff; }  /* function/method name */
+    .api-sig .type { color: #79c0ff; }  /* type name */
+    .api-sig .str  { color: #a5d6ff; }  /* string literal */
+    .api-sig .cm   { color: var(--text-muted); font-style: italic; }
+
+    /* Parameter table */
+    .api-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+
+    .api-table th {
+      text-align: left;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .api-table td {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-muted);
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    .api-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .api-table td:first-child {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .api-table td:nth-child(2) {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #79c0ff;
+      white-space: nowrap;
+    }
+
+    .api-table td.optional-badge::after {
+      content: "optional";
+      background: rgba(88,166,255,0.1);
+      border: 1px solid rgba(88,166,255,0.25);
+      border-radius: 3px;
+      color: var(--accent-blue);
+      font-size: 10px;
+      padding: 1px 5px;
+      margin-left: 8px;
+      vertical-align: middle;
+      font-family: var(--font-sans);
+      letter-spacing: 0.3px;
+      text-transform: lowercase;
+    }
+
+    /* Returns badge */
+    .api-returns {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 16px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .api-returns strong {
+      color: var(--text-primary);
+    }
+    .api-returns code {
+      background: rgba(210,168,255,0.1);
+      border-color: rgba(210,168,255,0.2);
+      color: #d2a8ff;
+    }
+
+    /* Effect name grid */
+    .effect-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .effect-grid a {
+      display: block;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      padding: 9px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-primary);
+      text-decoration: none;
+      transition: border-color 0.12s, background 0.12s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .effect-grid a:hover {
+      border-color: var(--accent-blue);
+      background: var(--bg-tertiary);
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+
+    /* Default config table — denser variant */
+    .defaults-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+    .defaults-table th {
+      text-align: left;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-default);
+    }
+    .defaults-table td {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-muted);
+      vertical-align: middle;
+    }
+    .defaults-table tr:last-child td { border-bottom: none; }
+    .defaults-table td:first-child { color: var(--text-primary); }
+    .defaults-table td:nth-child(2) { color: var(--text-secondary); font-family: var(--font-sans); font-size: 12px; }
+
+    /* Sub-section h3 */
+    .api-h3 {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      margin-top: 24px;
+    }
+    .api-h3:first-child { margin-top: 0; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .effect-grid {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      }
+      .api-table td:nth-child(2) {
+        white-space: normal;
+      }
+    }
+  </style>
+  <script type="module" src="./js/nav.js"></script>
+  <script type="module">
+    document.addEventListener('DOMContentLoaded', () => {
+      // Copy buttons
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const code = btn.closest('.code-block')?.querySelector('code')?.textContent ?? '';
+          navigator.clipboard.writeText(code).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = 'Copy';
+              btn.classList.remove('copied');
+            }, 2000);
+          });
+        });
+      });
+
+      // TOC active-section tracking
+      const sections = document.querySelectorAll('.docs-section[id]');
+      const tocLinks = document.querySelectorAll('.docs-toc-list a');
+      const observer = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            tocLinks.forEach(a => {
+              a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+            });
+          }
+        }
+      }, { rootMargin: '-10% 0px -60% 0px' });
+      sections.forEach(s => observer.observe(s));
+    });
+  </script>
+</head>
+<body>
+  <!-- nav injected by nav.js -->
+
+  <div class="docs-layout">
+
+    <!-- === TOC Sidebar === -->
+    <aside class="docs-toc">
+      <div class="docs-toc-title">On this page</div>
+      <ul class="docs-toc-list">
+        <li><a href="#create-effect">createEffect</a></li>
+        <li><a href="#create-effect-on-scroll">createEffectOnScroll</a></li>
+        <li><a href="#effect-handle">EffectHandle</a></li>
+        <li><a href="#effect-names">Effect Names</a></li>
+        <li><a href="#color-type">Color</a></li>
+        <li><a href="#gradient-direction">GradientDirection</a></li>
+        <li><a href="#easing-function">EasingFunction</a></li>
+        <li><a href="#common-config">Common Config</a></li>
+        <li><a href="#default-configs">Default Configs</a></li>
+      </ul>
+    </aside>
+
+    <!-- === Main Content === -->
+    <article class="docs-content">
+
+      <header class="docs-header">
+        <h1 class="docs-page-title">API Reference</h1>
+        <p class="docs-page-subtitle">Complete reference for all public exports from <code>browsertexteffects</code> — functions, types, effect names, and default config objects.</p>
+      </header>
+
+      <!-- ========== createEffect ========== -->
+      <section id="create-effect" class="docs-section">
+        <h2 class="docs-section-title">
+          createEffect
+          <a href="#create-effect" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <div class="api-sig">
+<span class="kw">function</span> <span class="fn">createEffect</span>(<br>
+&nbsp;&nbsp;container: <span class="type">HTMLElement</span>,<br>
+&nbsp;&nbsp;text: <span class="type">string</span>,<br>
+&nbsp;&nbsp;effectName: <span class="type">EffectName</span>,<br>
+&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
+): <span class="type">EffectHandle</span>
+        </div>
+
+        <p>Creates an animated text effect inside <code>container</code>. Returns an <a href="#effect-handle">EffectHandle</a> — call <code>start()</code> on it to begin the animation.</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>container</td>
+              <td>HTMLElement</td>
+              <td>The DOM element that will contain the animated text. BrowserTextEffects writes into this element and manages its contents during the animation.</td>
+            </tr>
+            <tr>
+              <td>text</td>
+              <td>string</td>
+              <td>The text to animate. Multi-line text (with <code>\n</code>) is fully supported.</td>
+            </tr>
+            <tr>
+              <td>effectName</td>
+              <td>EffectName</td>
+              <td>One of the <a href="#effect-names">37 built-in effect names</a>, e.g. <code>"beams"</code>, <code>"decrypt"</code>.</td>
+            </tr>
+            <tr>
+              <td class="optional-badge">config</td>
+              <td>object</td>
+              <td>Optional config overrides for the chosen effect. Only provide the properties you want to change — everything else falls back to the effect's defaults. Also accepts <code>lineHeight</code> (number, px, controls row spacing) and <code>onComplete</code> (callback fired when the animation finishes).</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="api-returns">
+          <strong>Returns</strong> <code>EffectHandle</code>
+        </div>
+
+        <div class="code-block">
+          <pre><code>import { createEffect } from "browsertexteffects";
+
+const el = document.getElementById("my-text");
+const handle = createEffect(el, "Hello, World!", "beams");
+handle.start();
+
+// Stop at any time:
+handle.stop();</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <div class="docs-note">
+          <strong>Note:</strong> BrowserTextEffects requires a browser environment. It uses
+          <code>requestAnimationFrame</code> and DOM APIs and is not compatible with server-side rendering.
+        </div>
+      </section>
+
+      <!-- ========== createEffectOnScroll ========== -->
+      <section id="create-effect-on-scroll" class="docs-section">
+        <h2 class="docs-section-title">
+          createEffectOnScroll
+          <a href="#create-effect-on-scroll" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <div class="api-sig">
+<span class="kw">function</span> <span class="fn">createEffectOnScroll</span>(<br>
+&nbsp;&nbsp;container: <span class="type">HTMLElement</span>,<br>
+&nbsp;&nbsp;text: <span class="type">string</span>,<br>
+&nbsp;&nbsp;effectName: <span class="type">EffectName</span>,<br>
+&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
+): <span class="type">EffectHandle</span>
+        </div>
+
+        <p>Same signature as <a href="#create-effect"><code>createEffect</code></a>, but the animation starts automatically when the container scrolls into the viewport. Uses <code>IntersectionObserver</code> internally with a 10% threshold; the observer disconnects after the first trigger so the animation plays once per page load.</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>container</td>
+              <td>HTMLElement</td>
+              <td>The element to watch and animate.</td>
+            </tr>
+            <tr>
+              <td>text</td>
+              <td>string</td>
+              <td>The text to animate.</td>
+            </tr>
+            <tr>
+              <td>effectName</td>
+              <td>EffectName</td>
+              <td>One of the <a href="#effect-names">37 built-in effect names</a>.</td>
+            </tr>
+            <tr>
+              <td class="optional-badge">config</td>
+              <td>object</td>
+              <td>Optional effect config overrides, plus <code>lineHeight</code> and <code>onComplete</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="api-returns">
+          <strong>Returns</strong> <code>EffectHandle</code>
+        </div>
+
+        <div class="code-block">
+          <pre><code>import { createEffectOnScroll } from "browsertexteffects";
+
+const el = document.getElementById("my-text");
+
+// Starts automatically when el scrolls into view (10% threshold)
+const handle = createEffectOnScroll(el, "Scroll triggered!", "decrypt");
+
+// You can still stop it manually:
+handle.stop();</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+      </section>
+
+      <!-- ========== EffectHandle ========== -->
+      <section id="effect-handle" class="docs-section">
+        <h2 class="docs-section-title">
+          EffectHandle
+          <a href="#effect-handle" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <div class="api-sig">
+<span class="kw">interface</span> <span class="type">EffectHandle</span> {<br>
+&nbsp;&nbsp;<span class="fn">start</span>(): <span class="type">void</span>;<br>
+&nbsp;&nbsp;<span class="fn">stop</span>():&nbsp;&nbsp;<span class="type">void</span>;<br>
+}
+        </div>
+
+        <p>Returned by both <a href="#create-effect"><code>createEffect</code></a> and <a href="#create-effect-on-scroll"><code>createEffectOnScroll</code></a>. Provides manual control over the animation loop.</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Returns</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>start()</td>
+              <td>void</td>
+              <td>Begins the animation using <code>requestAnimationFrame</code>. Calling <code>start()</code> again while the animation is already running is a no-op.</td>
+            </tr>
+            <tr>
+              <td>stop()</td>
+              <td>void</td>
+              <td>Cancels the animation at the current frame. The text remains in whatever state it was in when stopped.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ========== Effect Names ========== -->
+      <section id="effect-names" class="docs-section">
+        <h2 class="docs-section-title">
+          Effect Names
+          <a href="#effect-names" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Pass any of these string literals as the <code>effectName</code> argument to <code>createEffect</code> or <code>createEffectOnScroll</code>. Click a name to see its full config reference and a live demo.</p>
+
+        <div class="effect-grid">
+          <a href="./effect.html?name=beams">"beams"</a>
+          <a href="./effect.html?name=binarypath">"binarypath"</a>
+          <a href="./effect.html?name=blackhole">"blackhole"</a>
+          <a href="./effect.html?name=bouncyballs">"bouncyballs"</a>
+          <a href="./effect.html?name=bubbles">"bubbles"</a>
+          <a href="./effect.html?name=burn">"burn"</a>
+          <a href="./effect.html?name=colorshift">"colorshift"</a>
+          <a href="./effect.html?name=crumble">"crumble"</a>
+          <a href="./effect.html?name=decrypt">"decrypt"</a>
+          <a href="./effect.html?name=errorcorrect">"errorcorrect"</a>
+          <a href="./effect.html?name=expand">"expand"</a>
+          <a href="./effect.html?name=fireworks">"fireworks"</a>
+          <a href="./effect.html?name=highlight">"highlight"</a>
+          <a href="./effect.html?name=laseretch">"laseretch"</a>
+          <a href="./effect.html?name=matrix">"matrix"</a>
+          <a href="./effect.html?name=middleout">"middleout"</a>
+          <a href="./effect.html?name=orbittingvolley">"orbittingvolley"</a>
+          <a href="./effect.html?name=overflow">"overflow"</a>
+          <a href="./effect.html?name=pour">"pour"</a>
+          <a href="./effect.html?name=print">"print"</a>
+          <a href="./effect.html?name=rain">"rain"</a>
+          <a href="./effect.html?name=randomsequence">"randomsequence"</a>
+          <a href="./effect.html?name=rings">"rings"</a>
+          <a href="./effect.html?name=scattered">"scattered"</a>
+          <a href="./effect.html?name=slice">"slice"</a>
+          <a href="./effect.html?name=slide">"slide"</a>
+          <a href="./effect.html?name=smoke">"smoke"</a>
+          <a href="./effect.html?name=spotlights">"spotlights"</a>
+          <a href="./effect.html?name=spray">"spray"</a>
+          <a href="./effect.html?name=swarm">"swarm"</a>
+          <a href="./effect.html?name=sweep">"sweep"</a>
+          <a href="./effect.html?name=synthgrid">"synthgrid"</a>
+          <a href="./effect.html?name=thunderstorm">"thunderstorm"</a>
+          <a href="./effect.html?name=unstable">"unstable"</a>
+          <a href="./effect.html?name=vhstape">"vhstape"</a>
+          <a href="./effect.html?name=waves">"waves"</a>
+          <a href="./effect.html?name=wipe">"wipe"</a>
+        </div>
+
+        <div class="docs-note">
+          <strong>TypeScript:</strong> The <code>EffectName</code> union type is exported from <code>browsertexteffects</code>, giving you autocomplete for all 37 names.
+        </div>
+
+        <div class="code-block">
+          <pre><code>import type { EffectName } from "browsertexteffects";
+
+// TypeScript will enforce that myEffect is a valid effect name:
+const myEffect: EffectName = "beams";</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+      </section>
+
+      <!-- ========== Color ========== -->
+      <section id="color-type" class="docs-section">
+        <h2 class="docs-section-title">
+          Color
+          <a href="#color-type" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <div class="api-sig">
+<span class="kw">interface</span> <span class="type">Color</span> {<br>
+&nbsp;&nbsp;rgbHex: <span class="type">string</span>; <span class="cm">// six-character hex, no leading "#"</span><br>
+}
+        </div>
+
+        <p>Represents a single RGB color used in effect configurations. Create colors with the <code>color()</code> helper rather than constructing the object directly.</p>
+
+        <p class="api-h3">color() helper</p>
+
+        <div class="api-sig">
+<span class="kw">function</span> <span class="fn">color</span>(hex: <span class="type">string</span> | <span class="type">number</span>): <span class="type">Color</span>
+        </div>
+
+        <p>Accepts a hex string or an XTerm-256 integer code (0–255).</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Input</th>
+              <th>Type</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Hex string</td>
+              <td>string</td>
+              <td><code>color("ff0000")</code> or <code>color("#ff0000")</code></td>
+            </tr>
+            <tr>
+              <td>XTerm-256 code</td>
+              <td>number</td>
+              <td><code>color(196)</code> → bright red</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <pre><code>import { color, createEffect } from "browsertexteffects";
+
+const handle = createEffect(el, "Hello!", "beams", {
+  finalGradientStops: [
+    color("#8A008A"),
+    color("00D1FF"),
+    color(255), // XTerm-256: white
+  ],
+});</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <p>Additional color utilities also exported from <code>browsertexteffects</code>:</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Export</th>
+              <th>Signature</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>xtermToHex</td>
+              <td>(xterm: number) =&gt; string</td>
+              <td>Converts an XTerm-256 code to a six-character hex string.</td>
+            </tr>
+            <tr>
+              <td>rgbInts</td>
+              <td>(c: Color) =&gt; [number, number, number]</td>
+              <td>Unpacks a Color into <code>[r, g, b]</code> integers (0–255 each).</td>
+            </tr>
+            <tr>
+              <td>adjustBrightness</td>
+              <td>(c: Color, factor: number) =&gt; Color</td>
+              <td>Multiplies each RGB channel by <code>factor</code> and clamps to 0–255.</td>
+            </tr>
+            <tr>
+              <td>colorPair</td>
+              <td>(fg: Color | null, bg?: Color | null) =&gt; ColorPair</td>
+              <td>Creates a foreground/background color pair used by some effect internals.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ========== GradientDirection ========== -->
+      <section id="gradient-direction" class="docs-section">
+        <h2 class="docs-section-title">
+          GradientDirection
+          <a href="#gradient-direction" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <div class="api-sig">
+<span class="kw">type</span> <span class="type">GradientDirection</span> =<br>
+&nbsp;&nbsp;| <span class="str">"vertical"</span><br>
+&nbsp;&nbsp;| <span class="str">"horizontal"</span><br>
+&nbsp;&nbsp;| <span class="str">"radial"</span><br>
+&nbsp;&nbsp;| <span class="str">"diagonal"</span>
+        </div>
+
+        <p>Controls how a gradient is mapped across the canvas. Used in config properties like <code>finalGradientDirection</code>.</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Value</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>"vertical"</td>
+              <td>Gradient runs top to bottom.</td>
+            </tr>
+            <tr>
+              <td>"horizontal"</td>
+              <td>Gradient runs left to right.</td>
+            </tr>
+            <tr>
+              <td>"radial"</td>
+              <td>Gradient radiates outward from the center.</td>
+            </tr>
+            <tr>
+              <td>"diagonal"</td>
+              <td>Gradient runs from top-left to bottom-right.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ========== EasingFunction ========== -->
+      <section id="easing-function" class="docs-section">
+        <h2 class="docs-section-title">
+          EasingFunction
+          <a href="#easing-function" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <div class="api-sig">
+<span class="kw">type</span> <span class="type">EasingFunction</span> = (progress: <span class="type">number</span>) =&gt; <span class="type">number</span>
+        </div>
+
+        <p>A function that maps a linear progress value (0–1) to an eased value (0–1). Used in effect configs that accept an <code>easing</code> parameter to control how motion accelerates or decelerates.</p>
+
+        <p>BrowserTextEffects exports a full set of standard easing functions via the <code>easing</code> namespace:</p>
+
+        <div class="code-block">
+          <pre><code>import { easing, createEffect } from "browsertexteffects";
+
+const handle = createEffect(el, "Hello!", "slide", {
+  easing: easing.outBounce,
+});</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <p>Available easing functions in the <code>easing</code> namespace include: <code>linear</code>, <code>inSine</code>, <code>outSine</code>, <code>inOutSine</code>, <code>inQuad</code>, <code>outQuad</code>, <code>inOutQuad</code>, <code>inCubic</code>, <code>outCubic</code>, <code>inOutCubic</code>, <code>inQuart</code>, <code>outQuart</code>, <code>inOutQuart</code>, <code>inQuint</code>, <code>outQuint</code>, <code>inOutQuint</code>, <code>inExpo</code>, <code>outExpo</code>, <code>inOutExpo</code>, <code>inCirc</code>, <code>outCirc</code>, <code>inOutCirc</code>, <code>inBack</code>, <code>outBack</code>, <code>inOutBack</code>, <code>inElastic</code>, <code>outElastic</code>, <code>inOutElastic</code>, <code>inBounce</code>, <code>outBounce</code>, <code>inOutBounce</code>.</p>
+
+        <div class="docs-note">
+          <strong>Custom easing:</strong> Any function with the signature <code>(progress: number) =&gt; number</code> is a valid <code>EasingFunction</code>. You can pass a custom function directly.
+        </div>
+      </section>
+
+      <!-- ========== Common Config Patterns ========== -->
+      <section id="common-config" class="docs-section">
+        <h2 class="docs-section-title">
+          Common Config Patterns
+          <a href="#common-config" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Many effects share the same config property names for comparable features. These are the most common ones you'll encounter across effect configs.</p>
+
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>finalGradientStops</td>
+              <td>Color[]</td>
+              <td>Color stops for the gradient applied to characters in their final resting state. Accepted by most effects.</td>
+            </tr>
+            <tr>
+              <td>finalGradientSteps</td>
+              <td>number</td>
+              <td>Number of interpolated steps between each gradient stop color. Higher values produce smoother gradients.</td>
+            </tr>
+            <tr>
+              <td>finalGradientFrames</td>
+              <td>number</td>
+              <td>Number of animation frames over which the final gradient is applied when characters arrive.</td>
+            </tr>
+            <tr>
+              <td>finalGradientDirection</td>
+              <td>GradientDirection</td>
+              <td>Direction of the final gradient across the canvas. One of <code>"vertical"</code>, <code>"horizontal"</code>, <code>"radial"</code>, <code>"diagonal"</code>.</td>
+            </tr>
+            <tr>
+              <td>easing</td>
+              <td>EasingFunction</td>
+              <td>Controls how character movement accelerates/decelerates. Accepts any function from the <code>easing</code> namespace or a custom <code>(t: number) =&gt; number</code>.</td>
+            </tr>
+            <tr>
+              <td>speed</td>
+              <td>number</td>
+              <td>General speed multiplier for the effect. Interpretation varies by effect (frames per step, distance per frame, etc.).</td>
+            </tr>
+            <tr>
+              <td>grouping</td>
+              <td>string</td>
+              <td>Grouping of characters for sequenced effects. Values: <code>"row"</code>, <code>"rowBottomToTop"</code>, <code>"column"</code>, <code>"columnRightToLeft"</code>, <code>"diagonal"</code>, <code>"diagonalTopRightToBottomLeft"</code>, <code>"diagonalTopLeftToBottomRight"</code>, <code>"diagonalBottomRightToTopLeft"</code>, <code>"centerToOutside"</code>, <code>"outsideToCenter"</code>.</td>
+            </tr>
+            <tr>
+              <td>reverseDirection</td>
+              <td>boolean</td>
+              <td>Reverses the order in which character groups are animated. Available in directional effects like <code>slide</code>, <code>sweep</code>, <code>wipe</code>.</td>
+            </tr>
+            <tr>
+              <td>lineHeight</td>
+              <td>number</td>
+              <td>Row height in pixels for the absolute-positioned renderer. Passed at the top level of the config object (not effect-specific). Defaults to the container's computed line-height.</td>
+            </tr>
+            <tr>
+              <td>onComplete</td>
+              <td>() =&gt; void</td>
+              <td>Callback fired once when the animation fully completes. Passed at the top level of the config object.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="docs-note">
+          <strong>Tip:</strong> The exact properties available for each effect are documented on each effect's page. Click any effect name in the <a href="#effect-names">Effect Names</a> grid above to see its full config table.
+        </div>
+
+        <p>Example combining multiple common patterns:</p>
+
+        <div class="code-block">
+          <pre><code>import { createEffect, color, easing } from "browsertexteffects";
+
+const handle = createEffect(el, "Hello, World!", "sweep", {
+  // Final gradient: purple → cyan → white, top to bottom
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
+  finalGradientSteps: 12,
+  finalGradientDirection: "vertical",
+
+  // Animate column by column
+  grouping: "column",
+  reverseDirection: false,
+
+  // Use outCubic movement
+  easing: easing.outCubic,
+
+  // Fire a callback when done
+  onComplete: () => console.log("Animation complete!"),
+});
+handle.start();</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+      </section>
+
+      <!-- ========== Default Configs ========== -->
+      <section id="default-configs" class="docs-section">
+        <h2 class="docs-section-title">
+          Default Configs
+          <a href="#default-configs" class="anchor" aria-hidden="true">#</a>
+        </h2>
+
+        <p>Every effect exports a <code>default*Config</code> object containing its default values. Spread it into your config to get full IDE autocompletion over all available properties:</p>
+
+        <div class="code-block">
+          <pre><code>import { createEffect, defaultBeamsConfig } from "browsertexteffects";
+
+const handle = createEffect(el, "Hello!", "beams", {
+  ...defaultBeamsConfig,   // IDE shows every beams property
+  beamDelay: 3,            // override just what you need
+});</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+
+        <p>All default config exports:</p>
+
+        <table class="defaults-table">
+          <thead>
+            <tr>
+              <th>Export</th>
+              <th>Effect name</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>defaultBeamsConfig</td><td>"beams"</td></tr>
+            <tr><td>defaultBinaryPathConfig</td><td>"binarypath"</td></tr>
+            <tr><td>defaultBlackholeConfig</td><td>"blackhole"</td></tr>
+            <tr><td>defaultBouncyBallsConfig</td><td>"bouncyballs"</td></tr>
+            <tr><td>defaultBubblesConfig</td><td>"bubbles"</td></tr>
+            <tr><td>defaultBurnConfig</td><td>"burn"</td></tr>
+            <tr><td>defaultColorShiftConfig</td><td>"colorshift"</td></tr>
+            <tr><td>defaultCrumbleConfig</td><td>"crumble"</td></tr>
+            <tr><td>defaultDecryptConfig</td><td>"decrypt"</td></tr>
+            <tr><td>defaultErrorCorrectConfig</td><td>"errorcorrect"</td></tr>
+            <tr><td>defaultExpandConfig</td><td>"expand"</td></tr>
+            <tr><td>defaultFireworksConfig</td><td>"fireworks"</td></tr>
+            <tr><td>defaultHighlightConfig</td><td>"highlight"</td></tr>
+            <tr><td>defaultLaserEtchConfig</td><td>"laseretch"</td></tr>
+            <tr><td>defaultMatrixConfig</td><td>"matrix"</td></tr>
+            <tr><td>defaultMiddleOutConfig</td><td>"middleout"</td></tr>
+            <tr><td>defaultOrbittingVolleyConfig</td><td>"orbittingvolley"</td></tr>
+            <tr><td>defaultOverflowConfig</td><td>"overflow"</td></tr>
+            <tr><td>defaultPourConfig</td><td>"pour"</td></tr>
+            <tr><td>defaultPrintConfig</td><td>"print"</td></tr>
+            <tr><td>defaultRainConfig</td><td>"rain"</td></tr>
+            <tr><td>defaultRandomSequenceConfig</td><td>"randomsequence"</td></tr>
+            <tr><td>defaultRingsConfig</td><td>"rings"</td></tr>
+            <tr><td>defaultScatteredConfig</td><td>"scattered"</td></tr>
+            <tr><td>defaultSliceConfig</td><td>"slice"</td></tr>
+            <tr><td>defaultSlideConfig</td><td>"slide"</td></tr>
+            <tr><td>defaultSmokeConfig</td><td>"smoke"</td></tr>
+            <tr><td>defaultSpotlightsConfig</td><td>"spotlights"</td></tr>
+            <tr><td>defaultSprayConfig</td><td>"spray"</td></tr>
+            <tr><td>defaultSwarmConfig</td><td>"swarm"</td></tr>
+            <tr><td>defaultSweepConfig</td><td>"sweep"</td></tr>
+            <tr><td>defaultSynthGridConfig</td><td>"synthgrid"</td></tr>
+            <tr><td>defaultThunderstormConfig</td><td>"thunderstorm"</td></tr>
+            <tr><td>defaultUnstableConfig</td><td>"unstable"</td></tr>
+            <tr><td>defaultVhstapeConfig</td><td>"vhstape"</td></tr>
+            <tr><td>defaultWavesConfig</td><td>"waves"</td></tr>
+            <tr><td>defaultWipeConfig</td><td>"wipe"</td></tr>
+          </tbody>
+        </table>
+
+        <div class="docs-note">
+          <strong>TypeScript:</strong> Config type interfaces (<code>BeamsConfig</code>, <code>SlideConfig</code>, etc.) are also exported for use in typed functions or components.
+        </div>
+
+        <div class="code-block">
+          <pre><code>import type { BeamsConfig } from "browsertexteffects";
+
+function applyBeams(el: HTMLElement, text: string, config: Partial&lt;BeamsConfig&gt;) {
+  // ...
+}</code></pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+      </section>
+
+      <!-- Pagination -->
+      <nav class="docs-pagination" aria-label="Page navigation">
+        <a href="./getting-started.html" class="prev-link">
+          <span class="pag-label">← Previous</span>
+          <span class="pag-title">Getting Started</span>
+        </a>
+        <a href="./effect.html?name=beams" class="next-link">
+          <span class="pag-label">Next →</span>
+          <span class="pag-title">Effect Pages</span>
+        </a>
+      </nav>
+
+    </article>
+  </div>
+
+  <footer class="docs-footer">
+    <div class="docs-footer-inner">
+      <div class="docs-footer-brand">▓ BTE</div>
+      <nav class="docs-footer-links" aria-label="Footer navigation">
+        <a href="./getting-started.html">Getting Started</a>
+        <a href="./api.html">API Reference</a>
+        <a href="./showroom.html">Showroom</a>
+        <a href="https://github.com/donlair/browsertexteffects" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/browsertexteffects" target="_blank" rel="noopener">npm</a>
+      </nav>
+      <div>MIT License</div>
+    </div>
+  </footer>
+
+</body>
+</html>
