@@ -80,6 +80,21 @@ main {
   line-height: 1.6;
 }
 
+.hero-credit {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: -16px;
+}
+
+.hero-credit a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.hero-credit a:hover {
+  text-decoration: underline;
+}
+
 /* Install snippet */
 .hero-install {
   display: flex;
