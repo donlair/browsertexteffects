@@ -229,6 +229,125 @@
   border-color: var(--accent-green);
 }
 
+/* === Interactive Playground (effect-playground.js) === */
+.playground {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.playground__output {
+  padding: 32px 24px;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playground__text {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre;
+  color: var(--text-primary);
+}
+
+.playground__error {
+  display: none;
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.1);
+  border-top: 1px solid rgba(248, 81, 73, 0.3);
+}
+.playground__error.visible {
+  display: block;
+}
+
+.playground__editor-wrap {
+  position: relative;
+  border-top: 1px solid var(--border-default);
+  overflow: hidden;
+}
+
+.playground__highlight {
+  margin: 0;
+  padding: 16px;
+  background: var(--bg-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  overflow: auto;
+  border: none;
+  border-radius: 0;
+}
+
+/* Override Prism defaults inside playground */
+.playground__highlight[class*="language-"],
+.playground__highlight code[class*="language-"] {
+  background: var(--bg-primary);
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.playground__editor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  color: transparent;
+  caret-color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: auto;
+  white-space: pre;
+  -webkit-text-fill-color: transparent;
+  box-sizing: border-box;
+}
+.playground__editor:focus {
+  background: transparent;
+}
+
+/* Subtle focus ring on the wrapper */
+.playground__editor-wrap:focus-within {
+  background: #0a0e14;
+}
+.playground__editor-wrap:focus-within .playground__highlight,
+.playground__editor-wrap:focus-within .playground__highlight[class*="language-"],
+.playground__editor-wrap:focus-within .playground__highlight code[class*="language-"] {
+  background: #0a0e14;
+}
+
+.playground__toolbar {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.playground__toolbar .btn.copied {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
 /* === Footer (reused from docs.css) === */
 .effect-footer {
   background: var(--bg-secondary);

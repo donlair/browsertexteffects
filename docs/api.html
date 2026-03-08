@@ -7,6 +7,7 @@
   <meta name="description" content="Complete API reference for BrowserTextEffects — functions, types, effect names, and config exports.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <link rel="stylesheet" href="./css/shared.css">
   <link rel="stylesheet" href="./css/nav.css">
   <link rel="stylesheet" href="./css/docs.css">
@@ -196,6 +197,9 @@
       }
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
   <script type="module" src="./js/nav.js"></script>
   <script type="module">
     document.addEventListener('DOMContentLoaded', () => {
@@ -315,7 +319,7 @@
         </div>
 
         <div class="code-block">
-          <pre><code>import { createEffect } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "beams");
@@ -387,7 +391,7 @@ handle.stop();</code></pre>
         </div>
 
         <div class="code-block">
-          <pre><code>import { createEffectOnScroll } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createEffectOnScroll } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 
@@ -493,7 +497,7 @@ handle.stop();</code></pre>
         </div>
 
         <div class="code-block">
-          <pre><code>import type { EffectName } from "browsertexteffects";
+          <pre><code class="language-typescript">import type { EffectName } from "browsertexteffects";
 
 // TypeScript will enforce that myEffect is a valid effect name:
 const myEffect: EffectName = "beams";</code></pre>
@@ -547,7 +551,7 @@ const myEffect: EffectName = "beams";</code></pre>
         </table>
 
         <div class="code-block">
-          <pre><code>import { color, createEffect } from "browsertexteffects";
+          <pre><code class="language-javascript">import { color, createEffect } from "browsertexteffects";
 
 const handle = createEffect(el, "Hello!", "beams", {
   finalGradientStops: [
@@ -655,7 +659,7 @@ const handle = createEffect(el, "Hello!", "beams", {
         <p>BrowserTextEffects exports a full set of standard easing functions via the <code>easing</code> namespace:</p>
 
         <div class="code-block">
-          <pre><code>import { easing, createEffect } from "browsertexteffects";
+          <pre><code class="language-javascript">import { easing, createEffect } from "browsertexteffects";
 
 const handle = createEffect(el, "Hello!", "slide", {
   easing: easing.outBounce,
@@ -758,7 +762,7 @@ const handle = createEffect(el, "Hello!", "slide", {
         <p>Example combining multiple common patterns:</p>
 
         <div class="code-block">
-          <pre><code>import { createEffect, color, easing } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createEffect, color, easing } from "browsertexteffects";
 
 const handle = createEffect(el, "Hello, World!", "sweep", {
   // Final gradient: purple → cyan → white, top to bottom
@@ -791,7 +795,7 @@ handle.start();</code></pre>
         <p>Every effect exports a <code>default*Config</code> object containing its default values. Spread it into your config to get full IDE autocompletion over all available properties:</p>
 
         <div class="code-block">
-          <pre><code>import { createEffect, defaultBeamsConfig } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createEffect, defaultBeamsConfig } from "browsertexteffects";
 
 const handle = createEffect(el, "Hello!", "beams", {
   ...defaultBeamsConfig,   // IDE shows every beams property
@@ -855,7 +859,7 @@ const handle = createEffect(el, "Hello!", "beams", {
         </div>
 
         <div class="code-block">
-          <pre><code>import type { BeamsConfig } from "browsertexteffects";
+          <pre><code class="language-typescript">import type { BeamsConfig } from "browsertexteffects";
 
 function applyBeams(el: HTMLElement, text: string, config: Partial&lt;BeamsConfig&gt;) {
   // ...

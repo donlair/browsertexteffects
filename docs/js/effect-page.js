@@ -8,7 +8,7 @@
  */
 
 import { EFFECTS, getAdjacentEffects } from '../effects/_registry.js';
-import { createDemo } from './effect-demo.js';
+import { createPlayground } from './effect-playground.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
@@ -129,42 +129,17 @@ function renderEffect(container, effect, name) {
   header.append(h1, desc, showroomLink);
   layout.appendChild(header);
 
-  // --- Live Demo ---
-  const demoSection = document.createElement('section');
-  demoSection.className = 'effect-section';
+  // --- Playground ---
+  const playgroundSection = document.createElement('section');
+  playgroundSection.className = 'effect-section';
 
-  const demoTitle = document.createElement('h2');
-  demoTitle.className = 'effect-section-title';
-  demoTitle.textContent = 'Live Demo';
+  const playgroundTitle = document.createElement('h2');
+  playgroundTitle.className = 'effect-section-title';
+  playgroundTitle.textContent = 'Playground';
 
-  const demoContainer = document.createElement('div');
-  demoSection.append(demoTitle, demoContainer);
-  layout.appendChild(demoSection);
-
-  // --- Usage ---
-  const usageSection = document.createElement('section');
-  usageSection.className = 'effect-section';
-
-  const usageTitle = document.createElement('h2');
-  usageTitle.className = 'effect-section-title';
-  usageTitle.textContent = 'Usage';
-
-  const codeBlock = document.createElement('div');
-  codeBlock.className = 'code-block';
-
-  const pre = document.createElement('pre');
-  const code = document.createElement('code');
-  code.textContent = effect.usage;
-  pre.appendChild(code);
-
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'copy-btn';
-  copyBtn.type = 'button';
-  copyBtn.textContent = 'Copy';
-
-  codeBlock.append(pre, copyBtn);
-  usageSection.append(usageTitle, codeBlock);
-  layout.appendChild(usageSection);
+  const playgroundContainer = document.createElement('div');
+  playgroundSection.append(playgroundTitle, playgroundContainer);
+  layout.appendChild(playgroundSection);
 
   // --- Config table ---
   if (effect.config && effect.config.length > 0) {
@@ -258,22 +233,11 @@ function renderEffect(container, effect, name) {
   layout.appendChild(paginationNav);
   container.appendChild(layout);
 
-  // Mount demo after layout is in DOM (IntersectionObserver needs it visible)
-  createDemo(demoContainer, {
+  // Mount playground after layout is in DOM (IntersectionObserver needs it visible)
+  createPlayground(playgroundContainer, {
     text: 'BrowserTextEffects',
     effect: name,
+    usage: effect.usage,
     autoplay: true,
-  });
-
-  // Copy button handler
-  copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(effect.usage).then(() => {
-      copyBtn.textContent = 'Copied!';
-      copyBtn.classList.add('copied');
-      setTimeout(() => {
-        copyBtn.textContent = 'Copy';
-        copyBtn.classList.remove('copied');
-      }, 2000);
-    });
   });
 }

@@ -7,9 +7,13 @@
   <meta name="description" content="Install BrowserTextEffects and add animated text effects to your web page in minutes.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <link rel="stylesheet" href="./css/shared.css">
   <link rel="stylesheet" href="./css/nav.css">
   <link rel="stylesheet" href="./css/docs.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
   <script type="module" src="./js/nav.js"></script>
   <script type="module">
     import { createDemo } from './js/effect-demo.js';
@@ -102,14 +106,14 @@
         <p>Install from npm:</p>
 
         <div class="code-block">
-          <pre><code>npm install browsertexteffects</code></pre>
+          <pre><code class="language-javascript">npm install browsertexteffects</code></pre>
           <button class="copy-btn" type="button">Copy</button>
         </div>
 
         <p>Then import in your JavaScript or TypeScript:</p>
 
         <div class="code-block">
-          <pre><code>import { createEffect } from "browsertexteffects";</code></pre>
+          <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";</code></pre>
           <button class="copy-btn" type="button">Copy</button>
         </div>
 
@@ -130,7 +134,7 @@
 
         <div class="docs-split">
           <div class="code-block">
-            <pre><code>import { createEffect } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "beams");
@@ -167,7 +171,7 @@ handle.stop();</code></pre>
 
         <div class="docs-split">
           <div class="code-block">
-            <pre><code>import { createEffect } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Custom Config", "slide", {
@@ -183,7 +187,7 @@ handle.start();</code></pre>
         <p>For TypeScript autocompletion over all available config properties, import and spread the matching <code>default*Config</code> export:</p>
 
         <div class="code-block">
-          <pre><code>import {
+          <pre><code class="language-typescript">import {
   createEffect,
   defaultSlideConfig,
 } from "browsertexteffects";
@@ -213,7 +217,7 @@ const handle = createEffect(el, "Custom Config", "slide", {
 
         <div class="docs-split">
           <div class="code-block">
-            <pre><code>import { createEffectOnScroll } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createEffectOnScroll } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 

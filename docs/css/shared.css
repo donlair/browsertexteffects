@@ -142,6 +142,21 @@ code:not(pre code) {
   justify-content: flex-end;
 }
 
+/* === Prism.js theme overrides === */
+pre[class*="language-"],
+code[class*="language-"] {
+  background: var(--bg-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+pre[class*="language-"] {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin: 0;
+}
+
 /* === Scrollbar === */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

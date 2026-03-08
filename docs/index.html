@@ -7,9 +7,13 @@
   <meta name="description" content="37 animated text effects for the web. Zero dependencies. Simple API.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <link rel="stylesheet" href="./css/shared.css">
   <link rel="stylesheet" href="./css/nav.css">
   <link rel="stylesheet" href="./css/landing.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
   <script type="module" src="./js/nav.js"></script>
   <script type="module" src="./js/landing.js"></script>
 </head>
@@ -63,7 +67,7 @@
         <h2 class="section-title">Quick Usage</h2>
         <div class="usage-split">
           <div class="usage-code">
-            <pre><code>import { createEffect } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "beams");
