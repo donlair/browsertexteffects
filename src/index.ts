@@ -168,12 +168,81 @@ export interface EffectHandle {
   stop: () => void;
 }
 
+function measureCellSize(container: HTMLElement, lineHeight: number): { w: number; h: number } {
+  const probe = document.createElement("span");
+  probe.textContent = "0";
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.lineHeight = `${lineHeight}em`;
+  container.appendChild(probe);
+  const rect = probe.getBoundingClientRect();
+  container.removeChild(probe);
+  return { w: rect.width, h: rect.height };
+}
+
+function padTextToFill(
+  text: string,
+  container: HTMLElement,
+  lineHeight: number,
+  extraRows: number = 0,
+): string {
+  const NBSP = "\u00A0";
+  const cell = measureCellSize(container, lineHeight);
+  if (cell.w === 0 || cell.h === 0) return text;
+
+  // Get available dimensions from parent element (works for flex/grid children)
+  let availWidth: number;
+  let availHeight: number;
+  const parent = container.parentElement;
+  if (parent) {
+    const cs = getComputedStyle(parent);
+    availWidth = parent.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    availHeight = parent.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  } else {
+    availWidth = container.clientWidth;
+    availHeight = container.clientHeight;
+  }
+  if (availWidth <= 0 || availHeight <= 0) return text;
+
+  const fillCols = Math.floor(availWidth / cell.w);
+  const textLines = text.split("\n");
+  const fillRows = Math.max(textLines.length, Math.floor(availHeight / cell.h)) + extraRows;
+
+  // Replace spaces with NBSP so effects animate word gaps
+  const nbspLines = textLines.map((line) => line.replace(/ /g, NBSP));
+
+  // Center each text line horizontally with NBSP padding
+  const paddedLines: string[] = nbspLines.map((line) => {
+    if (line.length >= fillCols) return line;
+    const totalPad = fillCols - line.length;
+    const leftPad = Math.floor(totalPad / 2);
+    const rightPad = totalPad - leftPad;
+    return NBSP.repeat(leftPad) + line + NBSP.repeat(rightPad);
+  });
+
+  // Center vertically with NBSP-filled lines
+  const emptyLine = NBSP.repeat(fillCols);
+  const totalVertPad = fillRows - paddedLines.length;
+  if (totalVertPad > 0) {
+    const topPad = Math.floor(totalVertPad / 2);
+    const bottomPad = totalVertPad - topPad;
+    for (let i = 0; i < topPad; i++) paddedLines.unshift(emptyLine);
+    for (let i = 0; i < bottomPad; i++) paddedLines.push(emptyLine);
+  }
+
+  return paddedLines.join("\n");
+}
+
 export function createEffect(
   container: HTMLElement,
   text: string,
   effectName: EffectName,
-  config?: EffectConfig & { lineHeight?: number; onComplete?: () => void },
+  config?: EffectConfig & { lineHeight?: number; fillContainer?: boolean; extraRows?: number; onComplete?: () => void },
 ): EffectHandle {
+  const lineHeight = config?.lineHeight ?? 1.2;
+  if (config?.fillContainer) {
+    text = padTextToFill(text, container, lineHeight, config.extraRows ?? 0);
+  }
   const canvas = new Canvas(text, { includeSpaces: true });
   let animId: number | null = null;
   let effect: { step: () => boolean };
@@ -336,7 +405,7 @@ export function createEffectOnScroll(
   container: HTMLElement,
   text: string,
   effectName: EffectName,
-  config?: EffectConfig & { lineHeight?: number; onComplete?: () => void },
+  config?: EffectConfig & { lineHeight?: number; fillContainer?: boolean; extraRows?: number; onComplete?: () => void },
 ): EffectHandle {
   const handle = createEffect(container, text, effectName, config);
 

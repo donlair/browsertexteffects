@@ -130,7 +130,7 @@ function initGallery() {
           played = true;
           observer.disconnect();
           textEl.replaceChildren();
-          const handle = createEffect(textEl, label, key);
+          const handle = createEffect(textEl, label, key, { fillContainer: true, extraRows: 3 });
           handle.start();
         }
       }

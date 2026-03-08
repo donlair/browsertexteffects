@@ -706,8 +706,10 @@ var Canvas = class {
     this.characters = [];
     const includeSpaces = opts?.includeSpaces ?? false;
     const lines = text.split("\n");
-    while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
-    while (lines.length > 0 && lines[0].trim() === "") lines.shift();
+    if (!includeSpaces) {
+      while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
+      while (lines.length > 0 && lines[0].trim() === "") lines.shift();
+    }
     let id = 0;
     let maxCol = 0;
     const numRows = lines.length;
@@ -8079,7 +8081,59 @@ var OrbittingVolleyEffect = class {
 };
 
 // src/index.ts
+function measureCellSize(container, lineHeight) {
+  const probe = document.createElement("span");
+  probe.textContent = "0";
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.lineHeight = `${lineHeight}em`;
+  container.appendChild(probe);
+  const rect = probe.getBoundingClientRect();
+  container.removeChild(probe);
+  return { w: rect.width, h: rect.height };
+}
+function padTextToFill(text, container, lineHeight, extraRows = 0) {
+  const NBSP = "\xA0";
+  const cell = measureCellSize(container, lineHeight);
+  if (cell.w === 0 || cell.h === 0) return text;
+  let availWidth;
+  let availHeight;
+  const parent = container.parentElement;
+  if (parent) {
+    const cs = getComputedStyle(parent);
+    availWidth = parent.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    availHeight = parent.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  } else {
+    availWidth = container.clientWidth;
+    availHeight = container.clientHeight;
+  }
+  if (availWidth <= 0 || availHeight <= 0) return text;
+  const fillCols = Math.floor(availWidth / cell.w);
+  const textLines = text.split("\n");
+  const fillRows = Math.max(textLines.length, Math.floor(availHeight / cell.h)) + extraRows;
+  const nbspLines = textLines.map((line) => line.replace(/ /g, NBSP));
+  const paddedLines = nbspLines.map((line) => {
+    if (line.length >= fillCols) return line;
+    const totalPad = fillCols - line.length;
+    const leftPad = Math.floor(totalPad / 2);
+    const rightPad = totalPad - leftPad;
+    return NBSP.repeat(leftPad) + line + NBSP.repeat(rightPad);
+  });
+  const emptyLine = NBSP.repeat(fillCols);
+  const totalVertPad = fillRows - paddedLines.length;
+  if (totalVertPad > 0) {
+    const topPad = Math.floor(totalVertPad / 2);
+    const bottomPad = totalVertPad - topPad;
+    for (let i = 0; i < topPad; i++) paddedLines.unshift(emptyLine);
+    for (let i = 0; i < bottomPad; i++) paddedLines.push(emptyLine);
+  }
+  return paddedLines.join("\n");
+}
 function createEffect(container, text, effectName, config) {
+  const lineHeight = config?.lineHeight ?? 1.2;
+  if (config?.fillContainer) {
+    text = padTextToFill(text, container, lineHeight, config.extraRows ?? 0);
+  }
   const canvas = new Canvas(text, { includeSpaces: true });
   let animId = null;
   let effect;

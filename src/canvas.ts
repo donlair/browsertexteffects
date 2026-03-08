@@ -32,9 +32,11 @@ export class Canvas {
   constructor(text: string, opts?: { includeSpaces?: boolean }) {
     const includeSpaces = opts?.includeSpaces ?? false;
     const lines = text.split("\n");
-    // Remove leading/trailing empty lines
-    while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
-    while (lines.length > 0 && lines[0].trim() === "") lines.shift();
+    // Remove leading/trailing empty lines (skip when includeSpaces, to preserve NBSP padding)
+    if (!includeSpaces) {
+      while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
+      while (lines.length > 0 && lines[0].trim() === "") lines.shift();
+    }
 
     let id = 0;
     let maxCol = 0;
