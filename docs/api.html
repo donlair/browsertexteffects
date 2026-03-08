@@ -272,7 +272,7 @@
 &nbsp;&nbsp;container: <span class="type">HTMLElement</span>,<br>
 &nbsp;&nbsp;text: <span class="type">string</span>,<br>
 &nbsp;&nbsp;effectName: <span class="type">EffectName</span>,<br>
-&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
+&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; fillContainer?: <span class="type">boolean</span>; extraRows?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
 ): <span class="type">EffectHandle</span>
         </div>
 
@@ -305,7 +305,7 @@
             <tr>
               <td class="optional-badge">config</td>
               <td>object</td>
-              <td>Optional config overrides for the chosen effect. Only provide the properties you want to change — everything else falls back to the effect's defaults. Also accepts <code>lineHeight</code> (number, px, controls row spacing) and <code>onComplete</code> (callback fired when the animation finishes).</td>
+              <td>Optional config overrides for the chosen effect. Only provide the properties you want to change — everything else falls back to the effect's defaults. Also accepts <code>lineHeight</code> (number, px, controls row spacing), <code>fillContainer</code> (boolean, pads text to fill the container's parent), <code>extraRows</code> (number, adds padding rows when fillContainer is enabled), and <code>onComplete</code> (callback fired when the animation finishes).</td>
             </tr>
           </tbody>
         </table>
@@ -344,7 +344,7 @@ handle.stop();</code></pre>
 &nbsp;&nbsp;container: <span class="type">HTMLElement</span>,<br>
 &nbsp;&nbsp;text: <span class="type">string</span>,<br>
 &nbsp;&nbsp;effectName: <span class="type">EffectName</span>,<br>
-&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
+&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; fillContainer?: <span class="type">boolean</span>; extraRows?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
 ): <span class="type">EffectHandle</span>
         </div>
 
@@ -377,7 +377,7 @@ handle.stop();</code></pre>
             <tr>
               <td class="optional-badge">config</td>
               <td>object</td>
-              <td>Optional effect config overrides, plus <code>lineHeight</code> and <code>onComplete</code>.</td>
+              <td>Optional effect config overrides, plus <code>lineHeight</code>, <code>fillContainer</code>, <code>extraRows</code>, and <code>onComplete</code>.</td>
             </tr>
           </tbody>
         </table>
@@ -732,6 +732,16 @@ const handle = createEffect(el, "Hello!", "slide", {
               <td>lineHeight</td>
               <td>number</td>
               <td>Row height in pixels for the absolute-positioned renderer. Passed at the top level of the config object (not effect-specific). Defaults to the container's computed line-height.</td>
+            </tr>
+            <tr>
+              <td>fillContainer</td>
+              <td>boolean</td>
+              <td>When true, pads the text with invisible characters to fill the container's parent dimensions, making effects animate across the full area instead of just the text characters.</td>
+            </tr>
+            <tr>
+              <td>extraRows</td>
+              <td>number</td>
+              <td>Adds extra rows of padding above and below the text when <code>fillContainer</code> is enabled. Useful for single-line elements like headings where the parent has minimal height.</td>
             </tr>
             <tr>
               <td>onComplete</td>

@@ -105,24 +105,37 @@ function initGallery() {
     preview.appendChild(textEl);
     card.appendChild(preview);
 
-    // Footer: display name and key slug
+    // Footer: display name + key on left, replay button on right
     const footer = document.createElement('div');
     footer.className = 'gallery-card__footer';
+
+    const info = document.createElement('div');
+    info.className = 'gallery-card__info';
 
     const nameEl = document.createElement('span');
     nameEl.className = 'gallery-card__name';
     nameEl.textContent = label;
-    footer.appendChild(nameEl);
+    info.appendChild(nameEl);
 
     const keyEl = document.createElement('span');
     keyEl.className = 'gallery-card__key';
     keyEl.textContent = key;
-    footer.appendChild(keyEl);
+    info.appendChild(keyEl);
+
+    footer.appendChild(info);
+
+    const replayBtn = document.createElement('button');
+    replayBtn.className = 'gallery-card__replay';
+    replayBtn.type = 'button';
+    replayBtn.textContent = '↺';
+    replayBtn.title = 'Replay';
+    footer.appendChild(replayBtn);
 
     card.appendChild(footer);
     grid.appendChild(card);
 
     // Animate once when the card scrolls into view
+    let handle = null;
     let played = false;
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -130,12 +143,23 @@ function initGallery() {
           played = true;
           observer.disconnect();
           textEl.replaceChildren();
-          const handle = createEffect(textEl, label, key, { fillContainer: true, extraRows: 3 });
+          handle = createEffect(textEl, label, key, { fillContainer: true, extraRows: 3 });
           handle.start();
         }
       }
     }, { threshold: 0.3 });
     observer.observe(card);
+
+    replayBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Lock preview height to prevent fillContainer feedback loop
+      preview.style.height = preview.offsetHeight + 'px';
+      if (handle) { handle.stop(); handle = null; }
+      textEl.replaceChildren();
+      handle = createEffect(textEl, label, key, { fillContainer: true, extraRows: 3 });
+      handle.start();
+    });
   }
 }
 
