@@ -239,7 +239,7 @@
 
 .playground__output {
   padding: 32px 24px;
-  min-height: 100px;
+  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
