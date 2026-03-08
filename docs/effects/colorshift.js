@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "colorshift");
@@ -66,10 +66,10 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "colorshift", {
-  gradientStops: ["ff0000", "ff8800", "ffff00", "00ff00", "0088ff", "8800ff"],
+  gradientStops: [color("ff0000"), color("ff8800"), color("ffff00"), color("00ff00"), color("0088ff"), color("8800ff")],
   cycles: 5,
   travelDirection: "horizontal",
-  finalGradientStops: ["ffffff", "888888"],
+  finalGradientStops: [color("ffffff"), color("888888")],
   finalGradientDirection: "radial",
 });
 handle2.start();`,

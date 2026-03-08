@@ -52,7 +52,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "errorcorrect");
@@ -61,10 +61,10 @@ handle.start();
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "errorcorrect", {
   errorPairs: 0.2,
-  errorColor: "ff0000",
-  correctColor: "00ff88",
+  errorColor: color("ff0000"),
+  correctColor: color("00ff88"),
   movementSpeed: 1.2,
-  finalGradientStops: ["ff8800", "ffcc00"],
+  finalGradientStops: [color("ff8800"), color("ffcc00")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

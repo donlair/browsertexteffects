@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "fireworks");
@@ -66,10 +66,10 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "fireworks", {
-  fireworkColors: ["ff0000", "ff8800", "ffff00"],
+  fireworkColors: [color("ff0000"), color("ff8800"), color("ffff00")],
   launchDelay: 30,
   explodeDistance: 0.3,
-  finalGradientStops: ["ff0080", "8000ff"],
+  finalGradientStops: [color("ff0080"), color("8000ff")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

@@ -70,7 +70,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "spray");
@@ -80,8 +80,8 @@ handle.start();
 const handle2 = createEffect(el, "Hello!", "spray", {
   sourcePosition: "w",
   arcHeight: 6,
-  sprayColors: ["8A008A", "00D1FF", "ffffff"],
-  finalGradientStops: ["8A008A", "00D1FF", "ffffff"],
+  sprayColors: [color("8A008A"), color("00D1FF"), color("ffffff")],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

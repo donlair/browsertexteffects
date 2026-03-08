@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "spotlights");
@@ -69,7 +69,7 @@ const handle2 = createEffect(el, "Hello!", "spotlights", {
   spotlightCount: 2,
   beamWidthRatio: 3.0,
   searchDuration: 300,
-  finalGradientStops: ["ab48ff", "e7b2b2", "fffebd"],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

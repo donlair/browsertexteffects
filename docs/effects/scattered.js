@@ -40,7 +40,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "scattered");
@@ -49,7 +49,7 @@ handle.start();
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "scattered", {
   movementSpeed: 0.5,
-  finalGradientStops: ["ff9048", "ab9dff", "bdffea"],
+  finalGradientStops: [color("ff9048"), color("ab9dff"), color("bdffea")],
   finalGradientSteps: 12,
   finalGradientFrames: 9,
   finalGradientDirection: "vertical",

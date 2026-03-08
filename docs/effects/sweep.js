@@ -40,7 +40,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "sweep");
@@ -50,7 +50,7 @@ handle.start();
 const handle2 = createEffect(el, "Hello!", "sweep", {
   firstSweepDirection: "left_to_right",
   secondSweepDirection: "right_to_left",
-  finalGradientStops: ["8A008A", "00D1FF", "ffffff"],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

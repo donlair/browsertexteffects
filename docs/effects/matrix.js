@@ -82,7 +82,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "matrix");
@@ -91,9 +91,9 @@ handle.start();
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "matrix", {
   rainTime: 600,
-  rainGradientStops: ["00ff41", "003b00"],
-  highlightColor: "aaffaa",
-  finalGradientStops: ["00ff41", "007a20"],
+  rainGradientStops: [color("00ff41"), color("003b00")],
+  highlightColor: color("aaffaa"),
+  finalGradientStops: [color("00ff41"), color("007a20")],
   finalGradientDirection: "radial",
 });
 handle2.start();`,

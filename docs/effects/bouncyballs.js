@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "bouncyballs");
@@ -66,9 +66,9 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "bouncyballs", {
-  ballColors: ["ff6b6b", "ffd93d", "6bcb77"],
+  ballColors: [color("ff6b6b"), color("ffd93d"), color("6bcb77")],
   ballDelay: 2,
-  finalGradientStops: ["f8ffae", "43c6ac"],
+  finalGradientStops: [color("f8ffae"), color("43c6ac")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

@@ -34,7 +34,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "decrypt");
@@ -43,8 +43,8 @@ handle.start();
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "decrypt", {
   typingSpeed: 4,
-  ciphertextColors: ["00ffaa", "00cc88"],
-  finalGradientStops: ["ff8800", "ffcc00"],
+  ciphertextColors: [color("00ffaa"), color("00cc88")],
+  finalGradientStops: [color("ff8800"), color("ffcc00")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

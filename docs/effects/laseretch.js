@@ -82,7 +82,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "laseretch");
@@ -92,9 +92,9 @@ handle.start();
 const handle2 = createEffect(el, "Hello!", "laseretch", {
   etchSpeed: 2,
   etchDelay: 0,
-  beamGradientStops: ["ffffff", "ff4400"],
-  sparkGradientStops: ["ffffff", "ffaa00", "ff2200", "220000"],
-  finalGradientStops: ["ff0080", "8000ff"],
+  beamGradientStops: [color("ffffff"), color("ff4400")],
+  sparkGradientStops: [color("ffffff"), color("ffaa00"), color("ff2200"), color("220000")],
+  finalGradientStops: [color("ff0080"), color("8000ff")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

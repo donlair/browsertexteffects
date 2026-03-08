@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "vhstape");
@@ -69,7 +69,7 @@ const handle2 = createEffect(el, "Hello!", "vhstape", {
   glitchLineChance: 0.05,
   noiseChance: 0.004,
   totalGlitchTime: 600,
-  finalGradientStops: ["ab48ff", "e7b2b2", "fffebd"],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

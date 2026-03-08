@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "burn");
@@ -66,9 +66,9 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "burn", {
-  burnColors: ["ffff00", "ff8800", "ff0000", "880000"],
+  burnColors: [color("ffff00"), color("ff8800"), color("ff0000"), color("880000")],
   smokeChance: 0.8,
-  finalGradientStops: ["00c3ff", "ffff1c"],
+  finalGradientStops: [color("00c3ff"), color("ffff1c")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

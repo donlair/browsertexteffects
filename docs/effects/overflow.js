@@ -40,7 +40,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "overflow");
@@ -48,10 +48,10 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "overflow", {
-  overflowGradientStops: ["f2ebc0", "8dbfb3", "f2ebc0"],
+  overflowGradientStops: [color("f2ebc0"), color("8dbfb3"), color("f2ebc0")],
   overflowCyclesRange: [3, 6],
   overflowSpeed: 5,
-  finalGradientStops: ["8A008A", "00D1FF", "FFFFFF"],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

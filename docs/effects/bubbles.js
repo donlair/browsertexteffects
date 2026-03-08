@@ -52,7 +52,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "bubbles");
@@ -60,10 +60,10 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "bubbles", {
-  bubbleColors: ["ff6b6b", "ffd93d", "6bcb77", "4d96ff"],
+  bubbleColors: [color("ff6b6b"), color("ffd93d"), color("6bcb77"), color("4d96ff")],
   bubbleSpeed: 0.8,
   popCondition: "bottom",
-  finalGradientStops: ["d33aff", "02ff7f"],
+  finalGradientStops: [color("d33aff"), color("02ff7f")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

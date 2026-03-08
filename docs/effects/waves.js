@@ -64,7 +64,7 @@ export default {
       description: 'Direction of the final gradient. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "waves");
@@ -74,8 +74,8 @@ handle.start();
 const handle2 = createEffect(el, "Hello!", "waves", {
   waveCount: 7,
   waveDirection: "column_left_to_right",
-  waveGradientStops: ["f0ff65", "ffb102", "31a0d4", "ffb102", "f0ff65"],
-  finalGradientStops: ["ffb102", "31a0d4", "f0ff65"],
+  waveGradientStops: [color("f0ff65"), color("ffb102"), color("31a0d4"), color("ffb102"), color("f0ff65")],
+  finalGradientStops: [color("ffb102"), color("31a0d4"), color("f0ff65")],
   finalGradientDirection: "diagonal",
 });
 handle2.start();`,

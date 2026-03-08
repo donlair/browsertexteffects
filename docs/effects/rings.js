@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "rings");
@@ -66,13 +66,13 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "rings", {
-  ringColors: ["ab48ff", "e7b2b2", "fffebd"],
+  ringColors: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   ringGap: 0.1,
   spinDuration: 200,
   spinSpeed: [0.25, 1.0],
   disperseDuration: 200,
   spinDisperseCycles: 3,
-  finalGradientStops: ["ab48ff", "e7b2b2", "fffebd"],
+  finalGradientStops: [color("ab48ff"), color("e7b2b2"), color("fffebd")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

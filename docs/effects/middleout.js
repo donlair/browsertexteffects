@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "middleout");
@@ -67,10 +67,10 @@ handle.start();
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "middleout", {
   expandDirection: "horizontal",
-  startingColor: "00ffff",
+  startingColor: color("00ffff"),
   centerMovementSpeed: 0.8,
   fullMovementSpeed: 0.8,
-  finalGradientStops: ["8A008A", "00D1FF", "ffffff"],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

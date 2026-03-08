@@ -40,7 +40,7 @@ export default {
       description: "Easing function applied to the print head carriage return movement.",
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "print");
@@ -50,7 +50,7 @@ handle.start();
 const handle2 = createEffect(el, "Hello!", "print", {
   typingSpeed: 3,
   printHeadReturnSpeed: 2,
-  finalGradientStops: ["02b8bd", "c1f0e3", "00ffa0"],
+  finalGradientStops: [color("02b8bd"), color("c1f0e3"), color("00ffa0")],
   finalGradientDirection: "horizontal",
 });
 handle2.start();`,

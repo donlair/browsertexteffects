@@ -64,7 +64,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "slide");
@@ -76,7 +76,7 @@ const handle2 = createEffect(el, "Hello!", "slide", {
   movementSpeed: 0.8,
   gap: 2,
   merge: true,
-  finalGradientStops: ["833ab4", "fd1d1d", "fcb045"],
+  finalGradientStops: [color("833ab4"), color("fd1d1d"), color("fcb045")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

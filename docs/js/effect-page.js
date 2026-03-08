@@ -191,6 +191,65 @@ function renderEffect(container, effect, name) {
     layout.appendChild(configSection);
   }
 
+  // --- Common Options table ---
+  const commonParams = [
+    { name: 'lineHeight', type: 'number', default: '1.2', description: 'Line height multiplier applied to the rendered text.' },
+    { name: 'fillContainer', type: 'boolean', default: 'false', description: 'When true, pads and centers the text to fill the container dimensions.' },
+    { name: 'extraRows', type: 'number', default: '0', description: 'Additional blank rows added when fillContainer is enabled.' },
+    { name: 'onComplete', type: '() => void', default: '—', description: 'Callback invoked when the animation completes.' },
+  ];
+
+  const commonSection = document.createElement('section');
+  commonSection.className = 'effect-section';
+
+  const commonTitle = document.createElement('h2');
+  commonTitle.className = 'effect-section-title';
+  commonTitle.textContent = 'Common Options';
+
+  const commonSubtitle = document.createElement('p');
+  commonSubtitle.className = 'effect-description';
+  commonSubtitle.textContent = 'Available for all effects.';
+
+  const commonTable = document.createElement('table');
+  commonTable.className = 'effect-config-table';
+
+  const commonThead = document.createElement('thead');
+  const commonHeaderRow = document.createElement('tr');
+  for (const label of ['Parameter', 'Type', 'Default', 'Description']) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    commonHeaderRow.appendChild(th);
+  }
+  commonThead.appendChild(commonHeaderRow);
+  commonTable.appendChild(commonThead);
+
+  const commonTbody = document.createElement('tbody');
+  for (const param of commonParams) {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.className = 'param-name';
+    tdName.textContent = param.name;
+
+    const tdType = document.createElement('td');
+    tdType.className = 'param-type';
+    tdType.textContent = param.type;
+
+    const tdDefault = document.createElement('td');
+    tdDefault.className = 'param-default';
+    tdDefault.textContent = param.default;
+
+    const tdDesc = document.createElement('td');
+    tdDesc.className = 'param-desc';
+    tdDesc.textContent = param.description;
+
+    tr.append(tdName, tdType, tdDefault, tdDesc);
+    commonTbody.appendChild(tr);
+  }
+  commonTable.appendChild(commonTbody);
+  commonSection.append(commonTitle, commonSubtitle, commonTable);
+  layout.appendChild(commonSection);
+
   // --- Prev/Next navigation ---
   const paginationNav = document.createElement('nav');
   paginationNav.className = 'docs-pagination';

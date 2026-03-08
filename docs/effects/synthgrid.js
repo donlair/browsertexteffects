@@ -64,7 +64,7 @@ export default {
       description: "Fraction of total blocks that can be dissolving simultaneously (e.g. 0.1 = 10% of blocks active at once).",
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "synthgrid");
@@ -72,9 +72,9 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "synthgrid", {
-  gridGradientStops: ["CC00CC", "ffffff"],
+  gridGradientStops: [color("CC00CC"), color("ffffff")],
   gridGradientDirection: "diagonal",
-  textGradientStops: ["8A008A", "00D1FF", "ffffff"],
+  textGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   textGradientDirection: "vertical",
   maxActiveBlocks: 0.2,
 });

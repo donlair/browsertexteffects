@@ -58,7 +58,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "rain");
@@ -68,7 +68,7 @@ handle.start();
 const handle2 = createEffect(el, "Hello!", "rain", {
   rainSymbols: ["|", "/", "\\\\", "-"],
   fallSpeed: [0.5, 1.0],
-  finalGradientStops: ["488bff", "b2e7de", "57eaf7"],
+  finalGradientStops: [color("488bff"), color("b2e7de"), color("57eaf7")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

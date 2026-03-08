@@ -46,7 +46,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "smoke");
@@ -55,8 +55,8 @@ handle.start();
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "smoke", {
   smokeSymbols: ["░", "▒", "▓", "▒", "░"],
-  smokeGradientStops: ["242424", "FFFFFF"],
-  finalGradientStops: ["8A008A", "00D1FF", "FFFFFF"],
+  smokeGradientStops: [color("242424"), color("FFFFFF")],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("FFFFFF")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,

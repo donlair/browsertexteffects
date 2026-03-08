@@ -46,7 +46,7 @@ export default {
       description: 'Direction of the final gradient applied across the text. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "wipe");
@@ -57,7 +57,7 @@ const handle2 = createEffect(el, "Hello!", "wipe", {
   wipeDirection: "diagonalTopLeftToBottomRight",
   wipeEase: "inOutCirc",
   wipeDelay: 0,
-  finalGradientStops: ["833ab4", "fd1d1d", "fcb045"],
+  finalGradientStops: [color("833ab4"), color("fd1d1d"), color("fcb045")],
   finalGradientSteps: 12,
   finalGradientFrames: 3,
   finalGradientDirection: "vertical",

@@ -40,7 +40,7 @@ export default {
       description: 'Direction of the final gradient across the canvas. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "blackhole");
@@ -48,8 +48,8 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "blackhole", {
-  blackholeColor: "ff0000",
-  finalGradientStops: ["ff0000", "ffaa00", "ffffff"],
+  blackholeColor: color("ff0000"),
+  finalGradientStops: [color("ff0000"), color("ffaa00"), color("ffffff")],
   finalGradientDirection: "radial",
 });
 handle2.start();`,

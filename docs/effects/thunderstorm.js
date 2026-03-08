@@ -76,7 +76,7 @@ export default {
       description: 'Direction of the final gradient. One of "vertical", "horizontal", "radial", "diagonal".',
     },
   ],
-  usage: `import { createEffect } from "browsertexteffects";
+  usage: `import { createEffect, color } from "browsertexteffects";
 
 const el = document.getElementById("my-text");
 const handle = createEffect(el, "Hello, World!", "thunderstorm");
@@ -84,10 +84,10 @@ handle.start();
 
 // With custom config:
 const handle2 = createEffect(el, "Hello!", "thunderstorm", {
-  lightningColor: "68A3E8",
-  glowingTextColor: "EF5411",
+  lightningColor: color("68A3E8"),
+  glowingTextColor: color("EF5411"),
   stormDuration: 180,
-  finalGradientStops: ["8A008A", "00D1FF", "ffffff"],
+  finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientDirection: "vertical",
 });
 handle2.start();`,
