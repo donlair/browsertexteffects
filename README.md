@@ -2,7 +2,7 @@
 
 37 animated text effects for the browser. Decrypt, matrix, burn, fireworks, rain, and more.
 
-[Live Demo (Effect Showroom)](https://donlair.github.io/browsertexteffects/showroom.html)
+[Live Demo (Effect Showroom)](https://donlair.github.io/browsertexteffects/showroom.html) | [NPM](https://www.npmjs.com/package/browsertexteffects)
 
 ![Thunderstorm effect demo](assets/thunderstorm-demo.gif)
 
@@ -19,13 +19,9 @@ npm install browsertexteffects
 ```
 
 ```js
-import { createEffect } from "browsertexteffects";
+import { createDecryptEffect } from "browsertexteffects/effects/decrypt";
 
-const handle = createEffect(
-  document.getElementById("target"),
-  "Hello, world!",
-  "decrypt"
-);
+const handle = createDecryptEffect(document.getElementById("target"), "Hello, world!");
 
 handle.start();
 ```
@@ -33,13 +29,9 @@ handle.start();
 To trigger an effect when the element scrolls into view:
 
 ```js
-import { createEffectOnScroll } from "browsertexteffects";
+import { createMatrixEffectOnScroll } from "browsertexteffects/effects/matrix";
 
-createEffectOnScroll(
-  document.getElementById("target"),
-  "Hello, world!",
-  "matrix"
-);
+createMatrixEffectOnScroll(document.getElementById("target"), "Hello, world!");
 ```
 
 ### Configuration
@@ -47,12 +39,25 @@ createEffectOnScroll(
 Every effect accepts an optional config object:
 
 ```js
-import { createEffect, defaultDecryptConfig } from "browsertexteffects";
+import { createDecryptEffect, defaultDecryptConfig } from "browsertexteffects/effects/decrypt";
 
-const handle = createEffect(container, text, "decrypt", {
+const handle = createDecryptEffect(container, text, {
   ...defaultDecryptConfig,
-  speed: 2,
+  typingSpeed: 4,
   onComplete: () => console.log("done"),
+});
+```
+
+For advanced composition, the root package exports generic core helpers:
+
+```js
+import { createEffectWith } from "browsertexteffects";
+import { defaultSlideConfig, slideEffect } from "browsertexteffects/effects/slide";
+
+const handle = createEffectWith(container, text, slideEffect, {
+  ...defaultSlideConfig,
+  grouping: "column",
+  reverseDirection: true,
 });
 ```
 
@@ -100,13 +105,29 @@ const handle = createEffect(container, text, "decrypt", {
 
 ## API
 
-### `createEffect(container, text, effectName, config?)`
+### `createEffectWith(container, text, effectDefinition, config?)`
 
-Creates an effect and returns an `EffectHandle` with `start()` and `stop()` methods.
+Creates an effect from an imported `effectDefinition` and returns an `EffectHandle` with `start()` and `stop()` methods.
 
-### `createEffectOnScroll(container, text, effectName, config?)`
+### `createEffectOnScrollWith(container, text, effectDefinition, config?)`
 
-Same as `createEffect`, but automatically starts when the container scrolls into view.
+Same as `createEffectWith`, but automatically starts when the container scrolls into view.
+
+### `browsertexteffects/effects/*`
+
+Each effect has its own tree-shakable subpath, for example:
+
+- `browsertexteffects/effects/decrypt`
+- `browsertexteffects/effects/matrix`
+- `browsertexteffects/effects/slide`
+
+Each subpath exports:
+
+- `create*Effect(...)`
+- `create*EffectOnScroll(...)`
+- `*Effect` descriptor for `createEffectWith(...)`
+- `default*Config`
+- the effect config type and class
 
 ## Credits
 

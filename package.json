@@ -1,8 +1,8 @@
 {
   "name": "browsertexteffects",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "37 animated text effects for the browser — decrypt, matrix, burn, fireworks, and more",
+  "description": "37 animated text effects for the browser. Decrypt, matrix, burn, fireworks, rain, and more.",
   "license": "MIT",
   "author": "Don Lair <don.lair@gmail.com>",
   "repository": {
@@ -25,8 +25,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./effects/*": {
+      "types": "./dist/effects-api/*.d.ts",
+      "import": "./dist/effects-api/*.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -34,10 +43,11 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser && tsc --emitDeclarationOnly",
-    "dev": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser --watch",
-    "docs:build": "esbuild src/index.ts --bundle --format=esm --outfile=docs/lib/bte.js --platform=browser",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "docs:build": "esbuild docs/lib-entry.js --bundle --format=esm --outfile=docs/lib/bte.js --platform=browser",
     "docs:serve": "node scripts/serve-docs.mjs",
+    "check:bundles": "node scripts/check-bundles.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint ./src",
     "lint:fix": "biome lint --write ./src",

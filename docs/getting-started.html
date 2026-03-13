@@ -113,7 +113,7 @@
         <p>Then import in your JavaScript or TypeScript:</p>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";</code></pre>
+          <pre><code class="language-javascript">import { createBeamsEffect } from "browsertexteffects/effects/beams";</code></pre>
           <button class="copy-btn" type="button">Copy</button>
         </div>
 
@@ -130,14 +130,14 @@
           <a href="#basic-usage" class="anchor" aria-hidden="true">#</a>
         </h2>
 
-        <p>Pass a container element, the text to animate, and an effect name. Call <code>start()</code> on the returned handle.</p>
+        <p>Import the effect you want, pass a container element and the text to animate, then call <code>start()</code> on the returned handle.</p>
 
         <div class="docs-split">
           <div class="code-block">
-            <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createBeamsEffect } from "browsertexteffects/effects/beams";
 
 const el = document.getElementById("my-text");
-const handle = createEffect(el, "Hello, World!", "beams");
+const handle = createBeamsEffect(el, "Hello, World!");
 handle.start();
 
 // Stop at any time:
@@ -147,7 +147,7 @@ handle.stop();</code></pre>
           <div class="docs-demo" id="demo-basic"></div>
         </div>
 
-        <p>The <code>createEffect</code> function returns an <a href="./api.html#effect-handle">EffectHandle</a> with two methods:</p>
+        <p>The per-effect helper returns an <a href="./api.html#effect-handle">EffectHandle</a> with two methods:</p>
 
         <ul class="docs-list">
           <li><code>start()</code> — begins the animation. Calling again while already running is a no-op.</li>
@@ -155,7 +155,7 @@ handle.stop();</code></pre>
         </ul>
 
         <div class="docs-note">
-          <strong>Tip:</strong> Try any of the <a href="./api.html#effect-names">37 built-in effect names</a> as the third argument.
+          <strong>Tip:</strong> Every effect has its own tree-shakable subpath export under <code>browsertexteffects/effects/*</code>.
           Browse them all live in the <a href="./showroom.html">Showroom</a>.
         </div>
       </section>
@@ -167,14 +167,14 @@ handle.stop();</code></pre>
           <a href="#custom-config" class="anchor" aria-hidden="true">#</a>
         </h2>
 
-        <p>Every effect accepts an optional config object as the fourth argument. Pass only the properties you want to override — everything else falls back to the effect's defaults.</p>
+        <p>Every effect helper accepts an optional config object. Pass only the properties you want to override — everything else falls back to that effect's defaults.</p>
 
         <div class="docs-split">
           <div class="code-block">
-            <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createSlideEffect } from "browsertexteffects/effects/slide";
 
 const el = document.getElementById("my-text");
-const handle = createEffect(el, "Custom Config", "slide", {
+const handle = createSlideEffect(el, "Custom Config", {
   grouping: "column",
   reverseDirection: true,
 });
@@ -188,11 +188,11 @@ handle.start();</code></pre>
 
         <div class="code-block">
           <pre><code class="language-typescript">import {
-  createEffect,
+  createSlideEffect,
   defaultSlideConfig,
-} from "browsertexteffects";
+} from "browsertexteffects/effects/slide";
 
-const handle = createEffect(el, "Custom Config", "slide", {
+const handle = createSlideEffect(el, "Custom Config", {
   ...defaultSlideConfig,   // spreads all defaults — IDE shows every property
   grouping: "column",
   reverseDirection: true,
@@ -213,19 +213,18 @@ const handle = createEffect(el, "Custom Config", "slide", {
           <a href="#scroll-triggered" class="anchor" aria-hidden="true">#</a>
         </h2>
 
-        <p>Use <code>createEffectOnScroll</code> to automatically start the animation when the container enters the viewport. The effect fires once, when at least 10% of the element becomes visible.</p>
+        <p>Use the per-effect scroll helper to automatically start the animation when the container enters the viewport. The effect fires once, when at least 10% of the element becomes visible.</p>
 
         <div class="docs-split">
           <div class="code-block">
-            <pre><code class="language-javascript">import { createEffectOnScroll } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createDecryptEffectOnScroll } from "browsertexteffects/effects/decrypt";
 
 const el = document.getElementById("my-text");
 
 // Starts automatically when el scrolls into view
-const handle = createEffectOnScroll(
+const handle = createDecryptEffectOnScroll(
   el,
-  "Scroll triggered!",
-  "decrypt"
+  "Scroll triggered!"
 );
 
 // You can still stop it manually:
@@ -235,11 +234,11 @@ handle.stop();</code></pre>
           <div class="docs-demo" id="demo-scroll"></div>
         </div>
 
-        <p><code>createEffectOnScroll</code> returns the same <a href="./api.html#effect-handle">EffectHandle</a> as <code>createEffect</code>. It uses <code>IntersectionObserver</code> internally and disconnects after the first trigger, so the animation plays once per page load.</p>
+        <p><code>createDecryptEffectOnScroll</code> returns the same <a href="./api.html#effect-handle">EffectHandle</a> as the direct helper. It uses <code>IntersectionObserver</code> internally and disconnects after the first trigger, so the animation plays once per page load.</p>
 
         <div class="docs-note">
           <strong>Note:</strong> The demo above plays when it scrolls into view — the same behaviour as
-          <code>createEffectOnScroll</code> on a real page. Use the Replay button to re-run it.
+          <code>createDecryptEffectOnScroll</code> on a real page. Use the Replay button to re-run it.
         </div>
       </section>
 

@@ -57,7 +57,7 @@
         <div class="feature-card">
           <div class="feature-icon">⟨/⟩</div>
           <h3>Simple API</h3>
-          <p>Two functions cover 90% of use cases. Full config control for every effect, plus scroll-triggered animations built in with <code>createEffectOnScroll</code>.</p>
+          <p>Import only the effects you use. Per-effect helpers cover common cases, and the root package exposes the shared runtime for advanced composition.</p>
         </div>
       </div>
     </section>
@@ -68,10 +68,10 @@
         <h2 class="section-title">Quick Usage</h2>
         <div class="usage-split">
           <div class="usage-code">
-            <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
+            <pre><code class="language-javascript">import { createBeamsEffect } from "browsertexteffects/effects/beams";
 
 const el = document.getElementById("my-text");
-const handle = createEffect(el, "Hello, World!", "beams");
+const handle = createBeamsEffect(el, "Hello, World!");
 handle.start();
 
 // Stop at any time:

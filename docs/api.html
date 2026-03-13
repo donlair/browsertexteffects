@@ -261,26 +261,26 @@
 
       <header class="docs-header">
         <h1 class="docs-page-title">API Reference</h1>
-        <p class="docs-page-subtitle">Complete reference for all public exports from <code>browsertexteffects</code> — functions, types, effect names, and default config objects.</p>
+        <p class="docs-page-subtitle">Complete reference for the shared runtime exports from <code>browsertexteffects</code> and the per-effect modules under <code>browsertexteffects/effects/*</code>.</p>
       </header>
 
-      <!-- ========== createEffect ========== -->
+      <!-- ========== createEffectWith ========== -->
       <section id="create-effect" class="docs-section">
         <h2 class="docs-section-title">
-          createEffect
+          createEffectWith
           <a href="#create-effect" class="anchor" aria-hidden="true">#</a>
         </h2>
 
         <div class="api-sig">
-<span class="kw">function</span> <span class="fn">createEffect</span>(<br>
+<span class="kw">function</span> <span class="fn">createEffectWith</span>(<br>
 &nbsp;&nbsp;container: <span class="type">HTMLElement</span>,<br>
 &nbsp;&nbsp;text: <span class="type">string</span>,<br>
-&nbsp;&nbsp;effectName: <span class="type">EffectName</span>,<br>
-&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; fillContainer?: <span class="type">boolean</span>; extraRows?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
+&nbsp;&nbsp;effectDefinition: <span class="type">EffectDefinition&lt;TConfig&gt;</span>,<br>
+&nbsp;&nbsp;config?: <span class="type">Partial&lt;TConfig&gt;</span> &amp; { lineHeight?: <span class="type">number</span>; fillContainer?: <span class="type">boolean</span>; extraRows?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
 ): <span class="type">EffectHandle</span>
         </div>
 
-        <p>Creates an animated text effect inside <code>container</code>. Returns an <a href="#effect-handle">EffectHandle</a> — call <code>start()</code> on it to begin the animation.</p>
+        <p>Creates an animated text effect inside <code>container</code> using an imported effect descriptor. Returns an <a href="#effect-handle">EffectHandle</a> — call <code>start()</code> on it to begin the animation.</p>
 
         <table class="api-table">
           <thead>
@@ -302,14 +302,14 @@
               <td>The text to animate. Multi-line text (with <code>\n</code>) is fully supported.</td>
             </tr>
             <tr>
-              <td>effectName</td>
-              <td>EffectName</td>
-              <td>One of the <a href="#effect-names">37 built-in effect names</a>, e.g. <code>"beams"</code>, <code>"decrypt"</code>.</td>
+              <td>effectDefinition</td>
+              <td>EffectDefinition&lt;TConfig&gt;</td>
+              <td>An effect descriptor imported from a module such as <code>browsertexteffects/effects/beams</code>.</td>
             </tr>
             <tr>
               <td class="optional-badge">config</td>
               <td>object</td>
-              <td>Optional config overrides for the chosen effect. Only provide the properties you want to change — everything else falls back to the effect's defaults. Also accepts <code>lineHeight</code> (number, px, controls row spacing), <code>fillContainer</code> (boolean, pads text to fill the container's parent), <code>extraRows</code> (number, adds padding rows when fillContainer is enabled), and <code>onComplete</code> (callback fired when the animation finishes).</td>
+              <td>Optional config overrides for the imported effect. Only provide the properties you want to change — everything else falls back to that effect's defaults. Also accepts <code>lineHeight</code>, <code>fillContainer</code>, <code>extraRows</code>, and <code>onComplete</code>.</td>
             </tr>
           </tbody>
         </table>
@@ -319,10 +319,11 @@
         </div>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { createEffect } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createEffectWith } from "browsertexteffects";
+import { beamsEffect } from "browsertexteffects/effects/beams";
 
 const el = document.getElementById("my-text");
-const handle = createEffect(el, "Hello, World!", "beams");
+const handle = createEffectWith(el, "Hello, World!", beamsEffect);
 handle.start();
 
 // Stop at any time:
@@ -336,23 +337,23 @@ handle.stop();</code></pre>
         </div>
       </section>
 
-      <!-- ========== createEffectOnScroll ========== -->
+      <!-- ========== createEffectOnScrollWith ========== -->
       <section id="create-effect-on-scroll" class="docs-section">
         <h2 class="docs-section-title">
-          createEffectOnScroll
+          createEffectOnScrollWith
           <a href="#create-effect-on-scroll" class="anchor" aria-hidden="true">#</a>
         </h2>
 
         <div class="api-sig">
-<span class="kw">function</span> <span class="fn">createEffectOnScroll</span>(<br>
+<span class="kw">function</span> <span class="fn">createEffectOnScrollWith</span>(<br>
 &nbsp;&nbsp;container: <span class="type">HTMLElement</span>,<br>
 &nbsp;&nbsp;text: <span class="type">string</span>,<br>
-&nbsp;&nbsp;effectName: <span class="type">EffectName</span>,<br>
-&nbsp;&nbsp;config?: <span class="type">EffectConfig</span> &amp; { lineHeight?: <span class="type">number</span>; fillContainer?: <span class="type">boolean</span>; extraRows?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
+&nbsp;&nbsp;effectDefinition: <span class="type">EffectDefinition&lt;TConfig&gt;</span>,<br>
+&nbsp;&nbsp;config?: <span class="type">Partial&lt;TConfig&gt;</span> &amp; { lineHeight?: <span class="type">number</span>; fillContainer?: <span class="type">boolean</span>; extraRows?: <span class="type">number</span>; onComplete?: () =&gt; <span class="type">void</span> }<br>
 ): <span class="type">EffectHandle</span>
         </div>
 
-        <p>Same signature as <a href="#create-effect"><code>createEffect</code></a>, but the animation starts automatically when the container scrolls into the viewport. Uses <code>IntersectionObserver</code> internally with a 10% threshold; the observer disconnects after the first trigger so the animation plays once per page load.</p>
+        <p>Same signature as <a href="#create-effect"><code>createEffectWith</code></a>, but the animation starts automatically when the container scrolls into the viewport. Uses <code>IntersectionObserver</code> internally with a 10% threshold; the observer disconnects after the first trigger so the animation plays once per page load.</p>
 
         <table class="api-table">
           <thead>
@@ -374,9 +375,9 @@ handle.stop();</code></pre>
               <td>The text to animate.</td>
             </tr>
             <tr>
-              <td>effectName</td>
-              <td>EffectName</td>
-              <td>One of the <a href="#effect-names">37 built-in effect names</a>.</td>
+              <td>effectDefinition</td>
+              <td>EffectDefinition&lt;TConfig&gt;</td>
+              <td>An effect descriptor imported from a tree-shakable effect module.</td>
             </tr>
             <tr>
               <td class="optional-badge">config</td>
@@ -391,12 +392,13 @@ handle.stop();</code></pre>
         </div>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { createEffectOnScroll } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createEffectOnScrollWith } from "browsertexteffects";
+import { decryptEffect } from "browsertexteffects/effects/decrypt";
 
 const el = document.getElementById("my-text");
 
 // Starts automatically when el scrolls into view (10% threshold)
-const handle = createEffectOnScroll(el, "Scroll triggered!", "decrypt");
+const handle = createEffectOnScrollWith(el, "Scroll triggered!", decryptEffect);
 
 // You can still stop it manually:
 handle.stop();</code></pre>
@@ -418,7 +420,7 @@ handle.stop();</code></pre>
 }
         </div>
 
-        <p>Returned by both <a href="#create-effect"><code>createEffect</code></a> and <a href="#create-effect-on-scroll"><code>createEffectOnScroll</code></a>. Provides manual control over the animation loop.</p>
+        <p>Returned by both <a href="#create-effect"><code>createEffectWith</code></a> and <a href="#create-effect-on-scroll"><code>createEffectOnScrollWith</code></a>, as well as the per-effect helper functions. Provides manual control over the animation loop.</p>
 
         <table class="api-table">
           <thead>
@@ -443,64 +445,67 @@ handle.stop();</code></pre>
         </table>
       </section>
 
-      <!-- ========== Effect Names ========== -->
+      <!-- ========== Effect Modules ========== -->
       <section id="effect-names" class="docs-section">
         <h2 class="docs-section-title">
-          Effect Names
+          Effect Modules
           <a href="#effect-names" class="anchor" aria-hidden="true">#</a>
         </h2>
 
-        <p>Pass any of these string literals as the <code>effectName</code> argument to <code>createEffect</code> or <code>createEffectOnScroll</code>. Click a name to see its full config reference and a live demo.</p>
+        <p>Each built-in animation lives in its own tree-shakable module under <code>browsertexteffects/effects/*</code>. Click a name to see its full config reference and a live demo.</p>
 
         <div class="effect-grid">
-          <a href="./effect.html?name=beams">"beams"</a>
-          <a href="./effect.html?name=binarypath">"binarypath"</a>
-          <a href="./effect.html?name=blackhole">"blackhole"</a>
-          <a href="./effect.html?name=bouncyballs">"bouncyballs"</a>
-          <a href="./effect.html?name=bubbles">"bubbles"</a>
-          <a href="./effect.html?name=burn">"burn"</a>
-          <a href="./effect.html?name=colorshift">"colorshift"</a>
-          <a href="./effect.html?name=crumble">"crumble"</a>
-          <a href="./effect.html?name=decrypt">"decrypt"</a>
-          <a href="./effect.html?name=errorcorrect">"errorcorrect"</a>
-          <a href="./effect.html?name=expand">"expand"</a>
-          <a href="./effect.html?name=fireworks">"fireworks"</a>
-          <a href="./effect.html?name=highlight">"highlight"</a>
-          <a href="./effect.html?name=laseretch">"laseretch"</a>
-          <a href="./effect.html?name=matrix">"matrix"</a>
-          <a href="./effect.html?name=middleout">"middleout"</a>
-          <a href="./effect.html?name=orbittingvolley">"orbittingvolley"</a>
-          <a href="./effect.html?name=overflow">"overflow"</a>
-          <a href="./effect.html?name=pour">"pour"</a>
-          <a href="./effect.html?name=print">"print"</a>
-          <a href="./effect.html?name=rain">"rain"</a>
-          <a href="./effect.html?name=randomsequence">"randomsequence"</a>
-          <a href="./effect.html?name=rings">"rings"</a>
-          <a href="./effect.html?name=scattered">"scattered"</a>
-          <a href="./effect.html?name=slice">"slice"</a>
-          <a href="./effect.html?name=slide">"slide"</a>
-          <a href="./effect.html?name=smoke">"smoke"</a>
-          <a href="./effect.html?name=spotlights">"spotlights"</a>
-          <a href="./effect.html?name=spray">"spray"</a>
-          <a href="./effect.html?name=swarm">"swarm"</a>
-          <a href="./effect.html?name=sweep">"sweep"</a>
-          <a href="./effect.html?name=synthgrid">"synthgrid"</a>
-          <a href="./effect.html?name=thunderstorm">"thunderstorm"</a>
-          <a href="./effect.html?name=unstable">"unstable"</a>
-          <a href="./effect.html?name=vhstape">"vhstape"</a>
-          <a href="./effect.html?name=waves">"waves"</a>
-          <a href="./effect.html?name=wipe">"wipe"</a>
+          <a href="./effect.html?name=beams">browsertexteffects/effects/beams</a>
+          <a href="./effect.html?name=binarypath">browsertexteffects/effects/binarypath</a>
+          <a href="./effect.html?name=blackhole">browsertexteffects/effects/blackhole</a>
+          <a href="./effect.html?name=bouncyballs">browsertexteffects/effects/bouncyballs</a>
+          <a href="./effect.html?name=bubbles">browsertexteffects/effects/bubbles</a>
+          <a href="./effect.html?name=burn">browsertexteffects/effects/burn</a>
+          <a href="./effect.html?name=colorshift">browsertexteffects/effects/colorshift</a>
+          <a href="./effect.html?name=crumble">browsertexteffects/effects/crumble</a>
+          <a href="./effect.html?name=decrypt">browsertexteffects/effects/decrypt</a>
+          <a href="./effect.html?name=errorcorrect">browsertexteffects/effects/errorcorrect</a>
+          <a href="./effect.html?name=expand">browsertexteffects/effects/expand</a>
+          <a href="./effect.html?name=fireworks">browsertexteffects/effects/fireworks</a>
+          <a href="./effect.html?name=highlight">browsertexteffects/effects/highlight</a>
+          <a href="./effect.html?name=laseretch">browsertexteffects/effects/laseretch</a>
+          <a href="./effect.html?name=matrix">browsertexteffects/effects/matrix</a>
+          <a href="./effect.html?name=middleout">browsertexteffects/effects/middleout</a>
+          <a href="./effect.html?name=orbittingvolley">browsertexteffects/effects/orbittingvolley</a>
+          <a href="./effect.html?name=overflow">browsertexteffects/effects/overflow</a>
+          <a href="./effect.html?name=pour">browsertexteffects/effects/pour</a>
+          <a href="./effect.html?name=print">browsertexteffects/effects/print</a>
+          <a href="./effect.html?name=rain">browsertexteffects/effects/rain</a>
+          <a href="./effect.html?name=randomsequence">browsertexteffects/effects/randomsequence</a>
+          <a href="./effect.html?name=rings">browsertexteffects/effects/rings</a>
+          <a href="./effect.html?name=scattered">browsertexteffects/effects/scattered</a>
+          <a href="./effect.html?name=slice">browsertexteffects/effects/slice</a>
+          <a href="./effect.html?name=slide">browsertexteffects/effects/slide</a>
+          <a href="./effect.html?name=smoke">browsertexteffects/effects/smoke</a>
+          <a href="./effect.html?name=spotlights">browsertexteffects/effects/spotlights</a>
+          <a href="./effect.html?name=spray">browsertexteffects/effects/spray</a>
+          <a href="./effect.html?name=swarm">browsertexteffects/effects/swarm</a>
+          <a href="./effect.html?name=sweep">browsertexteffects/effects/sweep</a>
+          <a href="./effect.html?name=synthgrid">browsertexteffects/effects/synthgrid</a>
+          <a href="./effect.html?name=thunderstorm">browsertexteffects/effects/thunderstorm</a>
+          <a href="./effect.html?name=unstable">browsertexteffects/effects/unstable</a>
+          <a href="./effect.html?name=vhstape">browsertexteffects/effects/vhstape</a>
+          <a href="./effect.html?name=waves">browsertexteffects/effects/waves</a>
+          <a href="./effect.html?name=wipe">browsertexteffects/effects/wipe</a>
         </div>
 
         <div class="docs-note">
-          <strong>TypeScript:</strong> The <code>EffectName</code> union type is exported from <code>browsertexteffects</code>, giving you autocomplete for all 37 names.
+          <strong>TypeScript:</strong> Each subpath exports a typed effect descriptor, config type, and helper functions. Importing the module gives you full autocomplete for that effect only.
         </div>
 
         <div class="code-block">
-          <pre><code class="language-typescript">import type { EffectName } from "browsertexteffects";
+          <pre><code class="language-typescript">import { beamsEffect } from "browsertexteffects/effects/beams";
+import type { BeamsConfig } from "browsertexteffects/effects/beams";
 
-// TypeScript will enforce that myEffect is a valid effect name:
-const myEffect: EffectName = "beams";</code></pre>
+const effect = beamsEffect;
+const config: Partial&lt;BeamsConfig&gt; = {
+  beamDelay: 3,
+};</code></pre>
           <button class="copy-btn" type="button">Copy</button>
         </div>
       </section>
@@ -551,9 +556,10 @@ const myEffect: EffectName = "beams";</code></pre>
         </table>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { color, createEffect } from "browsertexteffects";
+          <pre><code class="language-javascript">import { color } from "browsertexteffects";
+import { createBeamsEffect } from "browsertexteffects/effects/beams";
 
-const handle = createEffect(el, "Hello!", "beams", {
+const handle = createBeamsEffect(el, "Hello!", {
   finalGradientStops: [
     color("#8A008A"),
     color("00D1FF"),
@@ -659,9 +665,10 @@ const handle = createEffect(el, "Hello!", "beams", {
         <p>BrowserTextEffects exports a full set of standard easing functions via the <code>easing</code> namespace:</p>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { easing, createEffect } from "browsertexteffects";
+          <pre><code class="language-javascript">import { easing } from "browsertexteffects";
+import { createSlideEffect } from "browsertexteffects/effects/slide";
 
-const handle = createEffect(el, "Hello!", "slide", {
+const handle = createSlideEffect(el, "Hello!", {
   easing: easing.outBounce,
 });</code></pre>
           <button class="copy-btn" type="button">Copy</button>
@@ -756,15 +763,16 @@ const handle = createEffect(el, "Hello!", "slide", {
         </table>
 
         <div class="docs-note">
-          <strong>Tip:</strong> The exact properties available for each effect are documented on each effect's page. Click any effect name in the <a href="#effect-names">Effect Names</a> grid above to see its full config table.
+          <strong>Tip:</strong> The exact properties available for each effect are documented on each effect's page. Click any module in the <a href="#effect-names">Effect Modules</a> grid above to see its full config table.
         </div>
 
         <p>Example combining multiple common patterns:</p>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { createEffect, color, easing } from "browsertexteffects";
+          <pre><code class="language-javascript">import { color, easing } from "browsertexteffects";
+import { createSweepEffect } from "browsertexteffects/effects/sweep";
 
-const handle = createEffect(el, "Hello, World!", "sweep", {
+const handle = createSweepEffect(el, "Hello, World!", {
   // Final gradient: purple → cyan → white, top to bottom
   finalGradientStops: [color("8A008A"), color("00D1FF"), color("ffffff")],
   finalGradientSteps: 12,
@@ -792,12 +800,12 @@ handle.start();</code></pre>
           <a href="#default-configs" class="anchor" aria-hidden="true">#</a>
         </h2>
 
-        <p>Every effect exports a <code>default*Config</code> object containing its default values. Spread it into your config to get full IDE autocompletion over all available properties:</p>
+        <p>Every effect module exports a <code>default*Config</code> object containing its default values. Spread it into your config to get full IDE autocompletion over all available properties:</p>
 
         <div class="code-block">
-          <pre><code class="language-javascript">import { createEffect, defaultBeamsConfig } from "browsertexteffects";
+          <pre><code class="language-javascript">import { createBeamsEffect, defaultBeamsConfig } from "browsertexteffects/effects/beams";
 
-const handle = createEffect(el, "Hello!", "beams", {
+const handle = createBeamsEffect(el, "Hello!", {
   ...defaultBeamsConfig,   // IDE shows every beams property
   beamDelay: 3,            // override just what you need
 });</code></pre>
@@ -810,56 +818,56 @@ const handle = createEffect(el, "Hello!", "beams", {
           <thead>
             <tr>
               <th>Export</th>
-              <th>Effect name</th>
+              <th>Module</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>defaultBeamsConfig</td><td>"beams"</td></tr>
-            <tr><td>defaultBinaryPathConfig</td><td>"binarypath"</td></tr>
-            <tr><td>defaultBlackholeConfig</td><td>"blackhole"</td></tr>
-            <tr><td>defaultBouncyBallsConfig</td><td>"bouncyballs"</td></tr>
-            <tr><td>defaultBubblesConfig</td><td>"bubbles"</td></tr>
-            <tr><td>defaultBurnConfig</td><td>"burn"</td></tr>
-            <tr><td>defaultColorShiftConfig</td><td>"colorshift"</td></tr>
-            <tr><td>defaultCrumbleConfig</td><td>"crumble"</td></tr>
-            <tr><td>defaultDecryptConfig</td><td>"decrypt"</td></tr>
-            <tr><td>defaultErrorCorrectConfig</td><td>"errorcorrect"</td></tr>
-            <tr><td>defaultExpandConfig</td><td>"expand"</td></tr>
-            <tr><td>defaultFireworksConfig</td><td>"fireworks"</td></tr>
-            <tr><td>defaultHighlightConfig</td><td>"highlight"</td></tr>
-            <tr><td>defaultLaserEtchConfig</td><td>"laseretch"</td></tr>
-            <tr><td>defaultMatrixConfig</td><td>"matrix"</td></tr>
-            <tr><td>defaultMiddleOutConfig</td><td>"middleout"</td></tr>
-            <tr><td>defaultOrbittingVolleyConfig</td><td>"orbittingvolley"</td></tr>
-            <tr><td>defaultOverflowConfig</td><td>"overflow"</td></tr>
-            <tr><td>defaultPourConfig</td><td>"pour"</td></tr>
-            <tr><td>defaultPrintConfig</td><td>"print"</td></tr>
-            <tr><td>defaultRainConfig</td><td>"rain"</td></tr>
-            <tr><td>defaultRandomSequenceConfig</td><td>"randomsequence"</td></tr>
-            <tr><td>defaultRingsConfig</td><td>"rings"</td></tr>
-            <tr><td>defaultScatteredConfig</td><td>"scattered"</td></tr>
-            <tr><td>defaultSliceConfig</td><td>"slice"</td></tr>
-            <tr><td>defaultSlideConfig</td><td>"slide"</td></tr>
-            <tr><td>defaultSmokeConfig</td><td>"smoke"</td></tr>
-            <tr><td>defaultSpotlightsConfig</td><td>"spotlights"</td></tr>
-            <tr><td>defaultSprayConfig</td><td>"spray"</td></tr>
-            <tr><td>defaultSwarmConfig</td><td>"swarm"</td></tr>
-            <tr><td>defaultSweepConfig</td><td>"sweep"</td></tr>
-            <tr><td>defaultSynthGridConfig</td><td>"synthgrid"</td></tr>
-            <tr><td>defaultThunderstormConfig</td><td>"thunderstorm"</td></tr>
-            <tr><td>defaultUnstableConfig</td><td>"unstable"</td></tr>
-            <tr><td>defaultVhstapeConfig</td><td>"vhstape"</td></tr>
-            <tr><td>defaultWavesConfig</td><td>"waves"</td></tr>
-            <tr><td>defaultWipeConfig</td><td>"wipe"</td></tr>
+            <tr><td>defaultBeamsConfig</td><td><code>browsertexteffects/effects/beams</code></td></tr>
+            <tr><td>defaultBinaryPathConfig</td><td><code>browsertexteffects/effects/binarypath</code></td></tr>
+            <tr><td>defaultBlackholeConfig</td><td><code>browsertexteffects/effects/blackhole</code></td></tr>
+            <tr><td>defaultBouncyBallsConfig</td><td><code>browsertexteffects/effects/bouncyballs</code></td></tr>
+            <tr><td>defaultBubblesConfig</td><td><code>browsertexteffects/effects/bubbles</code></td></tr>
+            <tr><td>defaultBurnConfig</td><td><code>browsertexteffects/effects/burn</code></td></tr>
+            <tr><td>defaultColorShiftConfig</td><td><code>browsertexteffects/effects/colorshift</code></td></tr>
+            <tr><td>defaultCrumbleConfig</td><td><code>browsertexteffects/effects/crumble</code></td></tr>
+            <tr><td>defaultDecryptConfig</td><td><code>browsertexteffects/effects/decrypt</code></td></tr>
+            <tr><td>defaultErrorCorrectConfig</td><td><code>browsertexteffects/effects/errorcorrect</code></td></tr>
+            <tr><td>defaultExpandConfig</td><td><code>browsertexteffects/effects/expand</code></td></tr>
+            <tr><td>defaultFireworksConfig</td><td><code>browsertexteffects/effects/fireworks</code></td></tr>
+            <tr><td>defaultHighlightConfig</td><td><code>browsertexteffects/effects/highlight</code></td></tr>
+            <tr><td>defaultLaserEtchConfig</td><td><code>browsertexteffects/effects/laseretch</code></td></tr>
+            <tr><td>defaultMatrixConfig</td><td><code>browsertexteffects/effects/matrix</code></td></tr>
+            <tr><td>defaultMiddleOutConfig</td><td><code>browsertexteffects/effects/middleout</code></td></tr>
+            <tr><td>defaultOrbittingVolleyConfig</td><td><code>browsertexteffects/effects/orbittingvolley</code></td></tr>
+            <tr><td>defaultOverflowConfig</td><td><code>browsertexteffects/effects/overflow</code></td></tr>
+            <tr><td>defaultPourConfig</td><td><code>browsertexteffects/effects/pour</code></td></tr>
+            <tr><td>defaultPrintConfig</td><td><code>browsertexteffects/effects/print</code></td></tr>
+            <tr><td>defaultRainConfig</td><td><code>browsertexteffects/effects/rain</code></td></tr>
+            <tr><td>defaultRandomSequenceConfig</td><td><code>browsertexteffects/effects/randomsequence</code></td></tr>
+            <tr><td>defaultRingsConfig</td><td><code>browsertexteffects/effects/rings</code></td></tr>
+            <tr><td>defaultScatteredConfig</td><td><code>browsertexteffects/effects/scattered</code></td></tr>
+            <tr><td>defaultSliceConfig</td><td><code>browsertexteffects/effects/slice</code></td></tr>
+            <tr><td>defaultSlideConfig</td><td><code>browsertexteffects/effects/slide</code></td></tr>
+            <tr><td>defaultSmokeConfig</td><td><code>browsertexteffects/effects/smoke</code></td></tr>
+            <tr><td>defaultSpotlightsConfig</td><td><code>browsertexteffects/effects/spotlights</code></td></tr>
+            <tr><td>defaultSprayConfig</td><td><code>browsertexteffects/effects/spray</code></td></tr>
+            <tr><td>defaultSwarmConfig</td><td><code>browsertexteffects/effects/swarm</code></td></tr>
+            <tr><td>defaultSweepConfig</td><td><code>browsertexteffects/effects/sweep</code></td></tr>
+            <tr><td>defaultSynthGridConfig</td><td><code>browsertexteffects/effects/synthgrid</code></td></tr>
+            <tr><td>defaultThunderstormConfig</td><td><code>browsertexteffects/effects/thunderstorm</code></td></tr>
+            <tr><td>defaultUnstableConfig</td><td><code>browsertexteffects/effects/unstable</code></td></tr>
+            <tr><td>defaultVhstapeConfig</td><td><code>browsertexteffects/effects/vhstape</code></td></tr>
+            <tr><td>defaultWavesConfig</td><td><code>browsertexteffects/effects/waves</code></td></tr>
+            <tr><td>defaultWipeConfig</td><td><code>browsertexteffects/effects/wipe</code></td></tr>
           </tbody>
         </table>
 
         <div class="docs-note">
-          <strong>TypeScript:</strong> Config type interfaces (<code>BeamsConfig</code>, <code>SlideConfig</code>, etc.) are also exported for use in typed functions or components.
+          <strong>TypeScript:</strong> Config type interfaces (<code>BeamsConfig</code>, <code>SlideConfig</code>, etc.) are exported from each effect module for use in typed functions or components.
         </div>
 
         <div class="code-block">
-          <pre><code class="language-typescript">import type { BeamsConfig } from "browsertexteffects";
+          <pre><code class="language-typescript">import type { BeamsConfig } from "browsertexteffects/effects/beams";
 
 function applyBeams(el: HTMLElement, text: string, config: Partial&lt;BeamsConfig&gt;) {
   // ...

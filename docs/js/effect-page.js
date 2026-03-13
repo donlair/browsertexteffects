@@ -10,6 +10,36 @@
 import { EFFECTS, getAdjacentEffects } from '../effects/_registry.js';
 import { createPlayground } from './effect-playground.js';
 
+const EXPORT_NAME_OVERRIDES = {
+  vhstape: 'Vhstape',
+};
+
+function getEffectExportStem(key, label) {
+  if (EXPORT_NAME_OVERRIDES[key]) return EXPORT_NAME_OVERRIDES[key];
+  return label.replace(/[^A-Za-z0-9]+/g, ' ').trim().split(/\s+/).map((part) => (
+    part.charAt(0).toUpperCase() + part.slice(1)
+  )).join('');
+}
+
+function buildUsageSnippet(key, label) {
+  const exportStem = getEffectExportStem(key, label);
+  const factoryName = `create${exportStem}Effect`;
+  const configName = `default${exportStem}Config`;
+
+  return `import { ${factoryName}, ${configName} } from "browsertexteffects/effects/${key}";
+
+const el = document.getElementById("my-text");
+const handle = ${factoryName}(el, "Hello, World!");
+handle.start();
+
+// With custom config:
+const handle2 = ${factoryName}(el, "Hello!", {
+  ...${configName},
+  onComplete: () => console.log("done"),
+});
+handle2.start();`;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const name = params.get('name');
@@ -296,7 +326,7 @@ function renderEffect(container, effect, name) {
   createPlayground(playgroundContainer, {
     text: 'BrowserTextEffects',
     effect: name,
-    usage: effect.usage,
+    usage: buildUsageSnippet(name, effect.name),
     autoplay: true,
   });
 }
